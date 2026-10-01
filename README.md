@@ -31,18 +31,12 @@ Die App läuft auf `127.0.0.1:8010` und ist nur lokal auf dem Server erreichbar.
 
 ```
 cd ~/apps
-git clone https://github.com/Hauusi/Preisliste.git preisliste
-cd preisliste
-git checkout ccr-71bf8639-od7ces
-cd deploy
-mkdir -p data ollama && chown 10001:10001 data
-
-# Einmalig: Modell laden (ca. 2 GB Download, braucht Internet; danach hat Ollama keinen Internetzugang mehr)
-docker compose --profile setup run --rm ollama-setup
-
-docker compose up -d --build
-docker compose exec app python -m backend.cli create-admin <name>
+git clone -b ccr-71bf8639-od7ces https://github.com/Hauusi/Preisliste.git preisliste
+sudo bash preisliste/deploy/install.sh          # Swap, Modell, Bauen, Start, Admin anlegen
+sudo bash preisliste/deploy/switch-nginx.sh     # Domain auf neue App umstellen, alte App stoppen
 ```
+
+Update: `cd ~/apps/preisliste && git pull && sudo bash deploy/install.sh`
 
 Ohne Modell oder ohne Ollama läuft die App trotzdem vollständig, die KI-Knöpfe werden dann ausgeblendet.
 
