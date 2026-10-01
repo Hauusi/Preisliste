@@ -19,7 +19,7 @@ Status: **wartet auf Freigabe**. Noch kein Anwendungscode.
 - **Geschäftsdaten verlassen den Arbeitsplatz-PC** und liegen auf dem Hetzner-Server. §1 ("Daten verlassen das lokale System nicht") gilt ab jetzt sinngemäß für den **Server**: Die Daten verlassen den Server nicht. Es gibt keine Cloud-KI, keine externen APIs und keine Telemetrie.
 - **§13 (Windows-Installer, Offline-Paket)** entfällt und wird durch Gruppe D "Server-Deployment" ersetzt.
 - **§8 Statusanzeige "OFFLINE"** passt nicht mehr. Ersatz: Statusanzeige "KI aktiv / inaktiv" und "keine externen Verbindungen" (Ollama läuft ohne Internetzugang, siehe 3.3).
-- **§2.8 (nur 127.0.0.1)** wird so umgesetzt: Aus dem Internet erreichbar ist nur der Reverse-Proxy (Caddy) auf Port 80/443. App und Ollama veröffentlichen keine Ports nach außen. Erklärung in 3.2.
+- **§2.8 (nur 127.0.0.1)** wird wörtlich erfüllt: Die App veröffentlicht ihren Port nur auf 127.0.0.1, das vorhandene nginx leitet von 80/443 dorthin weiter. Ollama veröffentlicht keinen Port. Erklärung in 3.2.
 
 ---
 
@@ -47,35 +47,50 @@ Die Referenzrechnung aus §5 ist in sich stimmig: 100,00 − 15 % = 85,00; 4 % v
 
 ## 3. Architektur
 
+### 3.0 Serverbefund (2026-10-01)
+
+- Ubuntu 24.04, 4 CPU-Kerne, 7,6 GB RAM (ca. 5,3 GB verfügbar), **kein Swap**, 17 GB Platte frei (78 % belegt).
+- **nginx** belegt bereits 80/443. Zertifikat für `salesassistent.duckdns.org` existiert unter `/etc/letsencrypt/live/`.
+- Alte App in `~/apps/salesassistent` (Next.js + FastAPI + Postgres + Redis, Docker Compose). Sie wird ersetzt.
+- Weitere Dienste auf dem Host (Postgres auf 127.0.0.1:5433, Node auf 3001/4416, warp-svc), die nicht zu diesem Projekt gehören und nicht angefasst werden.
+- **Sicherheitsbefund:** Die alte App veröffentlicht Postgres (Passwort `postgres`) und Redis (ohne Passwort) auf `0.0.0.0`. Docker umgeht dabei `ufw`.
+
 ### 3.1 Überblick
 
 ```
-Internet ──443/80──> Caddy (TLS, Let's Encrypt)
-                       │  internes Docker-Netz "web"
+Internet ──443/80──> nginx (Host, vorhandenes Let's-Encrypt-Zertifikat)
+                       │  proxy_pass http://127.0.0.1:8010
                        v
-                     App (FastAPI + Uvicorn, 1 Prozess)
+                     App-Container (FastAPI + Uvicorn, 1 Prozess)
+                       │  Port nur auf 127.0.0.1:8010 veröffentlicht
                        │  ├─ SQLite (Volume /data)
                        │  ├─ Upload-/Export-Ordner (Volume)
                        │  └─ Hintergrund-Worker (Thread, Job-Tabelle)
                        │  internes Docker-Netz "ai" (ohne Internet)
                        v
-                     Ollama (Modell z. B. llama3.2:3b)
+                     Ollama-Container (llama3.2:3b, Speicherlimit 4 GB)
 ```
 
 ### 3.2 Netzwerk und §2.8
 
-- **Docker Compose** mit drei Diensten: `caddy`, `app`, `ollama`.
-- Nur `caddy` veröffentlicht Ports (80, 443).
-- `app` lauscht im Container auf `0.0.0.0:8000`. Das ist in Docker nötig, damit Caddy die App erreicht. Nach außen ist der Port trotzdem nicht erreichbar, weil er nicht veröffentlicht wird. Das ist die einzige wörtliche Abweichung von §2.8. Der Zweck der Regel (nicht aus dem Netz erreichbar) bleibt erfüllt.
-  Alternative ohne Docker: App per systemd direkt auf `127.0.0.1:8000`, Caddy auf dem Host. Das erfüllt §2.8 wörtlich, Updates und Wiederherstellung sind dann aber aufwendiger. **Empfehlung: Docker.**
-- `ollama` hängt nur am Netz `ai`, das mit `internal: true` angelegt wird, also ohne Internetzugang. Das Modell wird einmalig bei der Installation geladen, mit einem separaten Befehl, der zeitweise Internet hat.
-- Firewall (Hetzner Cloud Firewall oder `ufw`): eingehend nur 22, 80, 443.
+- **Docker Compose** mit zwei Diensten: `app`, `ollama`. Den Reverse-Proxy übernimmt das vorhandene nginx auf dem Host.
+- `app` veröffentlicht ihren Port nur als `127.0.0.1:8010:8000`. Damit ist §2.8 auf Host-Ebene wörtlich erfüllt: Der Port ist nur lokal erreichbar, nginx leitet weiter.
+- `ollama` veröffentlicht keinen Port und hängt nur am Netz `ai`, das mit `internal: true` angelegt wird, also ohne Internetzugang. Das Modell wird einmalig bei der Installation geladen, mit einem separaten Befehl, der zeitweise Internet hat.
+- Ressourcen: Für `ollama` gilt `mem_limit: 4g`. Auf dem Host werden **4 GB Swap** angelegt, damit Lastspitzen keine anderen Dienste beenden. Das Modell wird nach 5 Minuten Leerlauf entladen (`OLLAMA_KEEP_ALIVE=5m`).
+- Firewall: In der Hetzner Cloud Firewall eingehend nur 22, 80 und 443 freigeben. `ufw` allein reicht nicht, weil Docker es umgeht.
 
 ### 3.3 Domain und TLS
 
-- `salesassistent.duckdns.org` muss per A-Record auf die öffentliche IPv4 des Servers zeigen. Das stellt man im DuckDNS-Konto ein. Hetzner-IPs sind fest, ein Update-Dienst ist daher nicht nötig.
-- Caddy holt das Zertifikat automatisch über Let's Encrypt (HTTP-01). Dafür muss Port 80 offen sein.
-- Header: HSTS, `X-Frame-Options: DENY`, eine strikte Content-Security-Policy, keine externen Skripte oder CDNs (alles wird mitgeliefert).
+- DNS und Zertifikat sind schon vorhanden. Die Erneuerung läuft über certbot und bleibt unverändert.
+- Der nginx-Serverblock für die Domain bleibt erhalten. Bei der Umstellung wird nur `proxy_pass` auf `http://127.0.0.1:8010` geändert, ergänzt um `client_max_body_size 25m` und Sicherheitsheader (HSTS, `X-Frame-Options: DENY`, CSP).
+- Keine externen Skripte oder CDNs, alles wird von der App selbst ausgeliefert.
+
+### 3.3a Umstellung von der alten App
+
+1. Die neue App läuft parallel auf `127.0.0.1:8010` und wird getestet (Gruppe D).
+2. Sicherung: `tar` des alten Ordners und `pg_dump` der alten Datenbank.
+3. nginx auf 8010 umstellen, `nginx -t && systemctl reload nginx`.
+4. Alte Container mit `docker compose down` stoppen und Ordner sowie Volumes löschen.
 
 ### 3.4 Anmeldung und Sicherheit
 
@@ -101,7 +116,7 @@ Internet ──443/80──> Caddy (TLS, Let's Encrypt)
 | Validierung | pydantic v2 | Vorgabe |
 | KI | Ollama HTTP-API mit `format` = JSON-Schema | Vorgabe |
 | Tests | pytest | Vorgabe |
-| Betrieb | Docker Compose, Caddy | Siehe 3.2 |
+| Betrieb | Docker Compose, vorhandenes nginx | Siehe 3.2 |
 
 Eine Lizenz- und Telemetrieprüfung aller Abhängigkeiten folgt in Gruppe D als `docs/abhaengigkeiten.md`.
 
@@ -173,11 +188,11 @@ Alle Endpunkte außer `/login` und `/health` verlangen eine gültige Session. Sc
 
 | Risiko | Auswirkung | Gegenmaßnahme |
 |---|---|---|
-| Servergröße unbekannt | Ollama läuft nicht oder sehr langsam | Zuerst Specs prüfen (F1). Die App läuft ohne KI vollständig (§2.1) |
+| 7,6 GB RAM, kein Swap, geteilt mit anderen Diensten | Speichermangel, Prozesse werden beendet | Swap 4 GB, `mem_limit` für Ollama, Modell nur bei Bedarf geladen. Die App läuft ohne KI vollständig (§2.1) |
 | Öffentlich erreichbar | Angriffe, Passwort-Raten | Login, Rate-Limit, Sperre, TLS, Firewall, Updates |
 | Daten auf dem Server | Verlust oder Diebstahl | Tägliches Backup der SQLite-DB (Ziel: **F9**), Volumes nur für root lesbar, SSH nur mit Schlüssel |
 | DuckDNS fällt aus | Domain nicht erreichbar | Kostenloser Dienst ohne Garantie; später eigene Domain möglich, ohne Änderung an der App |
-| Let's Encrypt scheitert | Kein HTTPS | Port 80 muss offen sein, DNS muss vorher stimmen; Prüfschritt im Installationsskript |
+| Platte zu 78 % belegt | Kein Platz für Modell, Images, Backups | Alte App samt Images und Volumes entfernen, Docker-Images regelmäßig aufräumen |
 | KI-Confidence unkalibriert | Falsche Zuordnungen | Nie automatisch übernehmen (§2.5), nur zur Sortierung |
 | Excel-Vielfalt | Falsch erkannte Spalten | Bestätigung in der Vorschau ist Pflicht; Tests mit echten anonymisierten Listen in `tests/data/` |
 | SQLite bei mehreren Benutzern | Schreibsperren | WAL-Modus, ein Worker; bei Bedarf später PostgreSQL |
@@ -203,7 +218,7 @@ Preisliste/
     manufacturers/
   frontend/         # Jinja2-Templates, CSS, htmx.min.js (lokal)
   config/           # header_synonyms.yaml, manufacturers/, rules/
-  deploy/           # docker-compose.yml, Caddyfile, Dockerfile, install.sh, backup.sh  (neu)
+  deploy/           # docker-compose.yml, Dockerfile, nginx-Snippet, install.sh, backup.sh  (neu)
   tests/  (inkl. data/)
   docs/
   requirements.txt
@@ -221,7 +236,7 @@ Abweichung vom Prompt: Das Verzeichnis heißt nicht `price-ai/`, sondern liegt d
 | **A** | Grundprojekt, DB-Schema + Migrationen, **Login/Benutzer**, Excel-Import, deutsche Zahlenformate, Spaltenerkennung (Synonyme + Heuristik), Import-Vorschau | pytest: Zahlenformate, Layouts, kaputte Dateien, .xls/.xlsm-Ablehnung, Zip-Bombe, Login/Sperre/CSRF |
 | **B** | Regelengine (Decimal, Versionierung, Rechenweg, simpleeval), Matching-Kaskade, Vorjahresvergleich | pytest: Referenzbeispiele, Rundungsrandfälle, Pro-Schritt vs. Ende, Staffeln, Statuslogik |
 | **C** | AIProvider (Ollama, Mock), Jobs mit Fortschritt/Abbruch, vollständige UI | pytest mit MockProvider inkl. ungültiger JSON-Antworten; manuelle UI-Prüfung |
-| **D** | Excel-Export (formelsicher), Belastungstest 50.000 Zeilen, **Docker-Deployment, Caddy, Installationsskript, Backup**, Lizenzprüfung, Betriebsanleitung | pytest Export/Injektion, gemessene Laufzeiten, Probeinstallation auf frischem Ubuntu |
+| **D** | Excel-Export (formelsicher), Belastungstest 50.000 Zeilen, **Docker-Deployment, nginx-Umstellung, Installationsskript, Backup**, Lizenzprüfung, Betriebsanleitung | pytest Export/Injektion, gemessene Laufzeiten, Probeinstallation auf frischem Ubuntu |
 
 Nach jeder Gruppe gibt es einen kurzen Bericht und es wird auf Freigabe gewartet.
 
@@ -229,16 +244,7 @@ Nach jeder Gruppe gibt es einen kurzen Bericht und es wird auf Freigabe gewartet
 
 ## 9. Offene Fragen (vor Gruppe A bzw. B zu klären)
 
-**F1 – Server (nötig vor Gruppe D, hilfreich schon jetzt).** Bitte auf dem Server ausführen und die Ausgabe schicken:
-```
-cat /etc/os-release | head -3
-nproc
-free -h
-df -h /
-ss -tlnp
-docker --version
-```
-Für Ollama mit einem 3B-Modell sollten es mindestens 8 GB RAM sein, besser 16 GB. Mit 4 GB läuft die App, die KI aber nicht sinnvoll.
+**F1 – Server.** Geklärt, siehe 3.0.
 
 **F2 – Führende Nullen.** Sind `00123` und `123` derselbe Artikel? Vorschlag: Beim normalisierten Match nur dann gleichsetzen, wenn der Rest rein numerisch ist, und das pro Hersteller abschaltbar machen.
 
