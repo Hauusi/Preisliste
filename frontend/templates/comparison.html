@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Vergleich{% endblock %}
+{% block content %}
+{% set s = cmp.summary or {} %}
+<h1>Vergleich: {{ cmp.old_list.name }} → {{ cmp.new_list.name }}</h1>
+<p class="hint">Preis {{ cmp.price_type }}{% if cmp.rule_version %} (Regel-Version v{{ cmp.rule_version.version }}){% endif %} · Menge {{ cmp.quantity }} · Hersteller {{ cmp.manufacturer.name if cmp.manufacturer else "alle" }} · berechnet {{ (cmp.updated_at or cmp.created_at) | dt }}</p>
+<div class="stats">
+  <a class="stat" href="?"><span>{{ s.analysiert }}</span>analysiert</a>
+  {% for st in statuses %}<a class="stat {{ st }}" href="?status={{ st }}"><span>{{ s[st] }}</span>{{ labels[st] }}</a>{% endfor %}
+</div>
+<form method="get" class="card row">
+  <label>Status <select name="status"><option value="">alle</option><option value="UNKLAR" {% if filters.status == "UNKLAR" %}selected{% endif %}>unklar (nicht eindeutig + Fehler)</option>{% for st in statuses %}<option value="{{ st }}" {% if filters.status == st %}selected{% endif %}>{{ labels[st] }}</option>{% endfor %}</select></label>
+  <label>Hersteller <select name="manufacturer"><option value="">alle</option>{% for mid, name in manufacturers.items() %}<option value="{{ mid }}" {% if filters.manufacturer == mid|string %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+  <label>Kategorie <select name="category"><option value="">alle</option>{% for c in categories %}<option {% if filters.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+  <label>Preis von <input name="pmin" value="{{ filters.pmin }}" size="7"></label>
+  <label>bis <input name="pmax" value="{{ filters.pmax }}" size="7"></label>
+  <label>Suche <input name="q" value="{{ filters.q }}" maxlength="100"></label>
+  <button type="submit" class="secondary">Filtern</button>
+</form>
+{% set base_query = (filters | urlencode) ~ "&" %}
+{% set back = "/vergleiche/" ~ cmp.id ~ "?" ~ base_query ~ "page=" ~ info.page %}
+{% include "_pager.html" %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Artikelnummer</th><th>Hersteller</th><th>Bezeichnung</th><th>Staffel</th><th>Alt</th><th>Neu</th><th>Differenz</th><th>%</th><th>Status</th><th>Hinweis / Zuordnung</th></tr></thead>
+  <tbody>
+  {% for i in rows %}
+    <tr>
+      <td>{{ i.article_number or "" }}{% if i.old_article and i.new_article and i.old_article.article_number != i.new_article.article_number %}<div class="small">alt: {{ i.old_article.article_number }}</div>{% endif %}</td>
+      <td>{{ manufacturers.get(i.manufacturer_id, "") }}</td>
+      <td>{{ i.description or "" }}</td>
+      <td>{{ "ab " ~ i.min_quantity if i.min_quantity is not none else "" }}</td>
+      <td class="num">{{ i.old_amount | money }}</td><td class="num">{{ i.new_amount | money }}</td>
+      <td class="num">{{ i.difference | money }}</td><td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
+      <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>{% if i.match_method %}<div class="small">{{ i.match_method }}</div>{% endif %}</td>
+      <td class="small">
+        {% if i.note %}{{ i.note }}{% endif %}
+        {% if i.changed_fields %}<div>Geändert: {{ i.changed_fields | join(", ") }}</div>{% endif %}
+        {% if i.status == "NICHT_EINDEUTIG" and i.candidates and i.match_method != "DOPPELT" %}
+          <form method="post" action="/vergleiche/{{ cmp.id }}/eintrag/{{ i.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="back" value="{{ back }}">
+            {% for c in i.candidates %}<label class="inline-label"><input type="radio" name="old_id" value="{{ c.old_id }}" required> {{ c.number }} – {{ c.description or "" }} (Score {{ c.score }})</label>{% endfor %}
+            <label class="inline-label"><input type="radio" name="old_id" value="keiner"> keiner (neuer Artikel)</label>
+            <button type="submit" class="secondary">Bestätigen</button>
+          </form>
+        {% elif i.candidates %}
+          <div>Kandidaten: {% for c in i.candidates %}{{ c.number }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="10">Keine Einträge.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% include "_pager.html" %}
+<form method="post" action="/vergleiche/{{ cmp.id }}/neu-berechnen" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Neu berechnen</button>
+</form>
+{% endblock %}

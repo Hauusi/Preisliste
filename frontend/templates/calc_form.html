@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Kalkulation{% endblock %}
+{% block content %}
+<h1>Kalkulation: {{ pl.name }}</h1>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Regel
+    <select name="rule_id" required><option value="">– wählen –</option>
+      {% for r in rules %}<option value="{{ r.id }}">{{ r.name }} (v{{ r.current_version }}{% if r.manufacturer %}, {{ r.manufacturer.name }}{% endif %})</option>{% endfor %}
+    </select>
+  </label>
+  <label>Menge (für Staffeln) <input name="quantity" value="1"></label>
+  <button type="submit">Kalkulieren</button>
+</form>
+{% if not rules %}<p class="hint">Noch keine Regeln. <a href="/regeln">Regeln anlegen</a></p>{% endif %}
+<h2>Bisherige Kalkulationen</h2>
+<table>
+  <thead><tr><th>Datum</th><th>Regel</th><th>Version</th><th>Menge</th><th>Artikel</th><th>Fehler</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr><td><a href="/kalkulationen/{{ r.id }}">{{ r.created_at | dt }}</a></td><td>{{ rule_names.get(r.rule_version.rule_id, "") }}</td><td>v{{ r.rule_version.version }}</td><td>{{ r.quantity }}</td><td class="num">{{ r.summary.artikel if r.summary else "" }}</td><td class="num">{{ r.summary.FEHLER if r.summary else "" }}</td></tr>
+  {% else %}<tr><td colspan="6">Keine.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

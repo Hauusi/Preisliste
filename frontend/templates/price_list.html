@@ -14,6 +14,7 @@
 {% if pl.summary.manufacturers_created %}<p class="msg WARNUNG">Neu angelegte Hersteller: {{ pl.summary.manufacturers_created | join(", ") }}</p>{% endif %}
 {% endif %}
 
+<p><a class="button" href="/listen/{{ pl.id }}/kalkulation">Kalkulieren</a></p>
 <form method="get" class="card row">
   <label>Status
     <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
@@ -45,5 +46,5 @@
 </table>
 </div>
 {% include "_pager.html" %}
-<p><a href="/listen/{{ pl.id }}/meldungen">Alle Meldungen anzeigen</a></p>
+<p><a href="/listen/{{ pl.id }}/meldungen">Alle Meldungen anzeigen</a> · <a href="/listen/{{ pl.id }}/kalkulation">Kalkulieren</a> · <a href="/vergleiche">Vergleichen</a></p>
 {% endblock %}

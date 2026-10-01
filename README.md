@@ -10,7 +10,7 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 | Gruppe | Inhalt | Status |
 |---|---|---|
 | A | Grundprojekt, Login, Excel-Import, Spaltenerkennung | umgesetzt |
-| B | Regelengine, Vergleich, Matching | offen |
+| B | Regelengine, Vergleich, Matching | umgesetzt |
 | C | Ollama, Hintergrundjobs, UI | offen |
 | D | Export, Deployment, Backup | offen |
 

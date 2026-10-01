@@ -48,3 +48,14 @@ table.preview small { display: block; font-weight: normal; }
 .tabs a.active { background: #e3e9f2; }
 .price { white-space: nowrap; }
 .actions { margin: 12px 0; }
+.inline-label { display: block; flex-direction: row; color: var(--fg); margin: 2px 0; }
+.inline-label input { margin-right: 6px; }
+table.steps input, table.steps select { width: 100%; min-width: 90px; }
+details summary { cursor: pointer; color: var(--accent); }
+.PREIS_ERHOEHT { color: var(--err); border-color: var(--err); }
+.PREIS_GESENKT { color: var(--ok); border-color: var(--ok); }
+.UNVERAENDERT, .ARTIKEL_GEAENDERT { color: var(--muted); border-color: var(--muted); }
+.NEUER_ARTIKEL { color: var(--accent); border-color: var(--accent); }
+.ENTFALLENER_ARTIKEL { color: var(--warn); border-color: var(--warn); }
+.NICHT_EINDEUTIG { color: var(--unclear); border-color: var(--unclear); }
+code { background: #eef1f5; padding: 1px 4px; border-radius: 3px; }

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Hersteller{% endblock %}
+{% block content %}
+<h1>Hersteller</h1>
+<table>
+  <thead><tr><th>Name</th><th>Aliase (mit ; getrennt)</th><th>Führende Nullen ignorieren</th><th></th></tr></thead>
+  <tbody>
+  {% for m in manufacturers %}
+    <tr>
+      {% if user.role == "admin" %}
+      <td colspan="4">
+        <form method="post" action="/hersteller" class="row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="id" value="{{ m.id }}">
+          <input name="name" value="{{ m.name }}" required maxlength="200">
+          <input name="aliases" value="{{ (m.aliases or []) | join('; ') }}" size="40">
+          <label class="inline-label"><input type="checkbox" name="ignore_leading_zeros" value="1" {% if m.ignore_leading_zeros %}checked{% endif %}> 00123 = 123</label>
+          <button type="submit" class="secondary">Speichern</button>
+        </form>
+      </td>
+      {% else %}
+      <td>{{ m.name }}</td><td>{{ (m.aliases or []) | join("; ") }}</td><td>{{ "ja" if m.ignore_leading_zeros else "nein" }}</td><td></td>
+      {% endif %}
+    </tr>
+  {% else %}<tr><td colspan="4">Noch keine Hersteller.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% if user.role == "admin" %}
+<section class="card">
+  <h2>Hersteller anlegen</h2>
+  <form method="post" action="/hersteller" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Name <input name="name" required maxlength="200"></label>
+    <label>Aliase <input name="aliases" placeholder="z. B. ACME GmbH; Acme Tools"></label>
+    <label class="inline-label"><input type="checkbox" name="ignore_leading_zeros" value="1" checked> Führende Nullen ignorieren</label>
+    <button type="submit">Anlegen</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

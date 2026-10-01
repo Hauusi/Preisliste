@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Regeln{% endblock %}
+{% block content %}
+<h1>Kalkulationsregeln</h1>
+{% if user.role == "admin" %}<p><a class="button" href="/regeln/neu">Neue Regel</a></p>{% endif %}
+<table>
+  <thead><tr><th>Name</th><th>Hersteller</th><th>Version</th><th>Angelegt</th></tr></thead>
+  <tbody>
+  {% for r in rules %}
+    <tr><td><a href="/regeln/{{ r.id }}">{{ r.name }}</a></td><td>{{ r.manufacturer.name if r.manufacturer else "alle" }}</td><td>v{{ r.current_version }}</td><td>{{ r.created_at | dt }}</td></tr>
+  {% else %}
+    <tr><td colspan="4">Noch keine Regeln.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% set res = test %}
+{% if res.status == "OK" %}<p class="msg OK">Ergebnis: <b>{{ res.result | money }} {{ res.currency or "" }}</b></p>{% else %}<p class="msg FEHLER">{{ res.error }}</p>{% endif %}
+<table class="trace">
+  <thead><tr><th>#</th><th>Schritt</th><th>Basis</th><th>Operation</th><th>Betrag</th><th>Ergebnis</th></tr></thead>
+  <tbody>
+  {% for t in res.trace %}
+    <tr><td>{{ t.nr }}</td><td>{{ step_types.get(t.typ, t.text) if step_types is defined else t.typ }}{% if t.text and t.typ not in ("start", "rundung_ende") %} <span class="hint">{{ t.text }}</span>{% endif %}</td>
+      <td>{% if t.basis_wert %}{{ t.basis_wert | money }}{% endif %}</td><td>{{ t.operand or (t.text if t.typ in ("start", "rundung_ende") else "") }}</td>
+      <td>{% if t.betrag %}{{ t.betrag | money }}{% endif %}</td><td class="num">{{ t.ergebnis | money }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

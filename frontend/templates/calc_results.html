@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Kalkulation{% endblock %}
+{% block content %}
+<h1>Kalkulation: {{ pl.name }}</h1>
+<p class="hint">Regel <a href="/regeln/{{ rule.id }}?version={{ run.rule_version.version }}">{{ rule.name }} v{{ run.rule_version.version }}</a> · Menge {{ run.quantity }} · {{ run.created_at | dt }}</p>
+<div class="stats">
+  <a class="stat" href="?"><span>{{ run.summary.artikel }}</span>Artikel</a>
+  <a class="stat OK" href="?status=OK"><span>{{ run.summary.OK }}</span>berechnet</a>
+  <a class="stat FEHLER" href="?status=FEHLER"><span>{{ run.summary.FEHLER }}</span>Fehler</a>
+</div>
+{% set base_query = ({"status": status or ""} | urlencode) ~ "&" %}
+{% include "_pager.html" %}
+<table>
+  <thead><tr><th>Zeile</th><th>Artikelnummer</th><th>Bezeichnung</th><th>Ausgangspreis</th><th>Ergebnis</th><th>Status</th><th>Rechenweg</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="num">{{ r.article.source_row }}</td><td>{{ r.article.article_number or "" }}</td><td>{{ r.article.description or "" }}</td>
+      <td class="num">{{ r.start_amount | money }}</td><td class="num"><b>{{ r.result_amount | money }}</b> {{ r.currency or "" }}</td>
+      <td><span class="badge {{ r.status }}">{{ r.status }}</span>{% if r.error %}<div class="small FEHLER">{{ r.error }}</div>{% endif %}</td>
+      <td><details><summary>anzeigen</summary>
+        <ol class="small">{% for t in r.trace %}<li>{{ t.text or t.typ }} {{ t.operand or "" }}{% if t.basis_wert %} (Basis {{ t.basis_wert | money }}){% endif %}{% if t.betrag %}, Betrag {{ t.betrag | money }}{% endif %} → {{ t.ergebnis | money }}</li>{% endfor %}</ol>
+      </details></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}

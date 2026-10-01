@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Vergleiche{% endblock %}
+{% block content %}
+<h1>Vorjahresvergleich</h1>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" action="/vergleiche" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Alte Liste <select name="old_id" required><option value="">– wählen –</option>{% for l in lists %}<option value="{{ l.id }}">{{ l.name }} ({{ l.imported_at | dt }})</option>{% endfor %}</select></label>
+  <label>Neue Liste <select name="new_id" required><option value="">– wählen –</option>{% for l in lists %}<option value="{{ l.id }}">{{ l.name }} ({{ l.imported_at | dt }})</option>{% endfor %}</select></label>
+  <label>Hersteller <select name="manufacturer_id"><option value="">alle</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
+  <label>Verglichener Preis <select name="price_type">{% for t in types %}<option value="{{ t }}" {% if t == "LISTE" %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+  <label>Regel (nur bei KALKULIERT) <select name="rule_id"><option value="">–</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }} v{{ r.current_version }}</option>{% endfor %}</select></label>
+  <label>Menge <input name="quantity" value="1" size="5"></label>
+  <button type="submit">Vergleichen</button>
+</form>
+<table>
+  <thead><tr><th>Datum</th><th>Alt</th><th>Neu</th><th>Hersteller</th><th>Preis</th><th>Analysiert</th><th>Erhöht</th><th>Gesenkt</th><th>Neu</th><th>Entfallen</th><th>Nicht eindeutig</th><th>Fehler</th></tr></thead>
+  <tbody>
+  {% for c in comparisons %}
+    {% set s = c.summary or {} %}
+    <tr><td><a href="/vergleiche/{{ c.id }}">{{ c.created_at | dt }}</a></td><td>{{ c.old_list.name }}</td><td>{{ c.new_list.name }}</td><td>{{ c.manufacturer.name if c.manufacturer else "alle" }}</td><td>{{ c.price_type }}</td>
+      <td class="num">{{ s.analysiert }}</td><td class="num">{{ s.PREIS_ERHOEHT }}</td><td class="num">{{ s.PREIS_GESENKT }}</td><td class="num">{{ s.NEUER_ARTIKEL }}</td><td class="num">{{ s.ENTFALLENER_ARTIKEL }}</td><td class="num">{{ s.NICHT_EINDEUTIG }}</td><td class="num">{{ s.FEHLER }}</td></tr>
+  {% else %}<tr><td colspan="12">Noch keine Vergleiche.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

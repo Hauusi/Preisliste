@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Regel{% endblock %}
+{% block content %}
+<h1>{{ "Regel bearbeiten" if rule else "Neue Regel" }}</h1>
+{% for e in errors %}<p class="msg FEHLER">{{ e }}</p>{% endfor %}
+<form method="post" action="{{ '/regeln/' ~ rule.id if rule else '/regeln/neu' }}">
+  {% include "_rule_form.html" %}
+  <button type="submit">Speichern{% if rule %} (neue Version){% endif %}</button>
+</form>
+{% endblock %}

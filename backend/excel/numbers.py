@@ -174,7 +174,7 @@ def parse_amount(value, decimal_separator: str | None = None) -> ParsedAmount:
     if group in frac or not (int_part or frac):
         return _err("FEHLER", "KEIN_BETRAG", f"Kein Betrag: {text!r}", currency)
     try:
-        number = Decimal(f"{int_part or '0'}.{frac or '0'}")
+        number = Decimal(f"{int_part or '0'}.{frac}" if frac else int_part)
     except InvalidOperation:
         return _err("FEHLER", "KEIN_BETRAG", f"Kein Betrag: {text!r}", currency)
     return ParsedAmount(value=-number if negative else number, currency=currency)

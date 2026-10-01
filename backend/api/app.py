@@ -60,8 +60,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status_code=exc.status_code,
         )
 
-    from backend.api import routes_api, routes_auth, routes_imports, routes_lists, routes_users
+    from backend.api import (
+        routes_api, routes_auth, routes_compare, routes_imports, routes_lists, routes_rules, routes_users,
+    )
 
-    for module in (routes_auth, routes_imports, routes_lists, routes_users, routes_api):
+    for module in (routes_auth, routes_imports, routes_lists, routes_users, routes_rules, routes_compare,
+                   routes_api):
         app.include_router(module.router)
     return app

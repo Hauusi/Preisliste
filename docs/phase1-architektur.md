@@ -266,3 +266,15 @@ Nach jeder Gruppe gibt es einen kurzen Bericht und es wird auf Freigabe gewartet
 **F9 – Backup.** Wohin? Nur auf den Server selbst (schützt nicht vor Serververlust), auf eine Hetzner Storage Box oder auf einen anderen Ort?
 
 **F10 – Basic-Auth.** Soll die vorhandene nginx-Passwortabfrage zusätzlich zum App-Login bleiben? Vorteil: Angreifer erreichen die App gar nicht erst. Nachteil: Man muss sich zweimal anmelden. Vorschlag: beibehalten, mit einem gemeinsamen Basic-Auth-Konto für alle.
+
+---
+
+## 10. Entscheidungen (2026-10-01, Vorschläge übernommen)
+
+- **F2:** Führende Nullen werden gleichgesetzt, wenn die Nummer rein numerisch ist. Das ist pro Hersteller abschaltbar (Seite Hersteller) und standardmäßig an.
+- **F3:** Exakte und normalisierte Treffer werden automatisch übernommen. Unscharfe Treffer und KI-Treffer werden nie automatisch übernommen, sie müssen bestätigt werden. Der Score dient nur der Sortierung (Schwelle für Vorschläge: 70).
+- **F4:** ARTIKEL_GEÄNDERT = gleicher Preis, aber Bezeichnung, Kategorie oder Einheit geändert. Bei zusätzlicher Preisänderung gilt der Preisstatus, die geänderten Felder werden als Hinweis angezeigt.
+- **F5:** Jede Staffel wird einzeln verglichen. Fehlt eine Staffel auf einer Seite, gilt NICHT_EINDEUTIG.
+- **F6:** Der verglichene Preis ist pro Vergleich wählbar (LISTE, EK, UVP, KALKULIERT). Standard ist LISTE.
+- **F7:** Zu F7 gab es keinen Vorschlag. Umgesetzt sind die Beispiele aus der Frage: Rundung auf eine Schrittweite (z. B. 0,05 oder 1,00) mit kaufmännisch, aufrunden oder abrunden, sowie Rundung auf eine Endung (z. B. 0,90 oder 0,99) mit auf, ab oder nächste.
+- **Zusatz:** Bei "Rundung nach jedem Schritt" wird auch der Betrag eines Prozentschritts gerundet (Rabatt- oder Aufschlagsbetrag), wie im Referenzbeispiel (Transport 3,40). Zusätzlich wurde der Status FEHLER im Vergleich ergänzt, für Währungsabweichung, alten Preis 0 und fehlenden Preis (W9, W10).

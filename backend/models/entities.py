@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -59,6 +60,8 @@ class Manufacturer(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True)
     aliases: Mapped[list] = mapped_column(JSON, default=list)
+    # F2: führende Nullen bei rein numerischen Nummern ignorieren ("00123" == "123")
+    ignore_leading_zeros: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -158,3 +161,131 @@ class AuditLog(Base):
     entity_id: Mapped[str | None] = mapped_column(String(50))
     details: Mapped[dict | None] = mapped_column(JSON)
     ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class Rule(Base):
+    __tablename__ = "rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    manufacturer: Mapped[Manufacturer | None] = relationship()
+    versions: Mapped[list["RuleVersion"]] = relationship(order_by="RuleVersion.version")
+
+
+class RuleVersion(Base):
+    """Unveränderlich: UPDATE und DELETE werden per DB-Trigger verhindert."""
+
+    __tablename__ = "rule_versions"
+    __table_args__ = (UniqueConstraint("rule_id", "version"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
+    version: Mapped[int] = mapped_column(Integer)
+    definition: Mapped[dict] = mapped_column(JSON)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CalculationRun(Base):
+    __tablename__ = "calculation_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    price_list_id: Mapped[int] = mapped_column(ForeignKey("price_lists.id", ondelete="CASCADE"))
+    rule_version_id: Mapped[int] = mapped_column(ForeignKey("rule_versions.id"))
+    quantity: Mapped[object] = mapped_column(DecimalText)
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    rule_version: Mapped[RuleVersion] = relationship()
+
+
+class CalculationResult(Base):
+    __tablename__ = "calculation_results"
+    __table_args__ = (Index("ix_calc_results_run", "run_id", "status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("calculation_runs.id", ondelete="CASCADE"))
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(10))
+    start_amount: Mapped[object | None] = mapped_column(DecimalText)
+    result_amount: Mapped[object | None] = mapped_column(DecimalText)
+    currency: Mapped[str | None] = mapped_column(String(3))
+    trace: Mapped[list] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    article: Mapped[Article] = relationship()
+
+
+class Comparison(Base):
+    __tablename__ = "comparisons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    old_price_list_id: Mapped[int] = mapped_column(ForeignKey("price_lists.id", ondelete="CASCADE"))
+    new_price_list_id: Mapped[int] = mapped_column(ForeignKey("price_lists.id", ondelete="CASCADE"))
+    manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
+    price_type: Mapped[str] = mapped_column(String(10))  # LISTE | EK | UVP | KALKULIERT
+    rule_version_id: Mapped[int | None] = mapped_column(ForeignKey("rule_versions.id"))
+    quantity: Mapped[object] = mapped_column(DecimalText)
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    old_list: Mapped[PriceList] = relationship(foreign_keys=[old_price_list_id])
+    new_list: Mapped[PriceList] = relationship(foreign_keys=[new_price_list_id])
+    manufacturer: Mapped[Manufacturer | None] = relationship()
+    rule_version: Mapped[RuleVersion | None] = relationship()
+
+
+class ComparisonItem(Base):
+    __tablename__ = "comparison_items"
+    __table_args__ = (
+        Index("ix_comparison_items_status", "comparison_id", "status"),
+        Index("ix_comparison_items_new", "comparison_id", "new_article_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    comparison_id: Mapped[int] = mapped_column(ForeignKey("comparisons.id", ondelete="CASCADE"))
+    old_article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    new_article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
+    article_number: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    category: Mapped[str | None] = mapped_column(String(200))
+    min_quantity: Mapped[object | None] = mapped_column(DecimalText)
+    status: Mapped[str] = mapped_column(String(25))
+    old_amount: Mapped[object | None] = mapped_column(DecimalText)
+    new_amount: Mapped[object | None] = mapped_column(DecimalText)
+    currency: Mapped[str | None] = mapped_column(String(3))
+    difference: Mapped[object | None] = mapped_column(DecimalText)
+    difference_percent: Mapped[object | None] = mapped_column(DecimalText)
+    match_method: Mapped[str | None] = mapped_column(String(20))
+    confidence: Mapped[object | None] = mapped_column(DecimalText)
+    changed_fields: Mapped[list | None] = mapped_column(JSON)
+    candidates: Mapped[list | None] = mapped_column(JSON)
+    note: Mapped[str | None] = mapped_column(Text)
+
+    old_article: Mapped[Article | None] = relationship(foreign_keys=[old_article_id])
+    new_article: Mapped[Article | None] = relationship(foreign_keys=[new_article_id])
+
+
+class MatchDecision(Base):
+    """Bestätigte oder abgelehnte Zuordnungen, werden bei späteren Vergleichen wiederverwendet."""
+
+    __tablename__ = "match_decisions"
+    __table_args__ = (UniqueConstraint("manufacturer_id", "old_number_normalized", "new_number_normalized"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
+    old_number_normalized: Mapped[str] = mapped_column(String(100))
+    new_number_normalized: Mapped[str] = mapped_column(String(100))
+    decision: Mapped[str] = mapped_column(String(10))  # MATCH | NO_MATCH
+    decided_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

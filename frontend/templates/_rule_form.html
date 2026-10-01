@@ -1,0 +1,55 @@
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<section class="card row">
+  <label>Name <input name="name" value="{{ name }}" required maxlength="200"></label>
+  <label>Gilt für Hersteller
+    <select name="manufacturer_id"><option value="">alle</option>
+      {% for m in manufacturers %}<option value="{{ m.id }}" {% if m.id == manufacturer_id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Ausgangspreis
+    <select name="start_price">{% for p in price_types %}<option value="{{ p }}" {% if definition.start_price == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+  </label>
+  {% set rd = definition.rounding or {} %}
+  <label>Rundung
+    <select name="rounding_mode">{% for k, v in modes.items() %}<option value="{{ k }}" {% if (rd.mode or "HALF_UP") == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+  </label>
+  <label>Stellen <input type="number" name="rounding_places" min="0" max="6" value="{{ rd.places if rd.places is not none else 2 }}"></label>
+  <label>Zeitpunkt
+    <select name="rounding_timing">
+      <option value="STEP" {% if (rd.timing or "STEP") == "STEP" %}selected{% endif %}>nach jedem Schritt</option>
+      <option value="END" {% if rd.timing == "END" %}selected{% endif %}>nur am Ende</option>
+    </select>
+  </label>
+</section>
+<section class="card">
+  <h2>Schritte</h2>
+  <p class="hint">Basis: <b>Ausgangspreis</b>, <b>Zwischenpreis</b> (Ergebnis des vorherigen Schritts) oder das Ergebnis eines bestimmten Schritts. Prozent werden auf die Basis gerechnet und vom Zwischenpreis abgezogen bzw. addiert. Formeln: Variablen start, current, quantity, transport, discount, s1, s2 …; erlaubt sind + - * / ( ) min() max(). Zahlen mit Komma oder Punkt.</p>
+  <div class="scroll">
+  <table class="steps">
+    <thead><tr><th>#</th><th>Typ</th><th>Wert</th><th>Basis</th><th>Modus / Richtung</th><th>Periode</th><th>Bezeichnung</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.nr }}</td>
+        <td><select name="step_{{ r.nr }}_type"><option value="">–</option>{% for k, v in step_types.items() %}<option value="{{ k }}" {% if r.type == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></td>
+        <td><input name="step_{{ r.nr }}_value" value="{{ r.value }}" maxlength="500"></td>
+        <td><select name="step_{{ r.nr }}_base">
+          <option value="current" {% if r.base == "current" %}selected{% endif %}>Zwischenpreis</option>
+          <option value="start" {% if r.base == "start" %}selected{% endif %}>Ausgangspreis</option>
+          {% for n in range(1, r.nr) %}<option value="step:{{ n }}" {% if r.base == "step:" ~ n %}selected{% endif %}>Ergebnis Schritt {{ n }}</option>{% endfor %}
+        </select></td>
+        <td><select name="step_{{ r.nr }}_extra">
+          <option value="">–</option>
+          {% for k, v in modes.items() %}<option value="{{ k }}" {% if r.extra == k %}selected{% endif %}>Runden: {{ v }}</option>{% endfor %}
+          <option value="NEAREST" {% if r.extra == "NEAREST" %}selected{% endif %}>Endung: nächste</option>
+        </select></td>
+        <td><input name="step_{{ r.nr }}_period" value="{{ r.period }}" size="5" placeholder="1,00"></td>
+        <td><input name="step_{{ r.nr }}_label" value="{{ r.label }}" maxlength="100"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">Runden auf Endung: Wert = Endung (z. B. 0,90), Richtung „aufrunden“ = UP, „abrunden“ = DOWN, „nächste“ = NEAREST; Periode Standard 1,00.</p>
+  <label>Kommentar zur Änderung <input name="comment" maxlength="500"></label>
+</section>

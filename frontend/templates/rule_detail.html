@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ rule.name }}{% endblock %}
+{% block content %}
+<h1>{{ rule.name }} <small class="hint">v{{ rule.current_version }}</small></h1>
+<p class="hint">Hersteller: {{ rule.manufacturer.name if rule.manufacturer else "alle" }} · Anzeige: Version {{ shown.version }} vom {{ shown.created_at | dt }} (UTC) von {{ creators.get(shown.created_by, "?") }}{% if shown.comment %} · „{{ shown.comment }}“{% endif %}</p>
+
+<section class="card">
+  <h2>Schritte (Version {{ shown.version }})</h2>
+  {% set d = shown.definition %}
+  <p>Ausgangspreis: <b>{{ d.start_price }}</b> · Rundung: {{ modes[d.rounding.mode] }}, {{ d.rounding.places }} Stellen, {{ "nach jedem Schritt" if d.rounding.timing == "STEP" else "nur am Ende" }}</p>
+  <ol>
+  {% for s in d.steps %}
+    <li>{{ step_types[s.type] }}:
+      {% if s.type in ("discount", "surcharge") %}{{ s.percent }} % auf {{ {"start": "Ausgangspreis", "current": "Zwischenpreis"}.get(s.base, "Ergebnis Schritt " ~ s.base[5:]) }}
+      {% elif s.type == "fixed" %}{{ s.amount }}
+      {% elif s.type in ("tier", "min_quantity") %}Menge {{ s.quantity }}
+      {% elif s.type == "round" %}{{ s.increment }} ({{ modes[s.mode] }})
+      {% elif s.type == "round_ending" %}Endung {{ s.ending }} ({{ s.direction }}, Periode {{ s.period }})
+      {% elif s.type == "formula" %}<code>{{ s.expression }}</code>{% endif %}
+      {% if s.label %} – {{ s.label }}{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Testrechnung (aktuelle Version)</h2>
+  {% for e in errors %}<p class="msg FEHLER">{{ e }}</p>{% endfor %}
+  <form method="post" action="/regeln/{{ rule.id }}/test" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Ausgangspreis <input name="amount" value="{{ test_input.amount if test_input else '100,00' }}"></label>
+    <label>Menge <input name="quantity" value="{{ test_input.quantity if test_input else '1' }}"></label>
+    <label>Transport (optional) <input name="transport" value="{{ test_input.transport if test_input else '' }}"></label>
+    <button type="submit" class="secondary">Rechnen</button>
+  </form>
+  {% if test %}
+    {% include "_trace.html" %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Versionen</h2>
+  <table>
+    <thead><tr><th>Version</th><th>Datum (UTC)</th><th>Von</th><th>Kommentar</th></tr></thead>
+    <tbody>{% for v in versions %}<tr><td><a href="?version={{ v.version }}">v{{ v.version }}</a></td><td>{{ v.created_at | dt }}</td><td>{{ creators.get(v.created_by, "?") }}</td><td>{{ v.comment or "" }}</td></tr>{% endfor %}</tbody>
+  </table>
+</section>
+
+{% if user.role == "admin" %}
+<details class="card">
+  <summary>Regel bearbeiten (erzeugt Version {{ rule.current_version + 1 }})</summary>
+  <form method="post" action="/regeln/{{ rule.id }}">
+    {% include "_rule_form.html" %}
+    <button type="submit">Als neue Version speichern</button>
+  </form>
+</details>
+<form method="post" action="/regeln/{{ rule.id }}/loeschen" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Regel löschen (Versionen bleiben erhalten)</button>
+</form>
+{% endif %}
+{% endblock %}
