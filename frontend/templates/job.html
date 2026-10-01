@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Job {{ job.id }}{% endblock %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+{% block content %}
+<h1>{{ labels.get(job.type, job.type) }} <small class="hint">Job {{ job.id }}</small></h1>
+<section class="card">
+  <p>Status: <span class="badge {{ {'FERTIG': 'OK', 'FEHLER': 'FEHLER', 'ABGEBROCHEN': 'WARNUNG'}.get(job.status, 'UNKLAR') }}">{{ job.status }}</span>
+    {% if job.started_at %} · gestartet {{ job.started_at | dt }}{% endif %}{% if job.finished_at %} · beendet {{ job.finished_at | dt }}{% endif %} (UTC)</p>
+  {% if live.total %}
+    <progress max="{{ live.total }}" value="{{ live.progress }}"></progress> {{ live.progress }} / {{ live.total }}
+  {% elif running %}<progress></progress>{% endif %}
+  {% if live.message %}<p class="{{ 'msg FEHLER' if job.status == 'FEHLER' else 'hint' }}">{{ live.message }}</p>{% endif %}
+  {% if job.result %}
+    {% set r = job.result %}
+    {% if r.status and r.status != "OK" %}<p class="msg UNKLAR">Ergebnis {{ r.status }}: {{ r.message }}</p>{% endif %}
+    {% if job.type == "IMPORT" and r.summary %}<p>{{ r.summary.articles }} Artikel, {{ r.summary.prices }} Preise, {{ r.summary.messages.FEHLER }} Fehler, {{ r.summary.messages.UNKLAR }} unklar, {{ r.summary.messages.WARNUNG }} Warnungen.</p>{% endif %}
+    {% if job.type == "AI_MATCH" %}<p>{{ r.anfragen }} Anfragen, {{ r.treffer }} mögliche Treffer, {{ r.UNKLAR }} unklare Antworten. Nichts wurde automatisch übernommen.</p>{% endif %}
+  {% endif %}
+  {% if running %}
+    <form method="post" action="/jobs/{{ job.id }}/abbrechen" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary">Abbrechen</button>
+    </form>
+    <p class="hint">Seite aktualisiert sich alle 2 Sekunden.</p>
+  {% endif %}
+  {% if link %}<p><a class="button" href="{{ link[0] }}">{{ link[1] }}</a></p>{% endif %}
+</section>
+{% endblock %}

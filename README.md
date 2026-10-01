@@ -11,7 +11,7 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 |---|---|---|
 | A | Grundprojekt, Login, Excel-Import, Spaltenerkennung | umgesetzt |
 | B | Regelengine, Vergleich, Matching | umgesetzt |
-| C | Ollama, Hintergrundjobs, UI | offen |
+| C | Ollama, Hintergrundjobs, UI | umgesetzt |
 | D | Export, Deployment, Backup | offen |
 
 ## Entwicklung
@@ -35,18 +35,32 @@ git clone https://github.com/Hauusi/Preisliste.git preisliste
 cd preisliste
 git checkout ccr-71bf8639-od7ces
 cd deploy
-mkdir -p data && chown 10001:10001 data
+mkdir -p data ollama && chown 10001:10001 data
+
+# Einmalig: Modell laden (ca. 2 GB Download, braucht Internet; danach hat Ollama keinen Internetzugang mehr)
+docker compose --profile setup run --rm ollama-setup
+
 docker compose up -d --build
 docker compose exec app python -m backend.cli create-admin <name>
 ```
 
-Zum Testen vom eigenen Rechner aus einen SSH-Tunnel öffnen und `http://localhost:8010` im Browser aufrufen:
+Ohne Modell oder ohne Ollama läuft die App trotzdem vollständig, die KI-Knöpfe werden dann ausgeblendet.
+
+Zum Testen vom eigenen Rechner aus einen SSH-Tunnel öffnen und `http://localhost:8010` im Browser aufrufen (Chrome oder Firefox):
 
 ```
 ssh -i ~/.ssh/id_ed25519_handy -L 8010:127.0.0.1:8010 root@62.238.39.31
+```
+
+Empfohlen vor dem Start von Ollama (der Server hat keinen Swap):
+
+```
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
 ## Konfiguration
 
 Umgebungsvariablen mit Präfix `PREIS_`, siehe `backend/config.py`. Wichtig: `PREIS_COOKIE_SECURE=true` im Betrieb (Standard).
 Spaltenüberschriften für die Erkennung: `config/header_synonyms.yaml`.
+KI: `PREIS_AI_PROVIDER` (`ollama`, `local`, `none`), `PREIS_OLLAMA_URL`, `PREIS_AI_MODEL` (Standard `llama3.2:3b`), `PREIS_AI_TIMEOUT_SECONDS`, `PREIS_AI_RETRIES`. Nur lokale Endpunkte werden akzeptiert.

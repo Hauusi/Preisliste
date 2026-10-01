@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<h1>Hintergrundjobs</h1>
+<table>
+  <thead><tr><th>#</th><th>Typ</th><th>Status</th><th>Fortschritt</th><th>Erstellt (UTC)</th><th>Meldung</th></tr></thead>
+  <tbody>
+  {% for j in jobs %}
+    <tr><td><a href="/jobs/{{ j.id }}">{{ j.id }}</a></td><td>{{ labels.get(j.type, j.type) }}</td><td>{{ j.status }}</td><td>{% if j.total %}{{ j.progress }} / {{ j.total }}{% endif %}</td><td>{{ j.created_at | dt }}</td><td class="small">{{ j.message or "" }}</td></tr>
+  {% else %}<tr><td colspan="6">Keine Jobs.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

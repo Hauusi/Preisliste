@@ -8,3 +8,4 @@ exports/*
 !exports/.gitkeep
 .env
 deploy/data/
+deploy/ollama/

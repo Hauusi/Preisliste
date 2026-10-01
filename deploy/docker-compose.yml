@@ -1,5 +1,8 @@
-# Preisliste – Serverbetrieb. Port nur auf 127.0.0.1, nginx auf dem Host leitet weiter.
-# Ollama wird in Gruppe C ergänzt.
+# Preisliste – Serverbetrieb.
+# - app: Port nur auf 127.0.0.1:8010, nginx auf dem Host leitet weiter.
+# - ollama: kein veröffentlichter Port, nur im internen Netz "ki" ohne Internetzugang.
+# - ollama-setup: nur zum einmaligen Laden des Modells (Profil "setup"), hat zeitweise Internet.
+
 services:
   app:
     build:
@@ -12,6 +15,12 @@ services:
       - ./data:/app/data
     environment:
       PREIS_COOKIE_SECURE: "true"
+      PREIS_AI_PROVIDER: "ollama"
+      PREIS_OLLAMA_URL: "http://ollama:11434"
+      PREIS_AI_MODEL: "llama3.2:3b"
+    networks:
+      - web
+      - ki
     mem_limit: 1g
     read_only: true
     tmpfs:
@@ -20,3 +29,33 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ./ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "5m"        # Modell nach 5 Minuten Leerlauf aus dem Speicher entladen
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    networks:
+      - ki
+    mem_limit: 4g
+    security_opt:
+      - no-new-privileges:true
+
+  ollama-setup:
+    profiles: ["setup"]
+    image: ollama/ollama:latest
+    volumes:
+      - ./ollama:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama serve & sleep 5 && ollama pull $${MODEL:-llama3.2:3b} && ollama list"]
+    networks:
+      - web
+
+networks:
+  web: {}
+  ki:
+    internal: true   # kein Internetzugang für Ollama

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Preisliste{% endblock %} – Preisliste</title>
+  {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -19,7 +20,8 @@
     {% if user.role == "admin" %}<a href="/benutzer">Benutzer</a><a href="/audit">Protokoll</a>{% endif %}
   </nav>
   <div class="who">
-    <span class="badge off" title="KI-Anbindung folgt in Gruppe C">KI inaktiv</span>
+    {% if ai_status and ai_status.active %}<span class="badge OK" title="{{ ai_status.provider }} / {{ ai_status.model }}">KI aktiv</span>{% else %}<span class="badge off" title="{{ ai_status.message if ai_status else '' }}">KI inaktiv</span>{% endif %}
+    <a href="/jobs">Jobs</a>
     <a href="/konto">{{ user.username }}</a>
     <form method="post" action="/logout" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

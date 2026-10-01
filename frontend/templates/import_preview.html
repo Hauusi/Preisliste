@@ -7,6 +7,10 @@
 {% if pv.duplicate_of %}<p class="msg WARNUNG">Diese Datei wurde bereits importiert ({{ pv.duplicate_of.name }}, {{ pv.duplicate_of.imported_at | dt }}).</p>{% endif %}
 {% if pv.hidden_sheet %}<p class="msg WARNUNG">Das gewählte Tabellenblatt ist in Excel ausgeblendet.</p>{% endif %}
 {% for n in det.notes %}<p class="msg UNKLAR">{{ n }}</p>{% endfor %}
+{% if ai %}
+  {% if ai.status == "OK" %}<p class="msg UNKLAR">KI-Vorschlag übernommen, wo Synonyme und Heuristik nichts erkannt haben (markiert mit „KI“). Confidence {{ ai.confidence }} ist nur eine Sortierhilfe.{% if ai.manufacturer %} Hersteller laut KI: „{{ ai.manufacturer }}“.{% endif %} Bitte jede Zuordnung prüfen.</p>
+  {% else %}<p class="msg {{ 'FEHLER' if ai.status == 'FEHLER' else 'UNKLAR' }}">KI-Vorschlag nicht verwendbar ({{ ai.status }}): {{ ai.message }}</p>{% endif %}
+{% endif %}
 {% if pv.sheet.formula_without_cache %}<p class="msg WARNUNG">{{ pv.sheet.formula_without_cache | length }} Formelzellen ohne gespeichertes Ergebnis (in den ersten Zeilen). Datei in Excel öffnen und speichern, dann erneut hochladen.</p>{% endif %}
 
 <form method="get" class="card row">
@@ -19,6 +23,16 @@
   </label>
   <button type="submit" class="secondary">Neu erkennen</button>
 </form>
+{% if ai_status and ai_status.active %}
+<form method="post" action="/import/{{ pl.id }}/ki-spalten" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="sheet" value="{{ pv.sheet.name }}">
+  <input type="hidden" name="header_row" value="{{ det.header_row }}">
+  <input type="hidden" name="header_rows" value="{{ det.header_rows }}">
+  <button type="submit" class="secondary">KI-Vorschlag für Spalten holen</button>
+  <span class="hint">Sendet Kopfzeile und 5 Beispielzeilen an die lokale KI auf diesem Server.</span>
+</form>
+{% endif %}
 
 <form method="post" action="/import/{{ pl.id }}/confirm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -40,6 +54,8 @@
               {% for key, label in fields.items() %}<option value="{{ key }}" {% if c.field == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
             {% if c.source == "heuristik" %}<small class="UNKLAR">Heuristik</small>{% endif %}
+            {% if c.source == "ki" %}<small class="UNKLAR">KI</small>{% endif %}
+            {% if ai and ai.columns and ai.columns.get(c.index) and ai.columns.get(c.index) != c.field %}<small class="hint">KI meint: {{ fields[ai.columns.get(c.index)] }}</small>{% endif %}
             {% if c.note %}<small class="WARNUNG">{{ c.note }}</small>{% endif %}
             {% if c.index in det.decimal_separators %}
               <select name="sep_{{ c.index }}" title="Dezimaltrennzeichen">

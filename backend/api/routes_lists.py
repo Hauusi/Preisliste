@@ -10,7 +10,7 @@ from backend.api.deps import current_user
 from backend.api.render import render
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
-from backend.models.entities import Article, ImportMessage, Manufacturer, PriceList, User
+from backend.models.entities import Article, ImportMessage, Job, Manufacturer, PriceList, User
 
 router = APIRouter()
 STATUSES = ("OK", "WARNUNG", "UNKLAR", "FEHLER")
@@ -47,7 +47,21 @@ def dashboard(request: Request, db: Session = Depends(get_db), _user: User = Dep
         "articles": db.scalar(select(func.count(Article.id))),
         "manufacturers": db.scalar(select(func.count(Manufacturer.id))),
     }
-    return render(request, "dashboard.html", {"lists": lists, "stats": stats})
+    jobs = db.scalars(select(Job).where(Job.status.in_(("WARTEND", "LAEUFT"))).order_by(Job.id)).all()
+    return render(request, "dashboard.html", {"lists": lists, "stats": stats, "jobs": jobs,
+                                              "memory_mb": process_memory_mb()})
+
+
+def process_memory_mb() -> int | None:
+    """Aktueller Speicherverbrauch des App-Prozesses (Linux /proc)."""
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        return None
+    return None
 
 
 @router.get("/listen")

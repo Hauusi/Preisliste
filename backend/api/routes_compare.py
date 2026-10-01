@@ -17,6 +17,7 @@ from backend.excel.numbers import parse_amount
 from backend.models.entities import (
     CalculationResult,
     CalculationRun,
+    Job,
     Comparison,
     ComparisonItem,
     Manufacturer,
@@ -24,6 +25,7 @@ from backend.models.entities import (
     Rule,
     User,
 )
+from backend.jobs.runner import enqueue
 from backend.services.audit import audit
 from backend.services.rules import current_version, run_calculation
 
@@ -240,6 +242,19 @@ async def decide_item(request: Request, cmp_id: int, item_id: int, db: Session =
     back = str(form.get("back") or "")
     return RedirectResponse(back if back.startswith(f"/vergleiche/{cmp_id}") else f"/vergleiche/{cmp_id}",
                             status_code=303)
+
+
+@router.post("/vergleiche/{cmp_id}/ki", dependencies=[Depends(check_csrf)])
+def ai_match(request: Request, cmp_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    cmp = db.get(Comparison, cmp_id)
+    if cmp is None:
+        raise HTTPException(404, "Vergleich nicht gefunden")
+    running = db.scalar(select(Job).where(Job.type == "AI_MATCH", Job.status.in_(("WARTEND", "LAEUFT"))))
+    if running and (running.params or {}).get("comparison_id") == cmp_id:
+        return RedirectResponse(f"/jobs/{running.id}", status_code=303)
+    job = enqueue(db, "AI_MATCH", {"comparison_id": cmp_id}, user)
+    audit(db, user, "ki_zuordnung_gestartet", "comparison", cmp_id, {"job": job.id}, client_ip(request))
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
 @router.post("/vergleiche/{cmp_id}/neu-berechnen", dependencies=[Depends(check_csrf)])

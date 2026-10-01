@@ -104,8 +104,8 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
 def confirm_import(db: Session, pl: PriceList, settings: Settings, *, sheet_name: str, header_row: int,
                    header_rows: int, mapping: dict[str, int], manufacturer_id: int | None,
                    new_manufacturer: str | None, currency: str | None,
-                   decimal_separators: dict[int, str | None], valid_from: str | None) -> dict:
-    if pl.status != "ENTWURF":
+                   decimal_separators: dict[int, str | None], valid_from: str | None, progress=None) -> dict:
+    if pl.status not in ("ENTWURF", "WARTESCHLANGE"):
         raise ValueError("Diese Liste wurde bereits verarbeitet")
     if new_manufacturer:
         name = new_manufacturer.strip()
@@ -130,7 +130,7 @@ def confirm_import(db: Session, pl: PriceList, settings: Settings, *, sheet_name
         decimal_separators=decimal_separators,
         valid_from=valid_from,
     )
-    summary = run_import(db, pl.id, sheet, cfg)
+    summary = run_import(db, pl.id, sheet, cfg, progress)
     pl.sheet = sheet_name
     pl.header_row = header_row
     pl.column_mapping = {"mapping": mapping, "header_rows": header_rows,

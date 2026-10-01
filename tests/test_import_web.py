@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from backend.database.engine import session_scope
 from backend.models.entities import Article, PriceList
-from tests.conftest import make_xlsx
+from tests.conftest import make_xlsx, run_jobs
 
 
 def upload(client, path, name=None):
@@ -14,7 +14,7 @@ def upload(client, path, name=None):
                            follow_redirects=False)
 
 
-def test_full_import_flow(admin_client, tmp_path):
+def test_full_import_flow(admin_client, tmp_path, app):
     p = make_xlsx(tmp_path / "ACME_2026.xlsx", [
         ["ACME Preisliste 2026"], [],
         ["Art.-Nr.", "Bezeichnung", "EK netto", "UVP"],
@@ -37,6 +37,14 @@ def test_full_import_flow(admin_client, tmp_path):
         "sep_2": ",", "sep_3": ",", "new_manufacturer": "ACME", "currency": "EUR",
     }, follow_redirects=False)
     assert r.status_code == 303, r.text
+    assert r.headers["location"].startswith("/jobs/")
+    job_page = admin_client.get(r.headers["location"]).text
+    assert "WARTEND" in job_page and 'http-equiv="refresh"' in job_page
+    # Während der Job wartet, kann nicht erneut bestätigt werden
+    assert admin_client.post(f"/import/{list_id}/confirm", data={"csrf_token": admin_client.csrf}).status_code == 409
+    assert run_jobs(app) == 1
+    job_page = admin_client.get(r.headers["location"]).text
+    assert "FERTIG" in job_page and f"/listen/{list_id}" in job_page
     page = admin_client.get(f"/listen/{list_id}").text
     assert "1.234,56" in page and "Mutter" in page
 
@@ -90,7 +98,7 @@ def test_discard_draft(admin_client, tmp_path, settings):
     assert admin_client.get(f"/import/{list_id}").status_code == 404
 
 
-def test_pagination_and_filter(admin_client, tmp_path):
+def test_pagination_and_filter(admin_client, tmp_path, app):
     rows = [["Art.-Nr.", "EK"]] + [[f"N{i}", "1,00"] for i in range(120)] + [["BAD", "x"]]
     p = make_xlsx(tmp_path / "l.xlsx", rows)
     list_id = int(upload(admin_client, p).headers["location"].rsplit("/", 1)[1])
@@ -98,6 +106,7 @@ def test_pagination_and_filter(admin_client, tmp_path):
         "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1",
         "col_0": "article_number", "col_1": "supplier_price", "new_manufacturer": "X", "currency": "EUR",
     })
+    run_jobs(app)
     data = admin_client.get(f"/api/price-lists/{list_id}/articles?page=3").json()
     assert data["seiten"] == 3 and data["gesamt"] == 121 and len(data["artikel"]) == 21
     data = admin_client.get(f"/api/price-lists/{list_id}/articles?status=FEHLER").json()

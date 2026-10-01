@@ -289,3 +289,42 @@ class MatchDecision(Base):
     decision: Mapped[str] = mapped_column(String(10))  # MATCH | NO_MATCH
     decided_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     decided_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Job(Base):
+    """Hintergrundjob. Status: WARTEND -> LAEUFT -> FERTIG | FEHLER | ABGEBROCHEN."""
+
+    __tablename__ = "jobs"
+    __table_args__ = (Index("ix_jobs_status", "status", "id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(15), default="WARTEND")
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    result: Mapped[dict | None] = mapped_column(JSON)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    message: Mapped[str | None] = mapped_column(Text)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AiMatchSuggestion(Base):
+    """KI-Vorschlag zu einer Zuordnung. Wird nie automatisch übernommen (F3)."""
+
+    __tablename__ = "ai_match_suggestions"
+    __table_args__ = (UniqueConstraint("comparison_id", "new_article_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    comparison_id: Mapped[int] = mapped_column(ForeignKey("comparisons.id", ondelete="CASCADE"))
+    new_article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    old_article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    match: Mapped[bool] = mapped_column(Boolean)
+    confidence: Mapped[object | None] = mapped_column(DecimalText)
+    reason: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(10))  # OK | UNKLAR
+    model: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from backend.database.engine import session_scope
 from backend.models.entities import AuditLog, ComparisonItem, Rule, RuleVersion
-from tests.conftest import make_xlsx
+from tests.conftest import make_xlsx, run_jobs
 from tests.test_import_web import upload
 
 
@@ -16,6 +16,7 @@ def import_list(client, tmp_path, name, rows):
         "col_1": "description", "col_2": "list_price", "sep_2": ",", "new_manufacturer": "ACME", "currency": "EUR",
     }, follow_redirects=False)
     assert r.status_code == 303, r.text
+    run_jobs(client.app)
     return list_id
 
 

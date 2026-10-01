@@ -255,8 +255,12 @@ def process_row(sheet: SheetData, row_idx: int, row: list, cfg: ImportConfig) ->
     )
 
 
-def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportConfig) -> dict:
-    """Schreibt Artikel, Preise und Meldungen. Gibt die Zusammenfassung zurück."""
+def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportConfig, progress=None) -> dict:
+    """Schreibt Artikel, Preise und Meldungen. Gibt die Zusammenfassung zurück.
+
+    progress(erledigt, gesamt) wird alle 2000 Zeilen aufgerufen und darf zum Abbruch eine Ausnahme werfen
+    (vor dem Schreiben, es entstehen keine halben Importe).
+    """
     if "article_number" not in cfg.mapping:
         raise ValueError("Artikelnummer-Spalte muss zugeordnet sein")
     if not any(f in cfg.mapping for f in PRICE_FIELDS):
@@ -270,7 +274,10 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
     results: list[RowResult] = []
     list_messages: list[dict] = []
     empty_rows = 0
+    total_rows = len(sheet.rows) - cfg.header_row
     for idx in range(cfg.header_row, len(sheet.rows)):
+        if progress and (idx - cfg.header_row) % 2000 == 0:
+            progress(idx - cfg.header_row, total_rows)
         res = process_row(sheet, idx, sheet.rows[idx], cfg)
         if res is None:
             empty_rows += 1

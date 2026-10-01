@@ -59,3 +59,6 @@ details summary { cursor: pointer; color: var(--accent); }
 .ENTFALLENER_ARTIKEL { color: var(--warn); border-color: var(--warn); }
 .NICHT_EINDEUTIG { color: var(--unclear); border-color: var(--unclear); }
 code { background: #eef1f5; padding: 1px 4px; border-radius: 3px; }
+progress { width: 320px; height: 14px; vertical-align: middle; }
+textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; width: 100%; }
+.WARTESCHLANGE { color: var(--unclear); border-color: var(--unclear); }

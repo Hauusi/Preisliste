@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     # Anzeige
     page_size: int = 50
 
+    # Hintergrundjobs (in Tests aus, dort werden Jobs direkt ausgeführt)
+    start_worker: bool = True
+
+    # KI (optional). ai_provider: ollama | local | mock | none
+    ai_provider: str = "ollama"
+    ollama_url: str = "http://ollama:11434"
+    local_model_url: str = "http://127.0.0.1:8080"
+    ai_model: str = "llama3.2:3b"
+    ai_timeout_seconds: int = 90
+    ai_retries: int = 2
+    ai_keep_alive: str = "5m"
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "preisliste.sqlite3"

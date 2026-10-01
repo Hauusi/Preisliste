@@ -7,6 +7,12 @@
   <div class="stat"><span>{{ stats.articles }}</span>Artikel</div>
   <div class="stat"><span>{{ stats.manufacturers }}</span>Hersteller</div>
 </div>
+<section class="card">
+  <h2>System</h2>
+  <p>KI: {% if ai_status.active %}<span class="badge OK">aktiv</span> {{ ai_status.provider }}, Modell {{ ai_status.model }}{% if ai_status.loaded_mb %}, geladen {{ ai_status.loaded_mb }} MB{% else %}, nicht im Speicher (wird bei Bedarf geladen){% endif %}{% else %}<span class="badge off">inaktiv</span> {{ ai_status.message }}. Die Anwendung funktioniert ohne KI vollständig.{% endif %}</p>
+  <p>Speicher App-Prozess: {{ memory_mb if memory_mb is not none else "unbekannt" }} MB · Keine Verbindungen zu externen Diensten.</p>
+  {% if jobs %}<p>Laufende Jobs: {% for j in jobs %}<a href="/jobs/{{ j.id }}">#{{ j.id }} {{ j.type }} ({{ j.status }})</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+</section>
 <h2>Letzte Uploads</h2>
 {% include "_list_table.html" %}
 <p><a class="button" href="/import">Neue Preisliste importieren</a></p>

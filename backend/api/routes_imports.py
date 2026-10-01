@@ -16,7 +16,9 @@ from backend.excel.numbers import SUPPORTED_CURRENCIES
 from backend.excel.reader import ExcelRejected
 from backend.models.entities import Manufacturer, PriceList, User
 from backend.services.audit import audit
-from backend.services.imports import build_preview, confirm_import, save_upload, stored_path
+from backend.jobs.runner import enqueue
+from backend.models.entities import Job
+from backend.services.imports import build_preview, save_upload, stored_path
 
 router = APIRouter()
 
@@ -55,10 +57,35 @@ def _int(value, default=None):
         return default
 
 
+def _ai_columns(db: Session, ki_job: str | None, pl: PriceList, user: User, pv) -> dict | None:
+    """KI-Spaltenvorschlag aus einem fertigen Job, nur wenn er zu Liste, Blatt und Kopfzeile passt."""
+    job_id = _int(ki_job)
+    job = db.get(Job, job_id) if job_id else None
+    if not job or job.type != "AI_COLUMNS" or job.status != "FERTIG" or job.params.get("price_list_id") != pl.id:
+        return None
+    if job.created_by != user.id and user.role != "admin":
+        return None
+    r = job.result or {}
+    if r.get("status") != "OK":
+        return {"status": r.get("status"), "message": r.get("message")}
+    if r.get("sheet") != pv.sheet.name or r.get("header_row") != pv.detection.header_row:
+        return {"status": "UNKLAR", "message": "Vorschlag gehört zu einem anderen Blatt oder einer anderen Kopfzeile"}
+    columns = {int(k): v for k, v in (r.get("columns") or {}).items() if v in FIELDS}
+    # Vorschläge der KI nur dort vorauswählen, wo Synonyme/Heuristik nichts gefunden haben
+    claimed = {c.field for c in pv.detection.columns if c.field}
+    for c in pv.detection.columns:
+        ai_field = columns.get(c.index)
+        if ai_field and c.field is None and ai_field not in claimed:
+            c.field, c.source, c.score = ai_field, "ki", 0.3
+            claimed.add(ai_field)
+    return {"status": "OK", "columns": columns, "manufacturer": r.get("manufacturer"),
+            "confidence": r.get("confidence")}
+
+
 @router.get("/import/{list_id}")
 def preview(request: Request, list_id: int, sheet: str | None = None, header_row: str | None = None,
-            header_rows: str | None = None, db: Session = Depends(get_db),
-            settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
+            header_rows: str | None = None, ki_job: str | None = None, db: Session = Depends(get_db),
+            settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
     pl = _draft(db, list_id)
     try:
         pv = build_preview(db, pl, settings, sheet, _int(header_row), _int(header_rows))
@@ -67,8 +94,21 @@ def preview(request: Request, list_id: int, sheet: str | None = None, header_row
     manufacturers = list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))
     return render(request, "import_preview.html", {
         "pl": pl, "pv": pv, "fields": FIELDS, "currencies": SUPPORTED_CURRENCIES,
-        "manufacturers": manufacturers, "error": None,
+        "manufacturers": manufacturers, "error": None, "ai": _ai_columns(db, ki_job, pl, user, pv),
     })
+
+
+@router.post("/import/{list_id}/ki-spalten", dependencies=[Depends(check_csrf)])
+async def ai_columns(request: Request, list_id: int, db: Session = Depends(get_db),
+                     user: User = Depends(current_user)):
+    pl = _draft(db, list_id)
+    form = await request.form()
+    header_row = _int(form.get("header_row"))
+    if header_row is None or header_row < 1:
+        raise HTTPException(400, "Kopfzeile fehlt")
+    job = enqueue(db, "AI_COLUMNS", {"price_list_id": pl.id, "sheet": str(form.get("sheet") or ""),
+                                     "header_row": header_row, "header_rows": _int(form.get("header_rows"), 1)}, user)
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
 @router.post("/import/{list_id}/confirm", dependencies=[Depends(check_csrf)])
@@ -111,22 +151,20 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
     if header_row is None:
         errors.append("Kopfzeile angeben")
 
+    if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
+        errors.append("Hersteller nicht gefunden")
+
     if not errors:
-        savepoint = db.begin_nested()
-        try:
-            summary = confirm_import(
-                db, pl, settings, sheet_name=sheet, header_row=header_row, header_rows=header_rows,
-                mapping=mapping, manufacturer_id=manufacturer_id, new_manufacturer=new_manufacturer,
-                currency=currency, decimal_separators=separators, valid_from=valid_from,
-            )
-        except (ValueError, ExcelRejected) as exc:
-            savepoint.rollback()
-            errors.append(str(exc))
-        else:
-            savepoint.commit()
-            audit(db, user, "import", "price_list", pl.id,
-                  {"mapping": mapping, "summary": summary}, client_ip(request))
-            return RedirectResponse(f"/listen/{pl.id}", status_code=303)
+        # Import läuft als Hintergrundjob (große Listen dauern länger als eine Web-Anfrage)
+        pl.status = "WARTESCHLANGE"
+        job = enqueue(db, "IMPORT", {
+            "price_list_id": pl.id, "sheet": sheet, "header_row": header_row, "header_rows": header_rows,
+            "mapping": mapping, "manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer,
+            "currency": currency, "separators": {str(k): v for k, v in separators.items()}, "valid_from": valid_from,
+        }, user)
+        audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},
+              client_ip(request))
+        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     pv = build_preview(db, pl, settings, sheet or None, header_row, header_rows)
     manufacturers = list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))

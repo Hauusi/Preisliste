@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.app import create_app
+from backend.ai.provider import set_provider
 from backend.auth.core import create_user, ip_limiter
 from backend.config import Settings
 from backend.database import engine as db_engine
@@ -17,12 +18,13 @@ USER_PW = "benutzer-passwort-123"
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path / "data", cookie_secure=True)
+    return Settings(data_dir=tmp_path / "data", cookie_secure=True, start_worker=False, ai_provider="none")
 
 
 @pytest.fixture
 def app(settings):
     ip_limiter.reset()
+    set_provider(None)
     application = create_app(settings)
     with db_engine.session_scope() as db:
         create_user(db, "admin", ADMIN_PW, "admin", settings)
@@ -87,3 +89,10 @@ def strip_formula_cache(path: Path) -> None:
                 data = re.sub(rb"(<f>[^<]*</f>)<v>[^<]*</v>", rb"\1", data)
             dst.writestr(item, data)
     tmp.replace(path)
+
+
+def run_jobs(app):
+    from backend.config import get_settings
+    from backend.jobs.runner import run_pending
+
+    return run_pending(app.dependency_overrides[get_settings]())

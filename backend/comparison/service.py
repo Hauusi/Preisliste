@@ -9,8 +9,9 @@ from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.calculations.engine import PriceInput, RuleDefinition, calculate
-from backend.matching.cascade import Item, match
+from backend.matching.cascade import Candidate, Item, match
 from backend.models.entities import (
+    AiMatchSuggestion,
     Article,
     Comparison,
     ComparisonItem,
@@ -141,6 +142,29 @@ def run_comparison(db: Session, cmp: Comparison) -> dict:
     result = match([to_item(a) for a in olds.values() if a.article_number],
                    [to_item(a) for a in news.values() if a.article_number], ignore, decisions)
 
+    # KI-Vorschläge einarbeiten: nur als Kandidaten, nie als automatische Zuordnung (F3)
+    ai = {s.new_article_id: s for s in db.scalars(select(AiMatchSuggestion).where(
+        AiMatchSuggestion.comparison_id == cmp.id))}
+    old_only = set(result.old_only)
+    for new_id in list(result.new_only):
+        s = ai.get(new_id)
+        if s and s.status == "OK" and s.match and s.old_article_id in old_only:
+            result.unclear[new_id] = [Candidate(s.old_article_id, s.confidence * 100 if s.confidence else Decimal(0))]
+            result.unclear_reason[new_id] = "KI-Vorschlag, bitte bestätigen"
+            result.new_only.remove(new_id)
+            old_only.discard(s.old_article_id)
+    result.old_only = sorted(old_only)
+
+    def ai_info(new_id: int, old_id: int) -> dict | None:
+        s = ai.get(new_id)
+        if s is None:
+            return None
+        if s.status != "OK":
+            return {"status": "UNKLAR", "reason": s.reason}
+        if s.match and s.old_article_id == old_id:
+            return {"status": "TREFFER", "confidence": str(s.confidence), "reason": s.reason}
+        return {"status": "KEIN_TREFFER", "confidence": str(s.confidence), "reason": s.reason}
+
     rows: list[dict] = []
     for old_id, new_id, method, score in result.pairs:
         rows.extend(_pair_items(cmp, olds[old_id], news[new_id], method, score, rule))
@@ -150,10 +174,12 @@ def run_comparison(db: Session, cmp: Comparison) -> dict:
         reason = result.unclear_reason.get(new_id) or ""
         rows.append({**_base(n), "new_article_id": new_id, "status": "NICHT_EINDEUTIG", "new_amount": amount,
                      "currency": cur, "note": reason,
-                     "match_method": "DOPPELT" if reason.startswith("Nummer mehrfach") else "UNSCHARF",
+                     "match_method": ("DOPPELT" if reason.startswith("Nummer mehrfach")
+                                      else "KI" if reason.startswith("KI-Vorschlag") else "UNSCHARF"),
                      "candidates": [{"old_id": c.old_id, "score": str(c.score),
                                      "number": olds[c.old_id].article_number,
-                                     "description": olds[c.old_id].description} for c in cands]})
+                                     "description": olds[c.old_id].description,
+                                     "ki": ai_info(new_id, c.old_id)} for c in cands]})
     for new_id in result.new_only:
         n = news[new_id]
         amount, cur = _single_amount(n, cmp, rule)

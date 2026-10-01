@@ -127,7 +127,9 @@ def match(
     return res
 
 
-def fuzzy_candidates(n: Item, pool: list[Item], threshold: int) -> list[Candidate]:
+def fuzzy_candidates(n: Item, pool: list[Item], threshold: int, combine: str = "weighted") -> list[Candidate]:
+    """combine="weighted": 70 % Nummer, 30 % Bezeichnung (Vorschläge im Vergleich).
+    combine="max": besserer der beiden Werte (Kandidaten für die KI, auch bei komplett neuer Nummer)."""
     if not pool:
         return []
     by_number = process.extract(n.normalized, [o.normalized for o in pool], scorer=fuzz.ratio, limit=10)
@@ -141,7 +143,8 @@ def fuzzy_candidates(n: Item, pool: list[Item], threshold: int) -> list[Candidat
         o = pool[i]
         num = fuzz.ratio(n.normalized, o.normalized)
         if n.description and o.description:
-            score = 0.7 * num + 0.3 * fuzz.token_set_ratio(n.description, o.description)
+            desc = fuzz.token_set_ratio(n.description, o.description)
+            score = max(num, desc) if combine == "max" else 0.7 * num + 0.3 * desc
         else:
             score = num
         if score >= threshold:

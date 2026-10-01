@@ -7,11 +7,16 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import logging
+
+from backend.ai.provider import cached_status
 from backend.api.deps import LoginRequired
 from backend.api.templating import templates
 from backend.config import PROJECT_ROOT, Settings, get_settings
 from backend.database import engine as db_engine
 from backend.database.migrate import upgrade
+
+log = logging.getLogger("preisliste")
 
 CSP = (
     "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
@@ -61,10 +66,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     from backend.api import (
-        routes_api, routes_auth, routes_compare, routes_imports, routes_lists, routes_rules, routes_users,
+        routes_api, routes_auth, routes_compare, routes_imports, routes_jobs, routes_lists, routes_rules,
+        routes_users,
     )
 
     for module in (routes_auth, routes_imports, routes_lists, routes_users, routes_rules, routes_compare,
-                   routes_api):
+                   routes_jobs, routes_api):
         app.include_router(module.router)
+
+    if settings.start_worker:
+        from backend.jobs.runner import recover_after_restart, start_worker
+
+        recover_after_restart()
+        start_worker(settings)
+        status = cached_status(settings, max_age=0)
+        log.info("KI: %s (%s, %s)", "aktiv" if status.active else "inaktiv", status.provider, status.message)
     return app

@@ -3,6 +3,19 @@
 {% block content %}
 <h1>{{ "Regel bearbeiten" if rule else "Neue Regel" }}</h1>
 {% for e in errors %}<p class="msg FEHLER">{{ e }}</p>{% endfor %}
+{% if ai %}
+  <p class="msg {{ 'UNKLAR' if ai.status == 'OK' else 'FEHLER' }}">{% if ai.status == "OK" %}Vorschlag der KI, noch nicht gespeichert. Bitte jeden Schritt prüfen.{% else %}KI-Vorschlag nicht verwendbar: {{ ai.message }}{% endif %}{% if ai.explanation %}<br>Erklärung der KI: {{ ai.explanation }}{% endif %}</p>
+{% endif %}
+{% if not rule and ai_status and ai_status.active %}
+<details class="card">
+  <summary>Regel von der KI vorschlagen lassen</summary>
+  <form method="post" action="/regeln/ki">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Beschreibung <textarea name="text" rows="3" maxlength="1000" placeholder="z. B. 15 % Rabatt auf den Listenpreis, dann 4 % Transport auf den rabattierten Preis, auf 0,05 runden"></textarea></label>
+    <button type="submit" class="secondary">Vorschlag holen</button>
+  </form>
+</details>
+{% endif %}
 <form method="post" action="{{ '/regeln/' ~ rule.id if rule else '/regeln/neu' }}">
   {% include "_rule_form.html" %}
   <button type="submit">Speichern{% if rule %} (neue Version){% endif %}</button>

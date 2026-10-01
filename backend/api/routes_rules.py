@@ -11,7 +11,8 @@ from backend.api.render import render
 from backend.calculations.engine import MODE_LABELS, PRICE_TYPES, PriceInput, RuleDefinition, calculate
 from backend.database.engine import get_db
 from backend.excel.numbers import parse_amount
-from backend.models.entities import Manufacturer, Rule, RuleVersion, User
+from backend.jobs.runner import enqueue
+from backend.models.entities import Job, Manufacturer, Rule, RuleVersion, User
 from backend.services.audit import audit
 from backend.services.rules import create_rule, current_version, new_version
 
@@ -110,9 +111,27 @@ def rules(request: Request, db: Session = Depends(get_db), _user: User = Depends
 
 
 @router.get("/regeln/neu")
-def new_rule_form(request: Request, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    return render(request, "rule_edit.html", _ctx(db, rule=None, definition={"start_price": "LISTE", "rounding": {}},
-                                                  rows=form_rows(None), errors=[], name="", manufacturer_id=None))
+def new_rule_form(request: Request, ki_job: int | None = None, db: Session = Depends(get_db),
+                  admin: User = Depends(require_admin)):
+    definition: dict = {"start_price": "LISTE", "rounding": {}}
+    ai = None
+    job = db.get(Job, ki_job) if ki_job else None
+    if job and job.type == "AI_RULE" and job.status == "FERTIG" and job.created_by == admin.id:
+        ai = job.result or {}
+        if ai.get("definition"):
+            definition = {**ai["definition"], "rounding": {}}
+    return render(request, "rule_edit.html", _ctx(db, rule=None, definition=definition, rows=form_rows(definition),
+                                                  errors=[], name="", manufacturer_id=None, ai=ai))
+
+
+@router.post("/regeln/ki", dependencies=[Depends(check_csrf)])
+async def ai_rule(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    form = await request.form()
+    text = str(form.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Beschreibung fehlt")
+    job = enqueue(db, "AI_RULE", {"text": text[:1000]}, admin)
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
 async def _save(request: Request, db: Session, admin: User, rule: Rule | None):

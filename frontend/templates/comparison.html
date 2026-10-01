@@ -40,7 +40,8 @@
           <form method="post" action="/vergleiche/{{ cmp.id }}/eintrag/{{ i.id }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="back" value="{{ back }}">
-            {% for c in i.candidates %}<label class="inline-label"><input type="radio" name="old_id" value="{{ c.old_id }}" required> {{ c.number }} – {{ c.description or "" }} (Score {{ c.score }})</label>{% endfor %}
+            {% for c in i.candidates %}<label class="inline-label"><input type="radio" name="old_id" value="{{ c.old_id }}" required> {{ c.number }} – {{ c.description or "" }} (Score {{ c.score }})
+              {% if c.ki %}<span class="badge {{ 'OK' if c.ki.status == 'TREFFER' else 'UNKLAR' }}" title="{{ c.ki.reason }}">KI: {{ {"TREFFER": "passt", "KEIN_TREFFER": "passt nicht", "UNKLAR": "unklar"}[c.ki.status] }}{% if c.ki.confidence and c.ki.confidence != "None" %} ({{ c.ki.confidence }}){% endif %}</span>{% endif %}</label>{% endfor %}
             <label class="inline-label"><input type="radio" name="old_id" value="keiner"> keiner (neuer Artikel)</label>
             <button type="submit" class="secondary">Bestätigen</button>
           </form>
@@ -54,6 +55,13 @@
 </table>
 </div>
 {% include "_pager.html" %}
+{% if ai_status and ai_status.active and (s.NICHT_EINDEUTIG or (s.NEUER_ARTIKEL and s.ENTFALLENER_ARTIKEL)) %}
+<form method="post" action="/vergleiche/{{ cmp.id }}/ki" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">KI für unklare und neue Artikel</button>
+  <span class="hint">Läuft im Hintergrund, abbrechbar. Ergebnisse sind nur Vorschläge.</span>
+</form>
+{% endif %}
 <form method="post" action="/vergleiche/{{ cmp.id }}/neu-berechnen" class="inline">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <button type="submit" class="secondary">Neu berechnen</button>
