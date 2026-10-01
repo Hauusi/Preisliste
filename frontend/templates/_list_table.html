@@ -1,0 +1,19 @@
+<table>
+  <thead><tr><th>Name</th><th>Datei</th><th>Status</th><th>Artikel</th><th>Fehler</th><th>Unklar</th><th>Warnungen</th><th>Hochgeladen</th></tr></thead>
+  <tbody>
+  {% for pl in lists %}
+    <tr>
+      <td>{% if pl.status == "ENTWURF" %}<a href="/import/{{ pl.id }}">{{ pl.name }}</a>{% else %}<a href="/listen/{{ pl.id }}">{{ pl.name }}</a>{% endif %}</td>
+      <td>{{ pl.source_file }}</td>
+      <td><span class="badge {{ pl.status }}">{{ pl.status }}</span></td>
+      <td class="num">{{ pl.summary.articles if pl.summary else "" }}</td>
+      <td class="num">{{ pl.summary.messages.FEHLER if pl.summary else "" }}</td>
+      <td class="num">{{ pl.summary.messages.UNKLAR if pl.summary else "" }}</td>
+      <td class="num">{{ pl.summary.messages.WARNUNG if pl.summary else "" }}</td>
+      <td>{{ pl.uploaded_at | dt }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8">Noch keine Preislisten.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

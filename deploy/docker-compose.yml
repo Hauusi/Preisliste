@@ -1,0 +1,22 @@
+# Preisliste – Serverbetrieb. Port nur auf 127.0.0.1, nginx auf dem Host leitet weiter.
+# Ollama wird in Gruppe C ergänzt.
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8010:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      PREIS_COOKIE_SECURE: "true"
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

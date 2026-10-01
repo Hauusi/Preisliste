@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ pl.name }}{% endblock %}
+{% block content %}
+<h1>{{ pl.name }}</h1>
+<p class="hint">{{ pl.source_file }} · Blatt {{ pl.sheet }} · Kopfzeile {{ pl.header_row }} · importiert {{ pl.imported_at | dt }}{% if pl.currency %} · Währung {{ pl.currency }}{% endif %}</p>
+{% if pl.summary %}
+<div class="stats">
+  <div class="stat"><span>{{ pl.summary.articles }}</span>Artikel</div>
+  <div class="stat"><span>{{ pl.summary.prices }}</span>Preise</div>
+  <a class="stat FEHLER" href="/listen/{{ pl.id }}/meldungen?level=FEHLER"><span>{{ pl.summary.messages.FEHLER }}</span>Fehler</a>
+  <a class="stat UNKLAR" href="/listen/{{ pl.id }}/meldungen?level=UNKLAR"><span>{{ pl.summary.messages.UNKLAR }}</span>Unklar</a>
+  <a class="stat WARNUNG" href="/listen/{{ pl.id }}/meldungen?level=WARNUNG"><span>{{ pl.summary.messages.WARNUNG }}</span>Warnungen</a>
+</div>
+{% if pl.summary.manufacturers_created %}<p class="msg WARNUNG">Neu angelegte Hersteller: {{ pl.summary.manufacturers_created | join(", ") }}</p>{% endif %}
+{% endif %}
+
+<form method="get" class="card row">
+  <label>Status
+    <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+  </label>
+  <label>Suche <input name="q" value="{{ q }}" maxlength="100" placeholder="Artikelnummer oder Bezeichnung"></label>
+  <button type="submit" class="secondary">Filtern</button>
+</form>
+
+{% set base_query = ({"status": status or "", "q": q} | urlencode) ~ "&" %}
+{% include "_pager.html" %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Zeile</th><th>Artikelnummer</th><th>Hersteller</th><th>Bezeichnung</th><th>Kategorie</th><th>Preise</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for a in rows %}
+    <tr>
+      <td class="num">{{ a.source_row }}</td>
+      <td>{{ a.article_number or "" }}</td>
+      <td>{{ manufacturers.get(a.manufacturer_id, a.manufacturer_raw or "") }}</td>
+      <td>{{ a.description or "" }}</td>
+      <td>{{ a.category or "" }}</td>
+      <td>{% for p in a.prices %}<div class="price">{{ p.price_type }} {{ p.amount | money }} {{ p.currency }}{% if p.min_quantity is not none %} ab {{ p.min_quantity }}{% endif %}{% if p.discount_percent is not none %} · Rabatt {{ p.discount_percent }} %{% endif %}</div>{% endfor %}</td>
+      <td><span class="badge {{ a.status }}">{{ a.status }}</span></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7">Keine Artikel.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% include "_pager.html" %}
+<p><a href="/listen/{{ pl.id }}/meldungen">Alle Meldungen anzeigen</a></p>
+{% endblock %}

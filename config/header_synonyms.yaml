@@ -1,0 +1,114 @@
+# Spaltenüberschriften -> Feld. Vergleich ohne Groß-/Kleinschreibung, Umlaute,
+# Satzzeichen und Leerzeichen ("Art.-Nr." == "artnr"). Ergänzen nach Bedarf.
+article_number:
+  - Artikelnummer
+  - Artikel-Nr.
+  - Art.-Nr.
+  - Art.Nr.
+  - ArtNr
+  - Artikel Nr
+  - Bestellnummer
+  - Bestell-Nr.
+  - Best.-Nr.
+  - Materialnummer
+  - Material-Nr.
+  - Teilenummer
+  - SKU
+  - Item No
+  - Item Number
+  - Part Number
+  - Part No
+  - Herstellerartikelnummer
+  - Hersteller-Art.-Nr.
+manufacturer:
+  - Hersteller
+  - Marke
+  - Fabrikat
+  - Manufacturer
+  - Brand
+  - Vendor
+description:
+  - Bezeichnung
+  - Artikelbezeichnung
+  - Beschreibung
+  - Artikelbeschreibung
+  - Kurztext
+  - Langtext
+  - Produktname
+  - Produkt
+  - Description
+  - Name
+category:
+  - Kategorie
+  - Warengruppe
+  - Produktgruppe
+  - Gruppe
+  - Category
+  - Product Group
+supplier_price:
+  - EK
+  - EK netto
+  - Einkaufspreis
+  - Einkaufspreis netto
+  - Nettopreis
+  - Netto-EK
+  - Händlerpreis
+  - HEK
+  - Purchase Price
+  - Net Price
+  - Dealer Price
+list_price:
+  - Listenpreis
+  - Bruttolistenpreis
+  - Liste
+  - Preis
+  - Preis netto
+  - Verkaufspreis
+  - VK
+  - VK netto
+  - List Price
+  - Price
+rrp:
+  - UVP
+  - unverbindliche Preisempfehlung
+  - RRP
+  - MSRP
+discount:
+  - Rabatt
+  - Rabatt %
+  - Rabattsatz
+  - Discount
+transport_cost:
+  - Fracht
+  - Frachtkosten
+  - Transport
+  - Transportkosten
+  - Versandkosten
+  - Freight
+quantity:
+  - Menge
+  - Mindestmenge
+  - Staffel
+  - Staffelmenge
+  - ab Menge
+  - Min. Menge
+  - MOQ
+  - Quantity
+  - Qty
+unit:
+  - Einheit
+  - ME
+  - Mengeneinheit
+  - VPE
+  - Unit
+currency:
+  - Währung
+  - Waehrung
+  - Currency
+  - Whg
+valid_from:
+  - gültig ab
+  - gueltig ab
+  - Gültigkeit
+  - Datum
+  - Valid From

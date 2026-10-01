@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Import prüfen{% endblock %}
+{% block content %}
+{% set det = pv.detection %}
+<h1>Import prüfen: {{ pl.source_file }}</h1>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+{% if pv.duplicate_of %}<p class="msg WARNUNG">Diese Datei wurde bereits importiert ({{ pv.duplicate_of.name }}, {{ pv.duplicate_of.imported_at | dt }}).</p>{% endif %}
+{% if pv.hidden_sheet %}<p class="msg WARNUNG">Das gewählte Tabellenblatt ist in Excel ausgeblendet.</p>{% endif %}
+{% for n in det.notes %}<p class="msg UNKLAR">{{ n }}</p>{% endfor %}
+{% if pv.sheet.formula_without_cache %}<p class="msg WARNUNG">{{ pv.sheet.formula_without_cache | length }} Formelzellen ohne gespeichertes Ergebnis (in den ersten Zeilen). Datei in Excel öffnen und speichern, dann erneut hochladen.</p>{% endif %}
+
+<form method="get" class="card row">
+  <label>Tabellenblatt
+    <select name="sheet">{% for s in pv.sheets %}<option value="{{ s }}" {% if s == pv.sheet.name %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+  </label>
+  <label>Kopfzeile (Excel-Zeile) <input type="number" name="header_row" min="1" value="{{ det.header_row }}"></label>
+  <label>Zeilen Kopfbereich
+    <select name="header_rows"><option value="1" {% if det.header_rows == 1 %}selected{% endif %}>1</option><option value="2" {% if det.header_rows == 2 %}selected{% endif %}>2</option></select>
+  </label>
+  <button type="submit" class="secondary">Neu erkennen</button>
+</form>
+
+<form method="post" action="/import/{{ pl.id }}/confirm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="sheet" value="{{ pv.sheet.name }}">
+  <input type="hidden" name="header_row" value="{{ det.header_row }}">
+  <input type="hidden" name="header_rows" value="{{ det.header_rows }}">
+
+  <section class="card">
+    <h2>Spaltenzuordnung</h2>
+    <p class="hint">Vorschläge aus Synonymliste bzw. Heuristik. Bitte jede Zuordnung prüfen.</p>
+    <div class="scroll">
+    <table class="preview">
+      <thead>
+        <tr>{% for c in det.columns %}<th>{{ c.label or ("Spalte " ~ (c.index + 1)) }}</th>{% endfor %}</tr>
+        <tr>{% for c in det.columns %}
+          <th>
+            <select name="col_{{ c.index }}">
+              <option value="">– ignorieren –</option>
+              {% for key, label in fields.items() %}<option value="{{ key }}" {% if c.field == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            {% if c.source == "heuristik" %}<small class="UNKLAR">Heuristik</small>{% endif %}
+            {% if c.note %}<small class="WARNUNG">{{ c.note }}</small>{% endif %}
+            {% if c.index in det.decimal_separators %}
+              <select name="sep_{{ c.index }}" title="Dezimaltrennzeichen">
+                {% set sep = det.decimal_separators[c.index] %}
+                <option value="" {% if not sep %}selected{% endif %}>Dezimal: unklar</option>
+                <option value="," {% if sep == "," %}selected{% endif %}>Dezimal: Komma</option>
+                <option value="." {% if sep == "." %}selected{% endif %}>Dezimal: Punkt</option>
+              </select>
+            {% endif %}
+          </th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in pv.sample_rows %}
+        <tr>{% for c in det.columns %}<td>{{ row[c.index] if c.index < row|length and row[c.index] is not none else "" }}</td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="card row">
+    <label>Hersteller (wenn keine Herstellerspalte)
+      <select name="manufacturer_id">
+        <option value="">– wählen –</option>
+        {% for m in manufacturers %}<option value="{{ m.id }}" {% if pv.manufacturer_suggestion == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>oder neuer Hersteller <input name="new_manufacturer" maxlength="200"></label>
+    <label>Währung (wenn nicht in den Zellen)
+      <select name="currency">
+        <option value="">– keine Annahme –</option>
+        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Gültig ab <input type="date" name="valid_from"></label>
+  </section>
+  <p class="hint">Währung: Preise ohne Währungszeichen in der Zelle und ohne Währungsspalte werden als FEHLER markiert, wenn hier keine Währung gewählt ist. Es wird nichts angenommen.</p>
+  {% if pv.manufacturer_suggestion %}<p class="hint">Hersteller wurde aus Datei- oder Blattname vorgeschlagen. Bitte prüfen.</p>{% endif %}
+
+  <div class="actions">
+    <button type="submit">Import ausführen</button>
+  </div>
+</form>
+<form method="post" action="/import/{{ pl.id }}/verwerfen" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Entwurf verwerfen</button>
+</form>
+{% endblock %}

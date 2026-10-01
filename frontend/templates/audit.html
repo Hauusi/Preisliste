@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Protokoll{% endblock %}
+{% block content %}
+<h1>Protokoll</h1>
+<table>
+  <thead><tr><th>Zeit (UTC)</th><th>Benutzer</th><th>Aktion</th><th>Objekt</th><th>Details</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.timestamp | dt }}</td><td>{{ r.username or "" }}</td><td>{{ r.action }}</td><td>{{ r.entity or "" }} {{ r.entity_id or "" }}</td><td class="small">{{ r.details | tojson if r.details else "" }}</td><td>{{ r.ip or "" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<nav class="pager">{% if page > 1 %}<a href="?page={{ page - 1 }}">« neuer</a>{% endif %} Seite {{ page }} {% if rows | length == size %}<a href="?page={{ page + 1 }}">älter »</a>{% endif %}</nav>
+{% endblock %}

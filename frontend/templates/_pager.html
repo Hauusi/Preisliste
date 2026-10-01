@@ -1,0 +1,9 @@
+{% if info.pages > 1 %}
+<nav class="pager">
+  {% if info.page > 1 %}<a href="?{{ base_query }}page={{ info.page - 1 }}">« zurück</a>{% endif %}
+  Seite {{ info.page }} von {{ info.pages }} ({{ info.total }} Einträge)
+  {% if info.page < info.pages %}<a href="?{{ base_query }}page={{ info.page + 1 }}">weiter »</a>{% endif %}
+</nav>
+{% else %}
+<p class="hint">{{ info.total }} Einträge</p>
+{% endif %}

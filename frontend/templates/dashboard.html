@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Übersicht{% endblock %}
+{% block content %}
+<h1>Übersicht</h1>
+<div class="stats">
+  <div class="stat"><span>{{ stats.lists }}</span>importierte Listen</div>
+  <div class="stat"><span>{{ stats.articles }}</span>Artikel</div>
+  <div class="stat"><span>{{ stats.manufacturers }}</span>Hersteller</div>
+</div>
+<h2>Letzte Uploads</h2>
+{% include "_list_table.html" %}
+<p><a class="button" href="/import">Neue Preisliste importieren</a></p>
+{% endblock %}

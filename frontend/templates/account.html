@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Konto{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Passwort ändern</h1>
+  {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+  {% if request.query_params.get("ok") %}<p class="msg OK">Passwort geändert. Andere Sitzungen wurden beendet.</p>{% endif %}
+  <form method="post" action="/konto">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Aktuelles Passwort <input type="password" name="old_password" required autocomplete="current-password"></label>
+    <label>Neues Passwort (min. 12 Zeichen) <input type="password" name="new_password" required autocomplete="new-password"></label>
+    <label>Neues Passwort wiederholen <input type="password" name="new_password2" required autocomplete="new-password"></label>
+    <button type="submit">Ändern</button>
+  </form>
+</section>
+{% endblock %}

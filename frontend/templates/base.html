@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Preisliste{% endblock %} – Preisliste</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% if user %}
+<header class="top">
+  <nav>
+    <a href="/" class="brand">Preisliste</a>
+    <a href="/listen">Preislisten</a>
+    <a href="/import">Import</a>
+    {% if user.role == "admin" %}<a href="/benutzer">Benutzer</a><a href="/audit">Protokoll</a>{% endif %}
+  </nav>
+  <div class="who">
+    <span class="badge off" title="KI-Anbindung folgt in Gruppe C">KI inaktiv</span>
+    <a href="/konto">{{ user.username }}</a>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link">Abmelden</button>
+    </form>
+  </div>
+</header>
+{% endif %}
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Meldungen{% endblock %}
+{% block content %}
+<h1>Meldungen: {{ pl.name }}</h1>
+<p><a href="/listen/{{ pl.id }}">« zur Liste</a></p>
+<nav class="tabs">
+  <a href="?" {% if not level %}class="active"{% endif %}>alle</a>
+  {% for l in levels %}<a href="?level={{ l }}" class="{{ l }} {% if l == level %}active{% endif %}">{{ l }}</a>{% endfor %}
+</nav>
+{% set base_query = ({"level": level or ""} | urlencode) ~ "&" %}
+{% include "_pager.html" %}
+<table>
+  <thead><tr><th>Zeile</th><th>Stufe</th><th>Spalte</th><th>Code</th><th>Meldung</th></tr></thead>
+  <tbody>
+  {% for m in rows %}
+    <tr><td class="num">{{ m.source_row or "" }}</td><td><span class="badge {{ m.level }}">{{ m.level }}</span></td><td>{{ m.column or "" }}</td><td>{{ m.code }}</td><td>{{ m.text }}</td></tr>
+  {% else %}
+    <tr><td colspan="5">Keine Meldungen.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}
