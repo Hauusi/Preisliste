@@ -53,7 +53,7 @@ Die Referenzrechnung aus §5 ist in sich stimmig: 100,00 − 15 % = 85,00; 4 % v
 - **nginx** belegt bereits 80/443. Zertifikat für `salesassistent.duckdns.org` existiert unter `/etc/letsencrypt/live/`.
 - Alte App in `~/apps/salesassistent` (Next.js + FastAPI + Postgres + Redis, Docker Compose). Sie wird ersetzt.
 - Weitere Dienste auf dem Host (Postgres auf 127.0.0.1:5433, Node auf 3001/4416, warp-svc), die nicht zu diesem Projekt gehören und nicht angefasst werden.
-- **Sicherheitsbefund:** Die alte App veröffentlicht Postgres (Passwort `postgres`) und Redis (ohne Passwort) auf `0.0.0.0`. Docker umgeht dabei `ufw`.
+- **Sicherheitsbefund:** Die alte App veröffentlicht Postgres (Passwort `postgres`) und Redis (ohne Passwort) auf `0.0.0.0`, außerdem Backend (8000) und Frontend (3000). Über diese Ports lässt sich die Basic-Auth von nginx umgehen. Docker umgeht dabei `ufw`.
 
 ### 3.1 Überblick
 
@@ -82,6 +82,9 @@ Internet ──443/80──> nginx (Host, vorhandenes Let's-Encrypt-Zertifikat)
 ### 3.3 Domain und TLS
 
 - DNS und Zertifikat sind schon vorhanden. Die Erneuerung läuft über certbot und bleibt unverändert.
+- Vorhandene Datei: `/etc/nginx/sites-available/salesassistent`. Sie leitet `/` auf `localhost:3000` und `/api/` auf `localhost:8000` weiter, mit HTTP-Basic-Auth (`/etc/nginx/.htpasswd`). Die certbot-Zeilen und der Port-80-Block bleiben unverändert.
+- Bei der Umstellung werden beide `location`-Blöcke durch einen einzigen `location /` mit `proxy_pass http://127.0.0.1:8010;` ersetzt. Bewusst `127.0.0.1` statt `localhost`, damit nginx nicht zuerst über IPv6 (`::1`) verbindet.
+- Ob die Basic-Auth als zusätzliche Schutzschicht vor dem App-Login bleibt: **F10**.
 - Der nginx-Serverblock für die Domain bleibt erhalten. Bei der Umstellung wird nur `proxy_pass` auf `http://127.0.0.1:8010` geändert, ergänzt um `client_max_body_size 25m` und Sicherheitsheader (HSTS, `X-Frame-Options: DENY`, CSP).
 - Keine externen Skripte oder CDNs, alles wird von der App selbst ausgeliefert.
 
@@ -261,3 +264,5 @@ Nach jeder Gruppe gibt es einen kurzen Bericht und es wird auf Freigabe gewartet
 **F8 – Rollen.** Reichen admin und benutzer? Wie viele Benutzer ungefähr?
 
 **F9 – Backup.** Wohin? Nur auf den Server selbst (schützt nicht vor Serververlust), auf eine Hetzner Storage Box oder auf einen anderen Ort?
+
+**F10 – Basic-Auth.** Soll die vorhandene nginx-Passwortabfrage zusätzlich zum App-Login bleiben? Vorteil: Angreifer erreichen die App gar nicht erst. Nachteil: Man muss sich zweimal anmelden. Vorschlag: beibehalten, mit einem gemeinsamen Basic-Auth-Konto für alle.
