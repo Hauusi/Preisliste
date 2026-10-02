@@ -1,10 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Kalkulation{% endblock %}
 {% block content %}
+{% macro abgleich() %}
+{% if update_bases %}
+{% set st = update_settings %}
+<form method="post" action="/aktualisierungen" class="card highlight">
+  <h2>Jahresabgleich mit unserer Liste</h2>
+  <p class="hint">Diese Herstellerliste ({{ pl.name }}) wird mit unserer EK/VK-Liste vom Vorjahr verglichen. Nur unsere Artikel kommen in die neue Liste. Fehlt ein Artikel beim Hersteller, bleiben alter EK und VK und er wird markiert. Neue Artikel des Herstellers werden ignoriert.</p>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="source_id" value="{{ pl.id }}">
+  <div class="row">
+    <label>Unsere Liste (EK/VK Vorjahr)
+      <select name="base_id" required><option value="">– wählen –</option>
+        {% for o in update_bases %}<option value="{{ o.id }}" {% if o.id == update_base_default %}selected{% endif %}>{{ o.name }}{% if o.kind == "UNSERE" %} · unsere Liste{% endif %} ({{ o.imported_at | dt }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Kalkulationsregel für den VK
+      <select name="rule_id" required><option value="">– wählen –</option>
+        {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <ul class="hint">
+    <li>Herstellerliste enthält: <b>{{ "UVP / RRP" if st.basis == "UVP" else "EK" }}</b>{% if st.basis == "UVP" %} → EK = UVP − {{ st.discount | money if st.discount is not none else "?" }} % Händlerrabatt{% endif %}</li>
+    <li>VK = Regel angewendet auf den neuen EK</li>
+    <li>Prüfen ab ±{{ st.threshold | money }} % EK-Änderung, außerdem immer bei VK unter EK, Preis 0, unklarer Zuordnung und fehlenden Artikeln</li>
+  </ul>
+  {% if update_manufacturer %}<p class="hint">Einstellungen ändern: <a href="/hersteller">Hersteller {{ update_manufacturer.name }}</a></p>
+  {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste, Prüfschwelle 10 %).</p>{% endif %}
+  {% if st.basis == "UVP" and st.discount is none %}<p class="msg FEHLER">Beim Hersteller ist kein Händlerrabatt hinterlegt. Ohne ihn kann kein EK berechnet werden.</p>{% endif %}
+  <div class="actions"><button type="submit">Abgleich starten →</button></div>
+</form>
+{% elif pl.kind == "HERSTELLER" %}
+<p class="msg UNKLAR">Für den Jahresabgleich fehlt noch unsere Liste (EK/VK Vorjahr). Bitte zuerst importieren und in Schritt 3 „Unsere Liste“ wählen.</p>
+{% endif %}
+{% endmacro %}
 {% include "_steps.html" %}
 <h1>Schritt 5: Kalkulieren <small class="hint">{{ pl.name }}</small></h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 <p class="hint">{{ article_count }} Artikel{% if list_manufacturer %} von {{ list_manufacturer.name }}{% if list_manufacturer.code %} ({{ list_manufacturer.code }}){% endif %}{% endif %}.</p>
+{% if pl.kind == "HERSTELLER" %}{{ abgleich() }}<h2>Oder: alle Artikel dieser Liste kalkulieren</h2>{% endif %}
+{% if pl.kind == "UNSERE" %}<p class="msg OK">Das ist unsere Liste (EK/VK Vorjahr). Sie wird beim Jahresabgleich verwendet: als Nächstes die neue Herstellerliste importieren und dort „Neue Herstellerliste“ wählen. <a href="/import">Herstellerliste importieren →</a></p>{% endif %}
 
 {% if rules %}
 <form method="post" class="card">
@@ -25,31 +61,7 @@
 </form>
 {% endif %}
 
-{% if update_bases %}
-<form method="post" action="/aktualisierungen" class="card">
-  <h2>Oder: neue Preisliste nur mit unseren Artikeln</h2>
-  <p class="hint">Diese Liste ({{ pl.name }}) liefert die neuen Preise. Übernommen werden nur Artikel, die in unserer Liste stehen. Artikel, die beim Hersteller fehlen, behalten den alten Preis und werden markiert. Neue Artikel des Herstellers werden ignoriert.</p>
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="source_id" value="{{ pl.id }}">
-  <div class="row">
-    <label>Unsere Liste (Vorjahr)
-      <select name="base_id" required><option value="">– wählen –</option>
-        {% for o in update_bases %}<option value="{{ o.id }}" {% if o.id == update_base_default %}selected{% endif %}>{{ o.name }} ({{ o.imported_at | dt }})</option>{% endfor %}
-      </select>
-    </label>
-    <label>Preisart
-      <select name="price_type">{% for t in ["EK", "LISTE", "UVP"] %}<option value="{{ t }}" {% if t == update_price_type %}selected{% endif %}>{{ {"EK": "Einkaufspreis", "LISTE": "Listenpreis", "UVP": "UVP"}[t] }}</option>{% endfor %}</select>
-    </label>
-    <label>Kalkulationsregel
-      <select name="rule_id"><option value="">– keine –</option>
-        {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>Menge <input name="quantity" value="1" size="6"></label>
-  </div>
-  <div class="actions"><button type="submit">Neue Preisliste erstellen →</button></div>
-</form>
-{% endif %}
+{% if pl.kind != "HERSTELLER" and pl.kind != "UNSERE" %}{{ abgleich() }}{% endif %}
 
 {% if user.role == "admin" %}
 <p class="{{ 'msg UNKLAR' if not rules or not preselect else 'hint' }}">

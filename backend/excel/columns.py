@@ -22,7 +22,7 @@ FIELDS: dict[str, str] = {
     "description": "Bezeichnung",
     "category": "Kategorie",
     "supplier_price": "Einkaufspreis (EK)",
-    "list_price": "Listenpreis",
+    "list_price": "VK / Listenpreis",
     "rrp": "UVP",
     "discount": "Rabatt %",
     "transport_cost": "Transportkosten",

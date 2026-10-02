@@ -109,3 +109,10 @@ a.danger-link:hover { background: #fdecea; }
 .big-name { font-size: 1.2rem; font-weight: 600; }
 .narrow-wide { max-width: 640px; margin: 30px auto; }
 .confirm-check { font-weight: 600; margin: 14px 0; }
+.card.highlight { border: 2px solid var(--accent); }
+.PRUEFEN { color: var(--warn); border-color: var(--warn); }
+.NICHT_EINDEUTIG { color: var(--unclear); border-color: var(--unclear); }
+.NICHT_IN_HERSTELLERLISTE { color: var(--warn); border-color: var(--warn); }
+tr.open td { background: #fff8e6; }
+.review form { display: inline-flex; gap: 4px; align-items: center; margin: 2px 0; }
+.review input[name=manual_vk] { width: 80px; }

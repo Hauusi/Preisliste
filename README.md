@@ -16,6 +16,20 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 | C | Ollama, Hintergrundjobs, UI | umgesetzt |
 | D | Export, Deployment, Backup | umgesetzt |
 
+## Jahresabgleich (Hauptablauf)
+
+1. Hersteller anlegen: Kürzel, Standardregel (VK aus EK), „Herstellerliste enthält“ EK oder UVP/RRP,
+   bei UVP den Händlerrabatt (EK = UVP − Rabatt), Prüfschwelle (Standard ±10 % EK-Änderung).
+2. Unsere Liste vom Vorjahr importieren, in Schritt 3 „Unsere Liste“ wählen (EK- und VK-Spalte nötig).
+3. Neue Herstellerliste importieren, in Schritt 3 „Neue Herstellerliste“ wählen, in Schritt 5 „Abgleich starten“.
+4. Ergebnis: nur unsere Artikel. EK neu aus der Herstellerliste, VK neu = Regel auf EK neu.
+   Zu prüfen sind: EK-Änderung ab Schwelle, VK unter EK, Preis 0, fehlender alter EK/VK,
+   unklare Zuordnung, Artikel fehlt beim Hersteller (alter EK/VK bleibt), Fehler (alter EK/VK bleibt).
+   Neue Artikel des Herstellers werden ignoriert.
+5. Positionen bestätigen (optional VK von Hand), unklare Zuordnungen auswählen. Der endgültige Export
+   ist erst möglich, wenn alles geprüft ist; vorher gibt es nur einen als ENTWURF markierten Export.
+   Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
+
 ## Entwicklung
 
 ```

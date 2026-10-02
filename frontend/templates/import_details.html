@@ -13,6 +13,15 @@
   {% for f, cs in cols.assigned.items() %}{% for c in cs %}<input type="hidden" name="col_{{ c }}" value="{{ f }}">{% endfor %}{% endfor %}
   {% for c, sep in cols.separators.items() %}{% if sep %}<input type="hidden" name="sep_{{ c }}" value="{{ sep }}">{% endif %}{% endfor %}
 
+  <section class="card">
+    <h2>Was für eine Liste ist das?</h2>
+    {% set guess = "UNSERE" if ("supplier_price" in cols.assigned and "list_price" in cols.assigned) else "HERSTELLER" %}
+    <label class="inline-label"><input type="radio" name="kind" value="UNSERE" required {% if guess == "UNSERE" %}checked{% endif %}>
+      <b>Unsere Liste</b> (EK und VK vom Vorjahr) – braucht eine EK- und eine VK-Spalte</label>
+    <label class="inline-label"><input type="radio" name="kind" value="HERSTELLER" required {% if guess == "HERSTELLER" %}checked{% endif %}>
+      <b>Neue Herstellerliste</b> – wird danach mit unserer Liste abgeglichen</label>
+  </section>
+
   <div class="two-col">
     <section class="card">
       <h2>Hersteller</h2>

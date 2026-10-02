@@ -1,36 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Neue Preisliste{% endblock %}
+{% block title %}Jahresabgleich{% endblock %}
 {% block content %}
 {% include "_steps.html" %}
 {% set s = upd.summary or {} %}
-<h1>Schritt 6: Neue Preisliste <small class="hint">nur Artikel aus „{{ upd.base_list.name }}“</small></h1>
-<p class="hint">Neue Preise aus „{{ upd.source_list.name }}“ · Preisart {{ upd.price_type }} · Regel {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "keine" }} · {{ upd.created_at | dt }}</p>
+<h1>Schritt 6: Jahresabgleich <small class="hint">neue EK/VK-Liste für „{{ upd.base_list.name }}“</small></h1>
+<p class="hint">Herstellerliste „{{ upd.source_list.name }}“ liefert {{ "UVP/RRP (EK = UVP − " ~ (upd.dealer_discount | money) ~ " % Händlerrabatt)" if upd.price_type == "UVP" else "den EK" }}
+  · VK mit Regel {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "–" }} aus dem neuen EK
+  · Prüfschwelle ±{{ upd.review_threshold | money }} % · {{ upd.created_at | dt }}</p>
+{% if meldung %}<p class="msg UNKLAR">{{ meldung }}</p>{% endif %}
+
 <div class="stats">
   <a class="stat" href="?"><span>{{ s.artikel }}</span>unsere Artikel</a>
+  <a class="stat {{ 'FEHLER' if s.offen else 'OK' }}" href="?status=offen"><span>{{ s.offen }}</span>noch zu prüfen</a>
   {% for st in statuses %}<a class="stat {{ st }}" href="?status={{ st }}"><span>{{ s[st] }}</span>{{ labels[st] }}</a>{% endfor %}
 </div>
 <p class="hint">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und wurden ignoriert.</p>
-<div class="actions"><a class="button" href="/aktualisierungen/{{ upd.id }}/export">Excel-Export (neue Preisliste)</a></div>
+
+<div class="actions">
+  {% if s.offen %}
+    <span class="msg FEHLER">Endgültiger Export gesperrt: {{ s.offen }} Positionen noch nicht geprüft.</span>
+    <a class="button secondary-link" href="/aktualisierungen/{{ upd.id }}/export?entwurf=1">Entwurf exportieren (mit Vermerk)</a>
+  {% else %}
+    <a class="button" href="/aktualisierungen/{{ upd.id }}/export">Neue Preisliste exportieren (geprüft)</a>
+  {% endif %}
+</div>
+
 <form method="get" class="card row">
-  <label>Status <select name="status"><option value="">alle</option>{% for st in statuses %}<option value="{{ st }}" {% if st == status %}selected{% endif %}>{{ labels[st] }}</option>{% endfor %}</select></label>
+  <label>Status <select name="status"><option value="">alle</option><option value="offen" {% if status == "offen" %}selected{% endif %}>noch zu prüfen</option>{% for st in statuses %}<option value="{{ st }}" {% if st == status %}selected{% endif %}>{{ labels[st] }}</option>{% endfor %}</select></label>
+  <label>Prüfgrund <select name="grund"><option value="">alle</option>{% for k, v in reasons.items() %}<option value="{{ k }}" {% if k == grund %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
   <label>Suche <input name="q" value="{{ q }}" maxlength="100"></label>
   <button type="submit" class="secondary">Filtern</button>
 </form>
-{% set base_query = ({"status": status, "q": q} | urlencode) ~ "&" %}
+
+{% if s.offen %}
+<form method="post" action="/aktualisierungen/{{ upd.id }}/alle-bestaetigen" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="status" value="{{ status if status != 'offen' else '' }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}">
+  <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required>
+    Alle offenen Positionen im aktuellen Filter (Status: {{ labels[status] if status in labels else "alle" }}, Prüfgrund: {{ reasons[grund] if grund else "alle" }}) habe ich geprüft – Werte wie angezeigt übernehmen</label>
+  <button type="submit" class="secondary">Sammelbestätigung</button>
+  <span class="hint">Unklare Zuordnungen müssen einzeln entschieden werden.</span>
+</form>
+{% endif %}
+
+{% set base_query = ({"status": status, "grund": grund, "q": q} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
 <div class="scroll">
 <table>
-  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>Preis alt</th><th>Preis Hersteller neu</th><th>Kalkuliert</th><th>Differenz</th><th>%</th><th>Status</th><th>Hinweis</th></tr></thead>
+  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>EK alt</th><th>{{ "UVP" if upd.price_type == "UVP" else "" }}</th><th>EK neu</th><th>EK Δ%</th><th>VK alt</th><th>VK neu</th><th>VK Δ%</th><th>Status</th><th>Prüfhinweise</th><th>Prüfung</th></tr></thead>
   <tbody>
   {% for i in rows %}
-    <tr>
+    {% set open = i.needs_review and not i.reviewed_at %}
+    <tr class="{{ 'open' if open }}">
       <td>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</td><td>{{ i.description or "" }}</td>
-      <td class="num">{{ i.old_amount | money }}</td><td class="num">{{ i.new_amount | money }}</td>
-      <td class="num"><b>{{ i.calculated_amount | money }}</b></td>
-      <td class="num">{{ i.difference | money }}</td><td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
-      <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span></td><td class="small">{{ i.note or "" }}</td>
+      <td class="num">{{ i.old_amount | money }}</td>
+      <td class="num">{{ i.source_amount | money if upd.price_type == "UVP" else "" }}</td>
+      <td class="num">{{ i.final_ek | money }}</td>
+      <td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
+      <td class="num">{{ i.vk_old | money }}</td>
+      <td class="num"><b>{{ i.final_vk | money }}</b>{% if i.decision == "MANUELL" %} <small>(von Hand)</small>{% endif %}</td>
+      <td class="num">{{ (i.vk_difference_percent | money) ~ " %" if i.vk_difference_percent is not none else "" }}</td>
+      <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span></td>
+      <td class="small">{% for r in i.reasons or [] %}{{ reasons[r] }}{% if not loop.last %}; {% endif %}{% endfor %}{% if i.note %}<br>{{ i.note }}{% endif %}
+        {% if i.decision == "ALT" %}<br><b>Übernommen: alter EK/VK</b>{% endif %}</td>
+      <td class="review small">
+        {% if not i.needs_review %}–
+        {% elif i.reviewed_at %}
+          geprüft von {{ reviewers.get(i.reviewed_by, "?") }}, {{ i.reviewed_at | dt }}
+          <form method="post" action="/aktualisierungen/{{ upd.id }}/positionen/{{ i.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="zuruecknehmen">
+            <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+            <button type="submit" class="secondary">zurücknehmen</button>
+          </form>
+        {% elif i.status == "NICHT_EINDEUTIG" %}
+          <form method="post" action="/aktualisierungen/{{ upd.id }}/positionen/{{ i.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="zuordnen">
+            <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+            <select name="new_id" required><option value="">– Treffer wählen –</option>
+              {% for c in i.candidates or [] %}<option value="{{ c.new_id }}">{{ c.number }} {{ c.description or "" }} ({{ c.score }} %)</option>{% endfor %}
+              <option value="kein">kein Treffer – alten EK/VK behalten</option>
+            </select>
+            <button type="submit">übernehmen</button>
+          </form>
+        {% else %}
+          <form method="post" action="/aktualisierungen/{{ upd.id }}/positionen/{{ i.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="bestaetigen">
+            <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+            {% if i.status != "FEHLER" %}<input name="manual_vk" placeholder="VK von Hand" title="leer lassen = angezeigten VK übernehmen">{% endif %}
+            <button type="submit">{{ "alten Preis behalten" if i.status in ("FEHLER", "NICHT_IN_HERSTELLERLISTE") else "bestätigen" }}</button>
+          </form>
+        {% endif %}
+      </td>
     </tr>
-  {% else %}<tr><td colspan="9">Keine Einträge.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="12">Keine Einträge.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>

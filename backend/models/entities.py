@@ -1,6 +1,7 @@
 """Datenbankmodell Gruppe A. Regeln, Vergleiche und Jobs folgen in Gruppe B/C per Migration."""
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import (
     JSON,
@@ -65,6 +66,11 @@ class Manufacturer(Base):
     ignore_leading_zeros: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     # Festes Kürzel (z. B. RT), wird in Anzeige und Export vor die Artikelnummer gesetzt
     code: Mapped[str | None] = mapped_column(String(10))
+    # Was liefert die Herstellerliste: EK direkt oder UVP (dann EK = UVP - Händlerrabatt)
+    list_basis: Mapped[str] = mapped_column(String(5), default="EK", server_default="EK")
+    dealer_discount: Mapped[object | None] = mapped_column(DecimalText)
+    # Ab dieser EK-Änderung (in %, Betrag) muss ein Artikel geprüft werden
+    review_threshold: Mapped[object] = mapped_column(DecimalText, default=Decimal(10), server_default="10")
     # Voreingestellte Kalkulationsregel (nur Vorauswahl)
     default_rule_id: Mapped[int | None] = mapped_column(ForeignKey("rules.id", use_alter=True,
                                                                    name="fk_manufacturers_default_rule"))
@@ -92,6 +98,8 @@ class PriceList(Base):
     decimal_separator: Mapped[str | None] = mapped_column(String(1))
     valid_from: Mapped[str | None] = mapped_column(String(10))
     status: Mapped[str] = mapped_column(String(20), default="ENTWURF")
+    # UNSERE = unsere EK/VK-Liste, HERSTELLER = neue Liste des Herstellers (None bei Altbestand)
+    kind: Mapped[str | None] = mapped_column(String(12))
     summary: Mapped[dict | None] = mapped_column(JSON)
     uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -350,6 +358,9 @@ class PriceUpdate(Base):
     price_type: Mapped[str] = mapped_column(String(10))
     rule_version_id: Mapped[int | None] = mapped_column(ForeignKey("rule_versions.id"))
     quantity: Mapped[object] = mapped_column(DecimalText)
+    # Einstellungen zum Zeitpunkt der Berechnung (Nachvollziehbarkeit)
+    dealer_discount: Mapped[object | None] = mapped_column(DecimalText)
+    review_threshold: Mapped[object | None] = mapped_column(DecimalText)
     summary: Mapped[dict | None] = mapped_column(JSON)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -380,3 +391,16 @@ class PriceUpdateItem(Base):
     match_method: Mapped[str | None] = mapped_column(String(20))
     note: Mapped[str | None] = mapped_column(Text)
     trace: Mapped[list | None] = mapped_column(JSON)
+    # Jahresabgleich: old_amount = EK alt, new_amount = EK neu, calculated_amount = VK neu
+    source_amount: Mapped[object | None] = mapped_column(DecimalText)  # Preis laut Herstellerliste (EK oder UVP)
+    vk_old: Mapped[object | None] = mapped_column(DecimalText)
+    vk_difference: Mapped[object | None] = mapped_column(DecimalText)
+    vk_difference_percent: Mapped[object | None] = mapped_column(DecimalText)
+    final_ek: Mapped[object | None] = mapped_column(DecimalText)
+    final_vk: Mapped[object | None] = mapped_column(DecimalText)
+    decision: Mapped[str | None] = mapped_column(String(10))  # NEU | ALT | MANUELL
+    reasons: Mapped[list | None] = mapped_column(JSON)
+    candidates: Mapped[list | None] = mapped_column(JSON)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)

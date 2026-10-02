@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.api.deps import check_csrf, client_ip, current_user, require_admin
@@ -72,27 +72,33 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _us
 
 
 def _update_defaults(db: Session, pl: PriceList, mid: int | None) -> dict:
-    """Vorauswahl für 'Neue Preisliste nur mit unseren Artikeln': ältere Liste desselben Herstellers."""
-    from backend.api.routes_updates import main_price_type
+    """Vorauswahl für den Jahresabgleich: unsere Liste (Vorjahr) desselben Herstellers."""
+    from backend.comparison.update import manufacturer_settings
 
-    others = [o for o in _imported(db) if o.id != pl.id]
-    same = [o for o in others if mid and list_manufacturer(db, o) == mid and o.id < pl.id]
-    return {"update_bases": others, "update_base_default": same[0].id if same else None,
-            "update_price_type": main_price_type(db, pl.id)}
+    others = [o for o in _imported(db) if o.id != pl.id and o.kind != "HERSTELLER"]
+    same = [o for o in others if mid and list_manufacturer(db, o) == mid]
+    ours = [o for o in same if o.kind == "UNSERE"] or [o for o in same if o.id < pl.id]
+    m = db.get(Manufacturer, mid) if mid else None
+    return {"update_bases": others, "update_base_default": ours[0].id if ours else None,
+            "update_settings": manufacturer_settings(m), "update_manufacturer": m}
+
+
+def _jsonable(d: dict) -> dict:
+    return {k: str(v) if isinstance(v, Decimal) else v for k, v in d.items()}
 
 
 def list_manufacturer(db: Session, pl: PriceList) -> int | None:
     """Hersteller der Liste: fest gewählt oder der einzige Hersteller der Artikel."""
     if pl.manufacturer_id:
         return pl.manufacturer_id
-    mids = set(db.scalars(select(distinct(Article.manufacturer_id)).where(Article.price_list_id == pl.id,
+    mids = set(db.scalars(select(Article.manufacturer_id).distinct().where(Article.price_list_id == pl.id,
                                                                          Article.manufacturer_id.is_not(None))))
     return mids.pop() if len(mids) == 1 else None
 
 
 def default_rule_for_list(db: Session, pl: PriceList) -> tuple[int | None, str | None]:
     """Standardregel des Herstellers als Vorauswahl. Bei mehreren Herstellern mit Regel keine Vorauswahl."""
-    mids = set(db.scalars(select(distinct(Article.manufacturer_id)).where(Article.price_list_id == pl.id,
+    mids = set(db.scalars(select(Article.manufacturer_id).distinct().where(Article.price_list_id == pl.id,
                                                                          Article.manufacturer_id.is_not(None))))
     with_rule = [m for m in db.scalars(select(Manufacturer).where(Manufacturer.id.in_(mids)))
                  if m.default_rule_id and not db.get(Rule, m.default_rule_id).deleted]
@@ -265,7 +271,7 @@ def comparison_detail(request: Request, cmp_id: int, status: str | None = None, 
         total = db.scalar(select(func.count()).select_from(stmt.subquery()))
         info = page_info(total, page, settings.page_size)
         rows = db.scalars(stmt.order_by(ComparisonItem.id).offset(info["offset"]).limit(settings.page_size)).all()
-    categories = [c for c in db.scalars(select(distinct(ComparisonItem.category)).where(
+    categories = [c for c in db.scalars(select(ComparisonItem.category).distinct().where(
         ComparisonItem.comparison_id == cmp_id, ComparisonItem.category.is_not(None)).order_by(ComparisonItem.category))]
     manufacturers = {m.id: m.name for m in db.scalars(select(Manufacturer))}
     filters = {"status": status or "", "manufacturer": manufacturer or "", "category": category or "",
@@ -383,6 +389,18 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
         error = "Name existiert bereits"
     else:
         error = validate_code(db, code, current.id if current else None)
+    list_basis = str(form.get("list_basis") or "EK")
+    discount = parse_amount(str(form.get("dealer_discount") or "").strip(), ",") \
+        if str(form.get("dealer_discount") or "").strip() else None
+    threshold = parse_amount(str(form.get("review_threshold") or "10").strip(), ",")
+    if not error and list_basis not in ("EK", "UVP"):
+        error = "Herstellerliste enthält: EK oder UVP wählen"
+    if not error and discount is not None and (not discount.ok or not 0 <= discount.value < 100):
+        error = "Händlerrabatt muss zwischen 0 und 100 % liegen"
+    if not error and list_basis == "UVP" and discount is None:
+        error = "Bei UVP-Listen ist der Händlerrabatt Pflicht (EK = UVP - Händlerrabatt)"
+    if not error and (not threshold.ok or not 0 < threshold.value <= 100):
+        error = "Prüfschwelle muss zwischen 0 und 100 % liegen"
     if not error and rule_id is not None:
         rule = db.get(Rule, rule_id)
         if rule is None or rule.deleted:
@@ -390,16 +408,18 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
     if error:
         return _manufacturer_page(request, db, error, 400)
     values = {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore, "code": code,
-              "default_rule_id": rule_id}
+              "default_rule_id": rule_id, "list_basis": list_basis,
+              "dealer_discount": discount.value if discount else None, "review_threshold": threshold.value}
     if current:
         before = {k: getattr(current, k) for k in values}
         for k, v in values.items():
             setattr(current, k, v)
-        audit(db, admin, "hersteller_geaendert", "manufacturer", current.id, {"vorher": before, "nachher": values},
+        audit(db, admin, "hersteller_geaendert", "manufacturer", current.id,
+              {"vorher": _jsonable(before), "nachher": _jsonable(values)},
               client_ip(request))
     else:
         m = Manufacturer(**values)
         db.add(m)
         db.flush()
-        audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, values, client_ip(request))
+        audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
     return RedirectResponse("/hersteller", status_code=303)

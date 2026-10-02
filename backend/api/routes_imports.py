@@ -187,6 +187,13 @@ def _parse_details(db: Session, form, mapping: dict) -> dict:
     valid_from = str(form.get("valid_from") or "") or None
     if valid_from and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", valid_from):
         errors.append("Gültig ab: Datum im Format JJJJ-MM-TT")
+    kind = str(form.get("kind") or "") or None
+    if kind is not None and kind not in ("UNSERE", "HERSTELLER"):
+        errors.append("Art der Liste wählen")
+    if kind == "UNSERE" and "supplier_price" not in mapping:
+        errors.append("Unsere Liste braucht eine EK-Spalte (Einkaufspreis) – bitte in Schritt 2 zuordnen")
+    if kind == "UNSERE" and "list_price" not in mapping:
+        errors.append("Unsere Liste braucht eine VK-Spalte (VK / Listenpreis) – bitte in Schritt 2 zuordnen")
     strip_code = form.get("strip_code") == "1"
     if strip_code and "manufacturer" in mapping:
         errors.append("Kürzel abschneiden geht nur mit einem fest gewählten Hersteller, nicht mit Herstellerspalte")
@@ -195,7 +202,8 @@ def _parse_details(db: Session, form, mapping: dict) -> dict:
         if not ((m and m.code) or (new_manufacturer and new_code)):
             errors.append("Kürzel abschneiden: Der gewählte Hersteller hat kein Kürzel")
     return {"manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer, "new_code": new_code,
-            "currency": currency, "valid_from": valid_from, "strip_code": strip_code, "errors": errors}
+            "currency": currency, "valid_from": valid_from, "strip_code": strip_code, "kind": kind,
+            "errors": errors}
 
 
 def _columns_page(request, db, pl, settings, cols: dict, errors: list[str]):
@@ -278,6 +286,7 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         mapping[split["field"]] = split["columns"][0]
     # Import läuft als Hintergrundjob (große Listen dauern länger als eine Web-Anfrage)
     pl.status = "WARTESCHLANGE"
+    pl.kind = details["kind"]
     job = enqueue(db, "IMPORT", {
         "price_list_id": pl.id, "sheet": cols["sheet"], "header_row": cols["header_row"],
         "header_rows": cols["header_rows"], "mapping": mapping, "manufacturer_id": details["manufacturer_id"],

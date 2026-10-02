@@ -17,7 +17,7 @@ from openpyxl.styles import Alignment, Font
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from backend.comparison.service import STATUS_LABELS, STATUSES
+from backend.comparison.service import STATUS_LABELS, STATUSES, percent_change
 from backend.services.manufacturers import code_map, with_code
 from backend.models.entities import (
     CalculationResult,
@@ -184,13 +184,13 @@ def export_calculation(db: Session, run: CalculationRun) -> bytes:
     return buf.getvalue()
 
 
-def export_price_update(db: Session, upd) -> bytes:
-    """Neue Preisliste: nur unsere Artikel, Herstellerpreis und kalkulierter Preis."""
-    from backend.comparison.update import STATUS_LABELS as UL
-    from backend.models.entities import PriceUpdateItem
+def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
+    """Jahresabgleich: neue EK/VK-Liste mit unseren Artikeln. Entwurf deutlich gekennzeichnet."""
+    from backend.comparison.update import REASON_LABELS, STATUS_LABELS as UL
+    from backend.models.entities import PriceUpdateItem, User
 
     codes = code_map(db)
-    mfr = {m.id: m.name for m in db.scalars(select(Manufacturer))}
+    users = {u.id: u.username for u in db.scalars(select(User))}
     items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
                        .order_by(PriceUpdateItem.id)).all()
     rule_label = None
@@ -198,28 +198,44 @@ def export_price_update(db: Session, upd) -> bytes:
         rule_label = f"{db.get(Rule, upd.rule_version.rule_id).name} v{upd.rule_version.version}"
     wb = openpyxl.Workbook(write_only=True)
     s = upd.summary or {}
-    info = _Sheet(wb, "Zusammenfassung", ["Angabe", "Wert"], [36, 60])
+    open_ = s.get("offen", 0)
+    info = _Sheet(wb, "Zusammenfassung", ["Angabe", "Wert"], [36, 70])
+    if draft:
+        info.row([info._cell("ENTWURF", bold=True),
+                  info._cell(f"ENTWURF – {open_} Positionen ungeprüft. Nicht als Preisliste verwenden.", bold=True)])
+    basis = (f"UVP/RRP, EK = UVP - {upd.dealer_discount} % Händlerrabatt" if upd.price_type == "UVP"
+             else "EK direkt")
     for label, value in [
-        ("Unsere Liste (Artikelauswahl)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
-        ("Herstellerliste (neue Preise)", f"{upd.source_list.name} ({upd.source_list.source_file})"),
-        ("Preisart", upd.price_type), ("Regel", rule_label or "keine"), ("Menge", upd.quantity),
-        ("Artikel", s.get("artikel", 0)),
+        ("Unsere Liste (EK/VK Vorjahr)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
+        ("Herstellerliste (neu)", f"{upd.source_list.name} ({upd.source_list.source_file})"),
+        ("Herstellerliste liefert", basis), ("VK-Regel (aus neuem EK)", rule_label or "keine"),
+        ("Prüfschwelle EK-Änderung %", upd.review_threshold), ("Artikel", s.get("artikel", 0)),
     ] + [(UL[k], s.get(k, 0)) for k in UL] + [
+        ("Noch ungeprüft", open_),
         ("Nur beim Hersteller (ignoriert)", s.get("ignoriert_nur_beim_hersteller", 0))]:
         info.row([label, value])
 
-    header = ["Artikelnummer", "Original-Nr.", "Hersteller", "Bezeichnung", "Preis alt", "Preis Hersteller neu",
-              "Kalkulierter Preis", "Währung", "Differenz", "Differenz %", "Status", "Hinweis"]
-    widths = [18, 16, 18, 40, 12, 16, 16, 9, 12, 12, 22, 60]
-    main = _Sheet(wb, "Neue Preisliste", header, widths)
+    decisions = {"NEU": "neuer Preis", "ALT": "alter Preis behalten", "MANUELL": "VK von Hand"}
+    header = ["Artikelnummer", "Original-Nr.", "Bezeichnung", "EK alt", "EK neu", "EK Δ%", "VK alt", "VK neu",
+              "VK Δ%", "Währung", "Status", "Prüfhinweise", "Entscheidung", "geprüft von", "geprüft am (UTC)"]
+    if upd.price_type == "UVP":
+        header.insert(4, "UVP neu")
+    widths = [18, 16, 40, 12, 12, 10, 12, 12, 10, 9, 20, 60, 20, 14, 18] + ([12] if upd.price_type == "UVP" else [])
+    main = _Sheet(wb, "ENTWURF Neue Preisliste" if draft else "Neue Preisliste", header, widths)
     open_items = _Sheet(wb, "Zu prüfen", header, widths)
     for i in items:
-        row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number,
-               mfr.get(i.manufacturer_id), i.description, main.money(i.old_amount), main.money(i.new_amount),
-               main.money(i.calculated_amount), i.currency, main.money(i.difference),
-               main.percent(i.difference_percent), UL.get(i.status, i.status), i.note]
+        hints = "; ".join([REASON_LABELS.get(r, r) for r in i.reasons or []] + ([i.note] if i.note else []))
+        ek_pct = percent_change(i.old_amount, i.final_ek) if i.old_amount and i.final_ek is not None else None
+        vk_pct = percent_change(i.vk_old, i.final_vk) if i.vk_old and i.final_vk is not None else None
+        row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
+               main.money(i.old_amount), main.money(i.final_ek), main.percent(ek_pct), main.money(i.vk_old),
+               main.money(i.final_vk), main.percent(vk_pct), i.currency, UL.get(i.status, i.status), hints,
+               decisions.get(i.decision, i.decision), users.get(i.reviewed_by),
+               i.reviewed_at.strftime("%d.%m.%Y %H:%M") if i.reviewed_at else None]
+        if upd.price_type == "UVP":
+            row.insert(4, main.money(i.source_amount))
         main.row(row)
-        if i.status in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG", "FEHLER"):
+        if i.needs_review and not i.reviewed_at:
             open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])
     buf = io.BytesIO()
     wb.save(buf)

@@ -76,7 +76,7 @@ def import_job(ctx: JobContext, p: dict) -> dict:
             else:
                 pl = PriceList(source_file=base.source_file, stored_file=base.stored_file,
                                file_sha256=base.file_sha256, uploaded_by=base.uploaded_by,
-                               status="WARTESCHLANGE", name="")
+                               status="WARTESCHLANGE", name="", kind=base.kind)
                 db.add(pl)
                 db.flush()
             pl.name = f"{base_name} – {label}"[:255]
