@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -25,6 +26,7 @@ from backend.models.entities import (
     Rule,
     User,
 )
+from backend.excel.export import export_calculation, export_comparison
 from backend.jobs.runner import enqueue
 from backend.services.audit import audit
 from backend.services.rules import current_version, run_calculation
@@ -242,6 +244,32 @@ async def decide_item(request: Request, cmp_id: int, item_id: int, db: Session =
     back = str(form.get("back") or "")
     return RedirectResponse(back if back.startswith(f"/vergleiche/{cmp_id}") else f"/vergleiche/{cmp_id}",
                             status_code=303)
+
+
+def _xlsx(data: bytes, name: str) -> Response:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:80] or "export"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{safe}.xlsx"'})
+
+
+@router.get("/vergleiche/{cmp_id}/export")
+def export_cmp(request: Request, cmp_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    cmp = db.get(Comparison, cmp_id)
+    if cmp is None:
+        raise HTTPException(404, "Vergleich nicht gefunden")
+    data = export_comparison(db, cmp)
+    audit(db, user, "export", "comparison", cmp_id, ip=client_ip(request))
+    return _xlsx(data, f"Vergleich_{cmp.old_list.name}_{cmp.new_list.name}_{cmp_id}")
+
+
+@router.get("/kalkulationen/{run_id}/export")
+def export_calc(request: Request, run_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    run = db.get(CalculationRun, run_id)
+    if run is None:
+        raise HTTPException(404, "Kalkulation nicht gefunden")
+    data = export_calculation(db, run)
+    audit(db, user, "export", "calculation_run", run_id, ip=client_ip(request))
+    return _xlsx(data, f"Kalkulation_{run_id}")
 
 
 @router.post("/vergleiche/{cmp_id}/ki", dependencies=[Depends(check_csrf)])

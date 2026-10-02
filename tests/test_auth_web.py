@@ -101,3 +101,9 @@ def test_change_own_password(user_client):
     r = user_client.post("/konto", data={"old_password": USER_PW, "new_password": "neues-passwort-1",
                                          "new_password2": "neues-passwort-1", "csrf_token": user_client.csrf})
     assert r.status_code == 200 and "Passwort geändert" in r.text
+
+
+def test_telemetry_disabled(app):
+    t = app._telemetry
+    assert not t["tracing"] and not t["metrics"] and not t["logs"] and not t["auto_configure"]
+    assert not app._native_telemetry.enabled()

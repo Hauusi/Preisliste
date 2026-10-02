@@ -17,6 +17,7 @@ from backend.database import engine as db_engine
 from backend.database.migrate import upgrade
 
 log = logging.getLogger("preisliste")
+NO_TELEMETRY = {"tracing": False, "metrics": False, "logs": False, "operation_spans": False, "auto_configure": False}
 
 CSP = (
     "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
@@ -32,7 +33,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     upgrade(db_url)
     db_engine.configure(db_url)
 
-    app = FastAPI(title="Preisliste", docs_url=None, redoc_url=None, openapi_url=None)
+    # Keine Telemetrie: FastAPIs eingebaute OpenTelemetry-Anbindung vollständig aus
+    app = FastAPI(title="Preisliste", docs_url=None, redoc_url=None, openapi_url=None, telemetry=NO_TELEMETRY)
     app.dependency_overrides[get_settings] = lambda: settings
     app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "frontend/static"), name="static")
 

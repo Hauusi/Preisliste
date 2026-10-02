@@ -184,12 +184,14 @@ def run_comparison(db: Session, cmp: Comparison) -> dict:
         n = news[new_id]
         amount, cur = _single_amount(n, cmp, rule)
         rows.append({**_base(n), "new_article_id": new_id, "status": "NEUER_ARTIKEL", "new_amount": amount,
-                     "currency": cur})
+                     "currency": cur, "note": None if amount is not None else
+                     f"Kein gültiger {cmp.price_type}-Preis (siehe Importmeldungen)"})
     for old_id in result.old_only:
         o = olds[old_id]
         amount, cur = _single_amount(o, cmp, rule)
         rows.append({**_base(o), "old_article_id": old_id, "status": "ENTFALLENER_ARTIKEL", "old_amount": amount,
-                     "currency": cur})
+                     "currency": cur, "note": None if amount is not None else
+                     f"Kein gültiger {cmp.price_type}-Preis (siehe Importmeldungen)"})
     # Artikel ohne Nummer (Importfehler) sichtbar machen statt verschweigen
     for side, arts in (("neu", news), ("alt", olds)):
         for a in arts.values():

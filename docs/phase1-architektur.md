@@ -278,3 +278,5 @@ Nach jeder Gruppe gibt es einen kurzen Bericht und es wird auf Freigabe gewartet
 - **F6:** Der verglichene Preis ist pro Vergleich wählbar (LISTE, EK, UVP, KALKULIERT). Standard ist LISTE.
 - **F7:** Zu F7 gab es keinen Vorschlag. Umgesetzt sind die Beispiele aus der Frage: Rundung auf eine Schrittweite (z. B. 0,05 oder 1,00) mit kaufmännisch, aufrunden oder abrunden, sowie Rundung auf eine Endung (z. B. 0,90 oder 0,99) mit auf, ab oder nächste.
 - **Zusatz:** Bei "Rundung nach jedem Schritt" wird auch der Betrag eines Prozentschritts gerundet (Rabatt- oder Aufschlagsbetrag), wie im Referenzbeispiel (Transport 3,40). Zusätzlich wurde der Status FEHLER im Vergleich ergänzt, für Währungsabweichung, alten Preis 0 und fehlenden Preis (W9, W10).
+- **F9:** Backup auf dem Server selbst, täglich, 14 Sicherungen (`docs/betrieb.md`). Es schützt nicht vor Serververlust.
+- **F10:** Die nginx-Passwortabfrage bleibt zusätzlich zum App-Login bestehen.

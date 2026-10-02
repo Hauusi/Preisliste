@@ -3,6 +3,7 @@
   init-db                       Datenbank anlegen/migrieren
   create-admin <benutzername>   Administrator anlegen (Passwort wird abgefragt)
   reset-password <benutzername> Passwort setzen, Sperre aufheben, Sessions beenden
+  backup [anzahl]               Sicherung (Datenbank + Uploads) nach data/backups, behält die letzten N (Standard 14)
 """
 
 import getpass
@@ -58,6 +59,12 @@ def main(argv: list[str]) -> int:
                 end_all_sessions(db, user.id)
                 audit(db, None, "passwort_gesetzt_cli", "user", user.id, {"username": user.username})
             print("Passwort gesetzt.")
+        elif cmd == "backup":
+            from backend.services.backup import create_backup
+
+            keep = int(argv[1]) if len(argv) > 1 else 14
+            path, removed = create_backup(settings, keep)
+            print(f"Sicherung erstellt: {path} ({path.stat().st_size // 1024} KB), entfernt: {removed}")
         else:
             print(__doc__)
             return 2

@@ -4,6 +4,8 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 
 - Anforderungen: `docs/anforderungen-v2.md`
 - Architektur und Plan (Phase 1, freigegeben): `docs/phase1-architektur.md`
+- Betrieb, Backup, Wiederherstellung: `docs/betrieb.md`
+- Lizenzen und Telemetrie der Abhängigkeiten: `docs/abhaengigkeiten.md`
 
 ## Stand
 
@@ -12,7 +14,7 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 | A | Grundprojekt, Login, Excel-Import, Spaltenerkennung | umgesetzt |
 | B | Regelengine, Vergleich, Matching | umgesetzt |
 | C | Ollama, Hintergrundjobs, UI | umgesetzt |
-| D | Export, Deployment, Backup | offen |
+| D | Export, Deployment, Backup | umgesetzt |
 
 ## Entwicklung
 

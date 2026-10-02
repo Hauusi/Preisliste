@@ -8,6 +8,7 @@
   <a class="stat OK" href="?status=OK"><span>{{ run.summary.OK }}</span>berechnet</a>
   <a class="stat FEHLER" href="?status=FEHLER"><span>{{ run.summary.FEHLER }}</span>Fehler</a>
 </div>
+<p><a class="button" href="/kalkulationen/{{ run.id }}/export">Excel-Export</a></p>
 {% set base_query = ({"status": status or ""} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
 <table>
