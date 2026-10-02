@@ -48,14 +48,14 @@ def test_comparison_export_sheets_values_and_injection(admin_client, tmp_path):
     assert wb.sheetnames == ["Zusammenfassung", "Alle Artikel", "Preisänderungen", "Neue Artikel",
                              "Entfallene Artikel", "Unklare Zuordnungen", "Kalkulation", "Fehler"]
     rows = {row[0]: row for row in wb["Alle Artikel"].iter_rows(min_row=2, values_only=True)}
-    assert rows["A-1"][7] == 110 and rows["A-1"][9] == 10 and rows["A-1"][10] == 10
+    assert rows["A-1"][8] == 110 and rows["A-1"][10] == 10 and rows["A-1"][11] == 10
     new_rows = {r[0]: r for r in wb["Neue Artikel"].iter_rows(min_row=2, values_only=True)}
     assert set(new_rows) == {"NEW", "BAD"}
-    assert new_rows["BAD"][7] is None and "Kein gültiger LISTE-Preis" in new_rows["BAD"][13]
+    assert new_rows["BAD"][8] is None and "Kein gültiger LISTE-Preis" in new_rows["BAD"][14]
     assert [r[0] for r in wb["Entfallene Artikel"].iter_rows(min_row=2, values_only=True)] == ["GONE"]
     assert [r[0] for r in wb["Unklare Zuordnungen"].iter_rows(min_row=2, values_only=True)] == ["ABC-1001"]
     kalk = list(wb["Kalkulation"].iter_rows(min_row=3, values_only=True))
-    assert any(r[1] == "A-1" and r[4] == 97.24 and "Transport" in r[8] for r in kalk)
+    assert any(r[1] == "A-1" and r[5] == 97.24 and "Transport" in r[9] for r in kalk)
     fehler = list(wb["Fehler"].iter_rows(min_row=2, values_only=True))
     assert any(r[0] == "Vergleich" and r[2] == "ZERO" for r in fehler)
     assert any(r[0] == "Import neue Liste" and r[4] == "KEIN_BETRAG" for r in fehler)
@@ -66,8 +66,8 @@ def test_comparison_export_sheets_values_and_injection(admin_client, tmp_path):
             if name.startswith("xl/worksheets/"):
                 assert "<f>" not in z.read(name).decode()
         assert 'quotePrefix="1"' in z.read("xl/styles.xml").decode()
-    assert rows["A-1"][3] == '=HYPERLINK("http://boese")'
-    assert rows["NEW"][3] == "+cmd|' /C calc'!A0"
+    assert rows["A-1"][4] == '=HYPERLINK("http://boese")'
+    assert rows["NEW"][4] == "+cmd|' /C calc'!A0"
 
 
 def test_calculation_export(admin_client, tmp_path):

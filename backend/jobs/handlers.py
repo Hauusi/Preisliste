@@ -36,10 +36,13 @@ def import_job(ctx: JobContext, p: dict) -> dict:
         with session_scope() as db:
             name = p["new_manufacturer"].strip()
             m = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
+            code = p.get("new_manufacturer_code")
             if m is None:
-                m = Manufacturer(name=name, aliases=[])
+                m = Manufacturer(name=name, aliases=[], code=code)
                 db.add(m)
                 db.flush()
+            elif code and not m.code:
+                m.code = code
             manufacturer_id = m.id
     with session_scope() as db:
         pl = db.get(PriceList, p["price_list_id"])

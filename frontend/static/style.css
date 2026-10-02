@@ -62,3 +62,16 @@ code { background: #eef1f5; padding: 1px 4px; border-radius: 3px; }
 progress { width: 320px; height: 14px; vertical-align: middle; }
 textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; width: 100%; }
 .WARTESCHLANGE { color: var(--unclear); border-color: var(--unclear); }
+input.code { text-transform: uppercase; font-weight: 600; }
+.step { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 8px 0; background: #fafbfc; }
+#steps.js .step.spare { display: none; }
+.step-head { display: flex; align-items: center; gap: 10px; }
+.step-nr { font-weight: 700; width: 1.6em; text-align: center; color: var(--muted); }
+.step-type { min-width: 230px; font-weight: 600; }
+.step-remove { margin-left: auto; color: var(--muted); }
+.step-fields { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 0 2.2em; }
+.step-fields label { margin-bottom: 0; }
+.step-help { margin: 6px 0 0 2.2em; }
+.step.empty .step-fields, .step.empty .step-help { display: none; }
+[hidden] { display: none !important; }
+input.code::placeholder { text-transform: none; font-weight: normal; }

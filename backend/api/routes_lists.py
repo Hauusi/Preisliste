@@ -11,6 +11,7 @@ from backend.api.render import render
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import Article, ImportMessage, Job, Manufacturer, PriceList, User
+from backend.services.manufacturers import code_map, search_conditions
 
 router = APIRouter()
 STATUSES = ("OK", "WARNUNG", "UNKLAR", "FEHLER")
@@ -28,8 +29,10 @@ def query_articles(db: Session, list_id: int, status: str | None, q: str | None,
     if status in STATUSES:
         stmt = stmt.where(Article.status == status)
     if q:
-        like = f"%{q.strip()[:100]}%"
-        stmt = stmt.where(or_(Article.article_number.ilike(like), Article.description.ilike(like)))
+        q = q.strip()[:100]
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Article.article_number.ilike(like), Article.description.ilike(like),
+                              *search_conditions(db, q, Article.article_number, Article.manufacturer_id)))
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     info = page_info(total, page, size)
     rows = db.scalars(
@@ -83,7 +86,7 @@ def price_list(request: Request, list_id: int, status: str | None = None, q: str
     manufacturers = {m.id: m.name for m in db.scalars(select(Manufacturer))}
     return render(request, "price_list.html", {
         "pl": pl, "rows": rows, "info": info, "status": status if status in STATUSES else None,
-        "q": q or "", "statuses": STATUSES, "manufacturers": manufacturers,
+        "q": q or "", "statuses": STATUSES, "manufacturers": manufacturers, "codes": code_map(db),
     })
 
 

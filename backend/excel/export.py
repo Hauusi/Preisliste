@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.comparison.service import STATUS_LABELS, STATUSES
+from backend.services.manufacturers import code_map, with_code
 from backend.models.entities import (
     CalculationResult,
     CalculationRun,
@@ -66,27 +67,31 @@ class _Sheet:
         return self._cell(v, PERCENT_FORMAT) if isinstance(v, Decimal) else self._cell(v)
 
 
-ITEM_HEADER = ["Artikelnummer", "Alte Artikelnummer", "Hersteller", "Bezeichnung", "Kategorie", "Staffel ab",
+ITEM_HEADER = ["Artikelnummer", "Original-Nr.", "Alte Artikelnummer", "Hersteller", "Bezeichnung", "Kategorie", "Staffel ab",
                "Preis alt", "Preis neu", "Währung", "Differenz", "Differenz %", "Status", "Zuordnung", "Hinweis"]
-ITEM_WIDTHS = [18, 18, 18, 40, 18, 10, 12, 12, 9, 12, 12, 16, 14, 50]
+ITEM_WIDTHS = [18, 16, 18, 18, 40, 18, 10, 12, 12, 9, 12, 12, 16, 14, 50]
 
 
-def _item_row(sh: _Sheet, i: ComparisonItem, mfr: dict) -> None:
-    old_nr = i.old_article.article_number if i.old_article else None
+def _item_row(sh: _Sheet, i: ComparisonItem, mfr: dict, codes: dict) -> None:
+    code = codes.get(i.manufacturer_id)
+    old_nr = with_code(i.old_article.article_number, codes.get(i.old_article.manufacturer_id)) if i.old_article else None
+    new_nr = with_code(i.article_number, code)
     hint = " ".join(filter(None, [
         i.note,
         f"Geändert: {', '.join(i.changed_fields)}" if i.changed_fields else None,
-        ("Kandidaten: " + ", ".join(f"{c['number']} ({c['score']})" for c in i.candidates)) if i.candidates else None,
+        ("Kandidaten: " + ", ".join(f"{with_code(c['number'], code)} ({c['score']})" for c in i.candidates))
+        if i.candidates else None,
     ]))
-    sh.row([i.article_number, old_nr if old_nr != i.article_number else None, mfr.get(i.manufacturer_id),
+    sh.row([new_nr, i.article_number, old_nr if old_nr != new_nr else None, mfr.get(i.manufacturer_id),
             i.description, i.category, i.min_quantity, sh.money(i.old_amount), sh.money(i.new_amount), i.currency,
             sh.money(i.difference), sh.percent(i.difference_percent), STATUS_LABELS.get(i.status, i.status),
             i.match_method, hint or None])
 
 
 def _calc_sheet(wb, db: Session, run: CalculationRun | None, title: str = "Kalkulation") -> None:
-    sh = _Sheet(wb, title, ["Zeile", "Artikelnummer", "Bezeichnung", "Ausgangspreis", "Ergebnis", "Währung",
-                            "Status", "Fehler", "Rechenweg"], [8, 18, 40, 14, 14, 9, 10, 40, 90])
+    sh = _Sheet(wb, title, ["Zeile", "Artikelnummer", "Original-Nr.", "Bezeichnung", "Ausgangspreis", "Ergebnis",
+                            "Währung", "Status", "Fehler", "Rechenweg"], [8, 18, 16, 40, 14, 14, 9, 10, 40, 90])
+    codes = code_map(db)
     if run is None:
         sh.row(["Keine Kalkulation für die neue Liste vorhanden."])
         return
@@ -106,12 +111,14 @@ def _calc_sheet(wb, db: Session, run: CalculationRun | None, title: str = "Kalku
                 part += f" Betrag {t['betrag']}"
             part += f" = {t.get('ergebnis')}"
             steps.append(part)
-        sh.row([r.article.source_row, r.article.article_number, r.article.description, sh.money(r.start_amount),
+        sh.row([r.article.source_row, with_code(r.article.article_number, codes.get(r.article.manufacturer_id)),
+                r.article.article_number, r.article.description, sh.money(r.start_amount),
                 sh.money(r.result_amount), r.currency, r.status, r.error, " | ".join(steps)])
 
 
 def export_comparison(db: Session, cmp: Comparison) -> bytes:
     mfr = {m.id: m.name for m in db.scalars(select(Manufacturer))}
+    codes = code_map(db)
     items = db.scalars(select(ComparisonItem).where(ComparisonItem.comparison_id == cmp.id)
                        .options(selectinload(ComparisonItem.old_article)).order_by(ComparisonItem.id)).all()
     wb = openpyxl.Workbook(write_only=True)
@@ -133,7 +140,7 @@ def export_comparison(db: Session, cmp: Comparison) -> bytes:
         sh = _Sheet(wb, title, ITEM_HEADER, ITEM_WIDTHS)
         for i in items:
             if wanted(i):
-                _item_row(sh, i, mfr)
+                _item_row(sh, i, mfr, codes)
 
     items_sheet("Alle Artikel", lambda i: True)
     items_sheet("Preisänderungen", lambda i: i.status in ("PREIS_ERHOEHT", "PREIS_GESENKT"))
@@ -149,7 +156,8 @@ def export_comparison(db: Session, cmp: Comparison) -> bytes:
                     [22, 8, 18, 18, 22, 80])
     for i in items:
         if i.status == "FEHLER":
-            errors.row(["Vergleich", None, i.article_number, None, "VERGLEICH", i.note])
+            errors.row(["Vergleich", None, with_code(i.article_number, codes.get(i.manufacturer_id)), None,
+                        "VERGLEICH", i.note])
     for label, list_id in (("Import alte Liste", cmp.old_price_list_id), ("Import neue Liste", cmp.new_price_list_id)):
         for m in db.scalars(select(ImportMessage).where(ImportMessage.price_list_id == list_id,
                                                         ImportMessage.level == "FEHLER")

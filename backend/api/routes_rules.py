@@ -51,9 +51,9 @@ def parse_rule_form(form) -> tuple[dict, list[str]]:
         if typ in ("discount", "surcharge"):
             step["base"] = form.get(f"step_{i}_base") or "current"
         if typ == "round":
-            step["mode"] = form.get(f"step_{i}_extra") or "HALF_UP"
+            step["mode"] = form.get(f"step_{i}_mode") or form.get(f"step_{i}_extra") or "HALF_UP"
         if typ == "round_ending":
-            step["direction"] = form.get(f"step_{i}_extra") or "UP"
+            step["direction"] = form.get(f"step_{i}_direction") or form.get(f"step_{i}_extra") or "UP"
             period = str(form.get(f"step_{i}_period") or "").strip()
             if period:
                 step["period"] = _num(period)
@@ -78,22 +78,41 @@ def _validation_messages(exc: ValidationError) -> list[str]:
 
 
 def form_rows(definition: dict | None) -> list[dict]:
+    """Alle Schritt-Zeilen; used = belegt oder erste freie Zeile (die übrigen blendet das Skript aus)."""
     steps = (definition or {}).get("steps", [])
     rows = []
     for i in range(MAX_STEPS):
         s = steps[i] if i < len(steps) else {}
         typ = s.get("type", "")
         rows.append({
-            "nr": i + 1, "type": typ, "label": s.get("label", ""),
+            "nr": i + 1, "type": typ, "label": s.get("label", ""), "used": i <= len(steps),
             "value": s.get(VALUE_FIELD.get(typ, ""), "") if typ else "",
-            "base": s.get("base", "current"), "extra": s.get("mode") or s.get("direction") or "",
-            "period": s.get("period", ""),
+            "base": s.get("base", "current"), "mode": s.get("mode", "HALF_UP"),
+            "direction": s.get("direction", "UP"), "period": s.get("period", ""),
         })
     return rows
 
 
+STEP_HELP = {
+    "discount": "Zieht einen Prozentsatz ab. Beispiel: 15 % vom Ausgangspreis 100,00 = 15,00 Abzug.",
+    "surcharge": "Schlägt einen Prozentsatz auf. Beispiel: 4 % Transport vom aktuellen Zwischenpreis.",
+    "fixed": "Addiert einen festen Betrag. Für einen Abzug ein Minus davor schreiben (z. B. -2,50).",
+    "tier": "Nimmt den Staffelpreis der Liste für diese Menge als neuen Zwischenpreis.",
+    "min_quantity": "Prüft die Bestellmenge. Liegt sie darunter, wird die Position als FEHLER markiert.",
+    "round": "Rundet auf eine Schrittweite, z. B. 0,05 oder 1,00.",
+    "round_ending": "Rundet auf eine Preisendung, z. B. 0,90 (12,34 wird zu 12,90).",
+    "formula": "Eigene Formel. Erlaubt: + - * / ( ) min() max(). Variablen: start, current, quantity, "
+               "transport, discount, s1, s2 … (Ergebnis von Schritt 1, 2 …).",
+}
+VALUE_LABELS = {"discount": "Prozent", "surcharge": "Prozent", "fixed": "Betrag", "tier": "Menge",
+                "min_quantity": "Mindestmenge", "round": "Schrittweite", "round_ending": "Endung",
+                "formula": "Formel"}
+DIRECTIONS = {"UP": "aufrunden", "DOWN": "abrunden", "NEAREST": "zur nächsten Endung"}
+
+
 def _ctx(db: Session, **kw) -> dict:
-    return {"step_types": STEP_TYPES, "price_types": PRICE_TYPES, "modes": MODE_LABELS, "max_steps": MAX_STEPS,
+    return {"step_help": STEP_HELP, "value_labels": VALUE_LABELS, "directions": DIRECTIONS,
+            "step_types": STEP_TYPES, "price_types": PRICE_TYPES, "modes": MODE_LABELS, "max_steps": MAX_STEPS,
             "manufacturers": list(db.scalars(select(Manufacturer).order_by(Manufacturer.name))), **kw}
 
 

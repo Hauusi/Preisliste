@@ -19,7 +19,7 @@
   <label>Status
     <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
   </label>
-  <label>Suche <input name="q" value="{{ q }}" maxlength="100" placeholder="Artikelnummer oder Bezeichnung"></label>
+  <label>Suche <input name="q" value="{{ q }}" maxlength="100" placeholder="Artikelnummer (auch mit Kürzel) oder Bezeichnung"></label>
   <button type="submit" class="secondary">Filtern</button>
 </form>
 
@@ -32,7 +32,7 @@
   {% for a in rows %}
     <tr>
       <td class="num">{{ a.source_row }}</td>
-      <td>{{ a.article_number or "" }}</td>
+      <td>{{ a.article_number | artnr(codes.get(a.manufacturer_id)) }}</td>
       <td>{{ manufacturers.get(a.manufacturer_id, a.manufacturer_raw or "") }}</td>
       <td>{{ a.description or "" }}</td>
       <td>{{ a.category or "" }}</td>

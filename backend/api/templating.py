@@ -22,5 +22,13 @@ def dt_de(value) -> str:
     return value.strftime("%d.%m.%Y %H:%M") if value else ""
 
 
+def artnr(number, code=None) -> str:
+    """Artikelnummer mit Hersteller-Kürzel (Anzeige), z. B. RT + 12345 = RT12345."""
+    if not number:
+        return ""
+    return f"{code}{number}" if code else number
+
+
 templates.env.filters["money"] = money
+templates.env.filters["artnr"] = artnr
 templates.env.filters["dt"] = dt_de

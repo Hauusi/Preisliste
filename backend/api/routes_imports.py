@@ -19,6 +19,7 @@ from backend.services.audit import audit
 from backend.jobs.runner import enqueue
 from backend.models.entities import Job
 from backend.services.imports import build_preview, save_upload, stored_path
+from backend.services.manufacturers import normalize_code, validate_code
 
 router = APIRouter()
 
@@ -140,6 +141,16 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         errors.append("Mindestens eine Preisspalte zuordnen (EK, Listenpreis oder UVP)")
     manufacturer_id = _int(form.get("manufacturer_id"))
     new_manufacturer = str(form.get("new_manufacturer") or "").strip()[:200] or None
+    new_code = normalize_code(str(form.get("new_manufacturer_code") or ""))
+    if new_code and not new_manufacturer:
+        errors.append("Kürzel nur zusammen mit einem neuen Hersteller angeben (sonst auf der Seite Hersteller)")
+    elif new_manufacturer:
+        existing = db.scalar(select(Manufacturer).where(Manufacturer.name == new_manufacturer))
+        code_error = validate_code(db, new_code, existing.id if existing else None)
+        if code_error:
+            errors.append(code_error)
+        elif existing and new_code and existing.code and existing.code != new_code:
+            errors.append(f"Hersteller {existing.name} hat bereits das Kürzel {existing.code}")
     if "manufacturer" not in mapping and manufacturer_id is None and not new_manufacturer:
         errors.append("Hersteller wählen oder neu anlegen (oder Herstellerspalte zuordnen)")
     currency = str(form.get("currency") or "") or None
@@ -160,6 +171,7 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         job = enqueue(db, "IMPORT", {
             "price_list_id": pl.id, "sheet": sheet, "header_row": header_row, "header_rows": header_rows,
             "mapping": mapping, "manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer,
+            "new_manufacturer_code": new_code,
             "currency": currency, "separators": {str(k): v for k, v in separators.items()}, "valid_from": valid_from,
         }, user)
         audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},

@@ -16,6 +16,7 @@ from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.excel.numbers import parse_amount
 from backend.models.entities import (
+    Article,
     CalculationResult,
     CalculationRun,
     Job,
@@ -29,6 +30,7 @@ from backend.models.entities import (
 from backend.excel.export import export_calculation, export_comparison
 from backend.jobs.runner import enqueue
 from backend.services.audit import audit
+from backend.services.manufacturers import code_map, normalize_code, search_conditions, validate_code
 from backend.services.rules import current_version, run_calculation
 
 router = APIRouter()
@@ -59,8 +61,25 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _us
     runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == list_id)
                       .options(selectinload(CalculationRun.rule_version)).order_by(CalculationRun.id.desc())).all()
     rule_names = {r.id: r.name for r in db.scalars(select(Rule))}
+    preselect, hint = default_rule_for_list(db, pl)
     return render(request, "calc_form.html", {"pl": pl, "rules": _rules(db), "runs": runs,
-                                              "rule_names": rule_names, "error": None})
+                                              "rule_names": rule_names, "error": None,
+                                              "preselect": preselect, "preselect_hint": hint})
+
+
+def default_rule_for_list(db: Session, pl: PriceList) -> tuple[int | None, str | None]:
+    """Standardregel des Herstellers als Vorauswahl. Bei mehreren Herstellern mit Regel keine Vorauswahl."""
+    mids = set(db.scalars(select(distinct(Article.manufacturer_id)).where(Article.price_list_id == pl.id,
+                                                                         Article.manufacturer_id.is_not(None))))
+    with_rule = [m for m in db.scalars(select(Manufacturer).where(Manufacturer.id.in_(mids)))
+                 if m.default_rule_id and not db.get(Rule, m.default_rule_id).deleted]
+    if len(with_rule) == 1:
+        m = with_rule[0]
+        label = f"{m.name} ({m.code})" if m.code else m.name
+        return m.default_rule_id, f"Vorausgewählt: Standardregel von {label}"
+    if len(with_rule) > 1:
+        return None, "Mehrere Hersteller mit unterschiedlichen Standardregeln in dieser Liste, bitte Regel wählen"
+    return None, None
 
 
 @router.post("/listen/{list_id}/kalkulation", dependencies=[Depends(check_csrf)])
@@ -99,7 +118,8 @@ def calc_results(request: Request, run_id: int, status: str | None = None, page:
                       .offset(info["offset"]).limit(settings.page_size)).all()
     rule = db.get(Rule, run.rule_version.rule_id)
     return render(request, "calc_results.html", {"run": run, "rule": rule, "rows": rows, "info": info,
-                                                 "status": status, "pl": db.get(PriceList, run.price_list_id)})
+                                                 "status": status, "pl": db.get(PriceList, run.price_list_id),
+                                                 "codes": code_map(db)})
 
 
 # ---------- Vergleiche ----------
@@ -160,7 +180,7 @@ async def create_comparison(request: Request, db: Session = Depends(get_db), use
     return RedirectResponse(f"/vergleiche/{cmp.id}", status_code=303)
 
 
-def _filtered(cmp_id: int, status, manufacturer, category, q):
+def _filtered(db: Session, cmp_id: int, status, manufacturer, category, q):
     stmt = select(ComparisonItem).where(ComparisonItem.comparison_id == cmp_id)
     if status == "UNKLAR":
         stmt = stmt.where(ComparisonItem.status.in_(("NICHT_EINDEUTIG", "FEHLER")))
@@ -171,8 +191,11 @@ def _filtered(cmp_id: int, status, manufacturer, category, q):
     if category:
         stmt = stmt.where(ComparisonItem.category == category)
     if q:
-        like = f"%{q.strip()[:100]}%"
-        stmt = stmt.where(or_(ComparisonItem.article_number.ilike(like), ComparisonItem.description.ilike(like)))
+        q = q.strip()[:100]
+        like = f"%{q}%"
+        stmt = stmt.where(or_(ComparisonItem.article_number.ilike(like), ComparisonItem.description.ilike(like),
+                              *search_conditions(db, q, ComparisonItem.article_number,
+                                                 ComparisonItem.manufacturer_id)))
     return stmt
 
 
@@ -200,7 +223,7 @@ def comparison_detail(request: Request, cmp_id: int, status: str | None = None, 
     cmp = db.get(Comparison, cmp_id)
     if cmp is None:
         raise HTTPException(404, "Vergleich nicht gefunden")
-    stmt = _filtered(cmp_id, status, manufacturer, category, q)
+    stmt = _filtered(db, cmp_id, status, manufacturer, category, q)
     lo = parse_amount(pmin, ",").value if pmin else None
     hi = parse_amount(pmax, ",").value if pmax else None
     if lo is not None or hi is not None:
@@ -220,6 +243,7 @@ def comparison_detail(request: Request, cmp_id: int, status: str | None = None, 
     return render(request, "comparison.html", {
         "cmp": cmp, "rows": rows, "info": info, "filters": filters, "categories": categories,
         "manufacturers": manufacturers, "labels": STATUS_LABELS, "statuses": STATUSES, "error": None,
+        "codes": code_map(db),
     })
 
 
@@ -297,10 +321,15 @@ def recompute(request: Request, cmp_id: int, db: Session = Depends(get_db), user
 
 # ---------- Hersteller ----------
 
+def _manufacturer_page(request: Request, db: Session, error: str | None = None, status_code: int = 200):
+    return render(request, "manufacturers.html", {
+        "manufacturers": db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all(),
+        "rules": _rules(db), "error": error}, status_code=status_code)
+
+
 @router.get("/hersteller")
 def manufacturers(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    return render(request, "manufacturers.html", {
-        "manufacturers": db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all(), "error": None})
+    return _manufacturer_page(request, db)
 
 
 @router.post("/hersteller", dependencies=[Depends(check_csrf)])
@@ -310,25 +339,37 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
     name = str(form.get("name") or "").strip()[:200]
     aliases = [a.strip()[:200] for a in str(form.get("aliases") or "").split(";") if a.strip()][:50]
     ignore = form.get("ignore_leading_zeros") == "1"
-    if not name:
-        raise HTTPException(400, "Name fehlt")
+    code = normalize_code(str(form.get("code") or ""))
+    rule_raw = str(form.get("default_rule_id") or "")
+    rule_id = int(rule_raw) if rule_raw.isdigit() else None
+    current = db.get(Manufacturer, int(mid)) if mid.isdigit() else None
+    if mid.isdigit() and current is None:
+        raise HTTPException(404, "Hersteller nicht gefunden")
     clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
-    if mid.isdigit():
-        m = db.get(Manufacturer, int(mid))
-        if m is None:
-            raise HTTPException(404, "Hersteller nicht gefunden")
-        if clash and clash.id != m.id:
-            raise HTTPException(400, "Name existiert bereits")
-        before = {"name": m.name, "aliases": m.aliases, "ignore_leading_zeros": m.ignore_leading_zeros}
-        m.name, m.aliases, m.ignore_leading_zeros = name, aliases, ignore
-        audit(db, admin, "hersteller_geaendert", "manufacturer", m.id,
-              {"vorher": before, "nachher": {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore}},
+    error = None
+    if not name:
+        error = "Name fehlt"
+    elif clash and (current is None or clash.id != current.id):
+        error = "Name existiert bereits"
+    else:
+        error = validate_code(db, code, current.id if current else None)
+    if not error and rule_id is not None:
+        rule = db.get(Rule, rule_id)
+        if rule is None or rule.deleted:
+            error = "Regel nicht gefunden"
+    if error:
+        return _manufacturer_page(request, db, error, 400)
+    values = {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore, "code": code,
+              "default_rule_id": rule_id}
+    if current:
+        before = {k: getattr(current, k) for k in values}
+        for k, v in values.items():
+            setattr(current, k, v)
+        audit(db, admin, "hersteller_geaendert", "manufacturer", current.id, {"vorher": before, "nachher": values},
               client_ip(request))
     else:
-        if clash:
-            raise HTTPException(400, "Name existiert bereits")
-        m = Manufacturer(name=name, aliases=aliases, ignore_leading_zeros=ignore)
+        m = Manufacturer(**values)
         db.add(m)
         db.flush()
-        audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, {"name": name}, client_ip(request))
+        audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, values, client_ip(request))
     return RedirectResponse("/hersteller", status_code=303)

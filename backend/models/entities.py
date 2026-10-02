@@ -56,13 +56,22 @@ class UserSession(Base):
 
 class Manufacturer(Base):
     __tablename__ = "manufacturers"
+    __table_args__ = (UniqueConstraint("code", name="uq_manufacturers_code"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True)
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     # F2: führende Nullen bei rein numerischen Nummern ignorieren ("00123" == "123")
     ignore_leading_zeros: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    # Festes Kürzel (z. B. RT), wird in Anzeige und Export vor die Artikelnummer gesetzt
+    code: Mapped[str | None] = mapped_column(String(10))
+    # Voreingestellte Kalkulationsregel (nur Vorauswahl)
+    default_rule_id: Mapped[int | None] = mapped_column(ForeignKey("rules.id", use_alter=True,
+                                                                   name="fk_manufacturers_default_rule"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    def display_number(self, number: str | None) -> str | None:
+        return f"{self.code}{number}" if number and self.code else number
 
 
 class PriceList(Base):
@@ -173,7 +182,7 @@ class Rule(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    manufacturer: Mapped[Manufacturer | None] = relationship()
+    manufacturer: Mapped[Manufacturer | None] = relationship(foreign_keys=[manufacturer_id])
     versions: Mapped[list["RuleVersion"]] = relationship(order_by="RuleVersion.version")
 
 

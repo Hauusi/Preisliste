@@ -16,7 +16,7 @@
   <tbody>
   {% for r in rows %}
     <tr>
-      <td class="num">{{ r.article.source_row }}</td><td>{{ r.article.article_number or "" }}</td><td>{{ r.article.description or "" }}</td>
+      <td class="num">{{ r.article.source_row }}</td><td>{{ r.article.article_number | artnr(codes.get(r.article.manufacturer_id)) }}</td><td>{{ r.article.description or "" }}</td>
       <td class="num">{{ r.start_amount | money }}</td><td class="num"><b>{{ r.result_amount | money }}</b> {{ r.currency or "" }}</td>
       <td><span class="badge {{ r.status }}">{{ r.status }}</span>{% if r.error %}<div class="small FEHLER">{{ r.error }}</div>{% endif %}</td>
       <td><details><summary>anzeigen</summary>

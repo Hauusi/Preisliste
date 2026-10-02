@@ -27,7 +27,8 @@
   <tbody>
   {% for i in rows %}
     <tr>
-      <td>{{ i.article_number or "" }}{% if i.old_article and i.new_article and i.old_article.article_number != i.new_article.article_number %}<div class="small">alt: {{ i.old_article.article_number }}</div>{% endif %}</td>
+      {% set code = codes.get(i.manufacturer_id) %}
+      <td>{{ i.article_number | artnr(code) }}{% if i.old_article and i.new_article and i.old_article.article_number != i.new_article.article_number %}<div class="small">alt: {{ i.old_article.article_number | artnr(codes.get(i.old_article.manufacturer_id)) }}</div>{% endif %}</td>
       <td>{{ manufacturers.get(i.manufacturer_id, "") }}</td>
       <td>{{ i.description or "" }}</td>
       <td>{{ "ab " ~ i.min_quantity if i.min_quantity is not none else "" }}</td>
@@ -41,13 +42,13 @@
           <form method="post" action="/vergleiche/{{ cmp.id }}/eintrag/{{ i.id }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="back" value="{{ back }}">
-            {% for c in i.candidates %}<label class="inline-label"><input type="radio" name="old_id" value="{{ c.old_id }}" required> {{ c.number }} – {{ c.description or "" }} (Score {{ c.score }})
+            {% for c in i.candidates %}<label class="inline-label"><input type="radio" name="old_id" value="{{ c.old_id }}" required> {{ c.number | artnr(code) }} – {{ c.description or "" }} (Score {{ c.score }})
               {% if c.ki %}<span class="badge {{ 'OK' if c.ki.status == 'TREFFER' else 'UNKLAR' }}" title="{{ c.ki.reason }}">KI: {{ {"TREFFER": "passt", "KEIN_TREFFER": "passt nicht", "UNKLAR": "unklar"}[c.ki.status] }}{% if c.ki.confidence and c.ki.confidence != "None" %} ({{ c.ki.confidence }}){% endif %}</span>{% endif %}</label>{% endfor %}
             <label class="inline-label"><input type="radio" name="old_id" value="keiner"> keiner (neuer Artikel)</label>
             <button type="submit" class="secondary">Bestätigen</button>
           </form>
         {% elif i.candidates %}
-          <div>Kandidaten: {% for c in i.candidates %}{{ c.number }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          <div>Kandidaten: {% for c in i.candidates %}{{ c.number | artnr(code) }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
         {% endif %}
       </td>
     </tr>

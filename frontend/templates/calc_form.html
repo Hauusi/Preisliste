@@ -7,12 +7,13 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label>Regel
     <select name="rule_id" required><option value="">– wählen –</option>
-      {% for r in rules %}<option value="{{ r.id }}">{{ r.name }} (v{{ r.current_version }}{% if r.manufacturer %}, {{ r.manufacturer.name }}{% endif %})</option>{% endfor %}
+      {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }} (v{{ r.current_version }}{% if r.manufacturer %}, {{ r.manufacturer.name }}{% endif %})</option>{% endfor %}
     </select>
   </label>
   <label>Menge (für Staffeln) <input name="quantity" value="1"></label>
   <button type="submit">Kalkulieren</button>
 </form>
+{% if preselect_hint %}<p class="hint">{{ preselect_hint }}</p>{% endif %}
 {% if not rules %}<p class="hint">Noch keine Regeln. <a href="/regeln">Regeln anlegen</a></p>{% endif %}
 <h2>Bisherige Kalkulationen</h2>
 <table>

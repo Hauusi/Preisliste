@@ -4,19 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.ai.provider import cached_status
 from backend.api.deps import current_user
 from backend.api.routes_lists import query_articles
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import PriceList, User
+from backend.services.manufacturers import code_map, with_code
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/status")
-def status(_user: User = Depends(current_user)):
-    # KI-Anbindung folgt in Gruppe C
-    return {"ki": {"aktiv": False, "grund": "noch nicht eingerichtet"}}
+def status(settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
+    s = cached_status(settings)
+    return {"ki": {"aktiv": s.active, "anbieter": s.provider, "modell": s.model, "meldung": s.message,
+                   "geladen_mb": s.loaded_mb}}
 
 
 @router.get("/price-lists")
@@ -35,11 +38,13 @@ def articles(list_id: int, status: str | None = None, q: str | None = None, page
     if db.get(PriceList, list_id) is None:
         raise HTTPException(404, "Preisliste nicht gefunden")
     rows, info = query_articles(db, list_id, status, q, page, settings.page_size)
+    codes = code_map(db)
     return {
         "seite": info["page"], "seiten": info["pages"], "gesamt": info["total"],
         "artikel": [
             {
                 "id": a.id, "zeile": a.source_row, "artikelnummer": a.article_number,
+                "artikelnummer_anzeige": with_code(a.article_number, codes.get(a.manufacturer_id)),
                 "bezeichnung": a.description, "status": a.status,
                 "preise": [
                     {"typ": p.price_type, "betrag": format(p.amount, "f"), "waehrung": p.currency,
