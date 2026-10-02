@@ -8,6 +8,7 @@ Variablen und min/max. Zahlen werden direkt aus dem Quelltext als Decimal gelese
 from __future__ import annotations
 
 import ast
+import re
 from decimal import Decimal, DivisionByZero, InvalidOperation
 
 MAX_LENGTH = 500
@@ -19,15 +20,25 @@ class FormulaError(ValueError):
     pass
 
 
+def normalize(expression: str) -> str:
+    """Deutsche Schreibweise erlauben: 2,6 -> 2.6; Argumente in min/max mit ; trennen (min(a; b))."""
+    expression = re.sub(r"(?<=\d),(?=\d)", ".", expression)
+    return expression.replace(";", ",").replace("×", "*").replace("÷", "/")
+
+
 def parse(expression: str, allowed_names: set[str]) -> ast.Expression:
     if not isinstance(expression, str) or not expression.strip():
         raise FormulaError("Formel ist leer")
+    expression = normalize(expression)
     if len(expression) > MAX_LENGTH:
         raise FormulaError(f"Formel ist länger als {MAX_LENGTH} Zeichen")
     try:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as exc:
-        raise FormulaError(f"Formel ist ungültig: {exc.msg}") from exc
+        hint = ""
+        if expression.strip()[:1] in "*/+":
+            hint = " Die Formel muss vollständig sein, z. B. current * 2,6 statt * 2,6."
+        raise FormulaError(f"Formel ist unvollständig oder ungültig.{hint}") from exc
     nodes = list(ast.walk(tree))
     if len(nodes) > MAX_NODES:
         raise FormulaError("Formel ist zu komplex")
@@ -55,6 +66,7 @@ def parse(expression: str, allowed_names: set[str]) -> ast.Expression:
 
 
 def evaluate(expression: str, variables: dict[str, Decimal]) -> Decimal:
+    expression = normalize(expression)
     tree = parse(expression, set(variables))
 
     def ev(node) -> Decimal:

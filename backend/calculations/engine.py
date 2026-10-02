@@ -63,6 +63,11 @@ class FixedStep(_Step):
     type: Literal["fixed"]
     amount: Decimal  # negativ = Abzug
 
+class MultiplyStep(_Step):
+    type: Literal["multiply"]
+    factor: Decimal = Field(gt=0, le=1000)
+
+
 class TierStep(_Step):
     type: Literal["tier"]
     quantity: Decimal = Field(gt=0)
@@ -93,7 +98,7 @@ class FormulaStep(_Step):
     expression: str = Field(min_length=1, max_length=500)
 
 Step = Annotated[
-    Union[DiscountStep, SurchargeStep, FixedStep, TierStep, MinQuantityStep, RoundStep, RoundEndingStep, FormulaStep],
+    Union[DiscountStep, SurchargeStep, FixedStep, MultiplyStep, TierStep, MinQuantityStep, RoundStep, RoundEndingStep, FormulaStep],
     Field(discriminator="type"),
 ]
 
@@ -217,6 +222,9 @@ def calculate(rule: RuleDefinition, prices: list[PriceInput], quantity: Decimal 
             sign = "-" if isinstance(step, DiscountStep) else "+"
             entry.update(basis=step.base, basis_wert=_fmt(base_value), operand=f"{sign}{_fmt(step.percent)} %",
                          betrag=_fmt(delta))
+        elif isinstance(step, MultiplyStep):
+            current = current * step.factor
+            entry.update(operand=f"× {_fmt(step.factor)}")
         elif isinstance(step, FixedStep):
             current = current + step.amount
             entry.update(operand=("+" if step.amount >= 0 else "") + _fmt(step.amount))

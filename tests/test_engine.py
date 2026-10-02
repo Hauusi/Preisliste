@@ -141,3 +141,13 @@ def test_missing_price_type_and_negative_result():
 def test_percent_change_example_precision():
     r = rule([{"type": "discount", "percent": "33.333", "base": "start"}])
     assert calculate(r, [price("99.99")]).result == D("66.66")  # 33,33 Rabatt (33,3297 -> 33,33)
+
+
+def test_multiply_step_and_german_formula():
+    r = rule([{"type": "multiply", "factor": "2.6"}], start_price="EK")
+    res = calculate(r, [price("10.00", typ="EK")])
+    assert res.result == D("26.00") and res.trace[1]["operand"] == "× 2.6"
+    assert evaluate("current * 2,6", {"current": D("10")}) == D("26.0")
+    assert evaluate("max(start; 5,5)", {"start": D("3")}) == D("5.5")
+    with pytest.raises(FormulaError, match="vollständig"):
+        evaluate("* 2,6", {"current": D("10")})

@@ -102,3 +102,18 @@ def test_rule_form_shows_step_cards(admin_client):
 def test_new_rule_form_defaults(admin_client):
     page = admin_client.get("/regeln/neu").text
     assert 'name="rounding_places" min="0" max="6" value="2"' in page
+
+
+def test_rule_with_factor_and_clear_formula_error(admin_client):
+    base = {"csrf_token": admin_client.csrf, "name": "RaphiLED", "start_price": "EK", "rounding_mode": "HALF_UP",
+            "rounding_places": "2", "rounding_timing": "STEP"}
+    r = admin_client.post("/regeln/neu", data={**base, "step_1_type": "formula", "step_1_value": "* 2,6"})
+    assert r.status_code == 400
+    assert "Value error" not in r.text and "current * 2,6" in r.text
+    r = admin_client.post("/regeln/neu", data={**base, "step_1_type": "multiply", "step_1_value": "2,6"},
+                          follow_redirects=False)
+    assert r.status_code == 303
+    rid = r.headers["location"].rsplit("/", 1)[1]
+    page = admin_client.post(f"/regeln/{rid}/test", data={"csrf_token": admin_client.csrf, "amount": "10,00",
+                                                          "quantity": "1"}).text
+    assert "26,00" in page

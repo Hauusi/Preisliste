@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
@@ -19,11 +21,12 @@ from backend.services.rules import create_rule, current_version, new_version
 router = APIRouter()
 MAX_STEPS = 12
 STEP_TYPES = {
-    "discount": "Rabatt %", "surcharge": "Aufschlag %", "fixed": "Fixbetrag (+/-)", "tier": "Staffelpreis für Menge",
+    "discount": "Rabatt %", "surcharge": "Aufschlag %", "multiply": "Faktor (multiplizieren)",
+    "fixed": "Fixbetrag (+/-)", "tier": "Staffelpreis für Menge",
     "min_quantity": "Mindestmenge", "round": "Runden auf Schrittweite", "round_ending": "Runden auf Endung",
     "formula": "Formel",
 }
-VALUE_FIELD = {"discount": "percent", "surcharge": "percent", "fixed": "amount", "tier": "quantity",
+VALUE_FIELD = {"discount": "percent", "surcharge": "percent", "multiply": "factor", "fixed": "amount", "tier": "quantity",
                "min_quantity": "quantity", "round": "increment", "round_ending": "ending", "formula": "expression"}
 
 
@@ -73,7 +76,8 @@ def _validation_messages(exc: ValidationError) -> list[str]:
     for e in exc.errors():
         loc = [str(x) for x in e["loc"]]
         where = f"Schritt {int(loc[1]) + 1}" if len(loc) > 1 and loc[0] == "steps" and loc[1].isdigit() else ".".join(loc)
-        out.append(f"{where}: {e['msg']}")
+        msg = e["msg"].removeprefix("Value error, ")
+        out.append(f"{where}: {msg}" if where else msg)
     return out
 
 
@@ -96,15 +100,17 @@ def form_rows(definition: dict | None) -> list[dict]:
 STEP_HELP = {
     "discount": "Zieht einen Prozentsatz ab. Beispiel: 15 % vom Ausgangspreis 100,00 = 15,00 Abzug.",
     "surcharge": "Schlägt einen Prozentsatz auf. Beispiel: 4 % Transport vom aktuellen Zwischenpreis.",
+    "multiply": "Multipliziert den aktuellen Zwischenpreis. Beispiel: EK 10,00 × 2,6 = 26,00.",
     "fixed": "Addiert einen festen Betrag. Für einen Abzug ein Minus davor schreiben (z. B. -2,50).",
     "tier": "Nimmt den Staffelpreis der Liste für diese Menge als neuen Zwischenpreis.",
     "min_quantity": "Prüft die Bestellmenge. Liegt sie darunter, wird die Position als FEHLER markiert.",
     "round": "Rundet auf eine Schrittweite, z. B. 0,05 oder 1,00.",
     "round_ending": "Rundet auf eine Preisendung, z. B. 0,90 (12,34 wird zu 12,90).",
-    "formula": "Eigene Formel. Erlaubt: + - * / ( ) min() max(). Variablen: start, current, quantity, "
-               "transport, discount, s1, s2 … (Ergebnis von Schritt 1, 2 …).",
+    "formula": "Eigene Formel, vollständig ausgeschrieben, z. B. current * 2,6 oder start * 1,19 + 3. "
+               "Erlaubt: + - * / ( ) min(a; b) max(a; b). Variablen: start (Ausgangspreis), current (Zwischenpreis), "
+               "quantity, transport, discount, s1, s2 … (Ergebnis von Schritt 1, 2 …).",
 }
-VALUE_LABELS = {"discount": "Prozent", "surcharge": "Prozent", "fixed": "Betrag", "tier": "Menge",
+VALUE_LABELS = {"discount": "Prozent", "surcharge": "Prozent", "multiply": "Faktor", "fixed": "Betrag", "tier": "Menge",
                 "min_quantity": "Mindestmenge", "round": "Schrittweite", "round_ending": "Endung",
                 "formula": "Formel"}
 DIRECTIONS = {"UP": "aufrunden", "DOWN": "abrunden", "NEAREST": "zur nächsten Endung"}

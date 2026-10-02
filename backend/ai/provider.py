@@ -131,7 +131,7 @@ class AIProvider:
             "Übersetze die Beschreibung einer Preiskalkulation in Schritte. Erlaubte Schritt-Objekte:\n"
             '{"type":"discount","percent":"15","base":"start|current|step:N"}, '
             '{"type":"surcharge","percent":"4","base":"start|current|step:N"}, '
-            '{"type":"fixed","amount":"3.40"}, {"type":"round","increment":"0.05","mode":"HALF_UP|UP|DOWN"}, '
+            '{"type":"fixed","amount":"3.40"}, {"type":"multiply","factor":"2.6"}, {"type":"round","increment":"0.05","mode":"HALF_UP|UP|DOWN"}, '
             '{"type":"round_ending","ending":"0.90","direction":"UP|DOWN|NEAREST"}, '
             '{"type":"min_quantity","quantity":"10"}, {"type":"tier","quantity":"10"}.\n'
             "Zahlen als Text mit Punkt. Keine Formeln. Erkläre kurz in explanation.\n"

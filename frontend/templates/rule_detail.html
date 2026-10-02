@@ -12,6 +12,7 @@
   {% for s in d.steps %}
     <li>{{ step_types[s.type] }}:
       {% if s.type in ("discount", "surcharge") %}{{ s.percent }} % auf {{ {"start": "Ausgangspreis", "current": "Zwischenpreis"}.get(s.base, "Ergebnis Schritt " ~ s.base[5:]) }}
+      {% elif s.type == "multiply" %}× {{ s.factor }}
       {% elif s.type == "fixed" %}{{ s.amount }}
       {% elif s.type in ("tier", "min_quantity") %}Menge {{ s.quantity }}
       {% elif s.type == "round" %}{{ s.increment }} ({{ modes[s.mode] }})
