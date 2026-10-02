@@ -43,6 +43,7 @@
   <section class="card">
     <h2>Spaltenzuordnung</h2>
     <p class="hint">Vorschläge aus Synonymliste bzw. Heuristik. Bitte jede Zuordnung prüfen.</p>
+    <p class="hint">Zwei Jahre in einer Datei (z. B. EK 2025 und EK 2026)? Beide Spalten derselben Preisart zuordnen. Die Datei wird dann in zwei Listen aufgeteilt und automatisch verglichen: alt ist die Spalte mit dem älteren Jahr in der Überschrift, sonst die linke Spalte.</p>
     <div class="scroll">
     <table class="preview">
       <thead>
@@ -95,7 +96,7 @@
     <label>Gültig ab <input type="date" name="valid_from"></label>
   </section>
   <p class="hint">Währung: Preise ohne Währungszeichen in der Zelle und ohne Währungsspalte werden als FEHLER markiert, wenn hier keine Währung gewählt ist. Es wird nichts angenommen.</p>
-  {% if pv.manufacturer_suggestion %}<p class="hint">Hersteller wurde aus Datei- oder Blattname vorgeschlagen. Bitte prüfen.</p>{% endif %}
+  {% if pv.manufacturer_suggestion %}<p class="hint">Hersteller wurde vorgeschlagen (aus Datei-/Blattname oder dem Kürzel am Anfang der Artikelnummern). Bitte prüfen.</p>{% endif %}
 
   <div class="actions">
     <button type="submit">Import ausführen</button>

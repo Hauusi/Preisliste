@@ -34,7 +34,28 @@ def code_map(db: Session) -> dict[int, str]:
 
 
 def with_code(number: str | None, code: str | None) -> str | None:
-    return f"{code}{number}" if number and code else number
+    """Kürzel voranstellen, außer die Nummer beginnt schon damit (kein RARALED1)."""
+    if not number or not code or number.upper().startswith(code.upper()):
+        return number
+    return f"{code}{number}"
+
+
+def suggest_by_code(db: Session, numbers: list) -> int | None:
+    """Hersteller, wenn mindestens 80 % der Artikelnummern mit seinem Kürzel beginnen (eindeutig)."""
+    values = [str(n).strip().upper() for n in numbers if n not in (None, "")]
+    if not values:
+        return None
+    hits = []
+    for mid, code in code_map(db).items():
+        share = sum(1 for v in values if v.startswith(code)) / len(values)
+        if share >= 0.8:
+            hits.append((len(code), mid))
+    if not hits:
+        return None
+    hits.sort(reverse=True)  # längstes passendes Kürzel gewinnt (RAX vor RA)
+    if len(hits) > 1 and hits[0][0] == hits[1][0]:
+        return None
+    return hits[0][1]
 
 
 def search_conditions(db: Session, q: str, number_col, manufacturer_col) -> list:

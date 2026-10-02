@@ -15,6 +15,7 @@ from backend.excel import columns as col
 from backend.excel.importer import ImportConfig, run_import
 from backend.excel.reader import ExcelRejected, SheetData, check_file, list_sheets, read_sheet
 from backend.models.entities import Manufacturer, PriceList, User, utcnow
+from backend.services.manufacturers import suggest_by_code
 
 PREVIEW_ROWS = 20
 DETECTION_ROWS = 600
@@ -90,6 +91,9 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
     sample = sheet.rows[start: start + PREVIEW_ROWS]
     known = [(m.id, m.name, m.aliases or []) for m in db.scalars(select(Manufacturer))]
     suggestion = col.suggest_manufacturer(known, pl.source_file, sheet, detection.header_row)
+    nr_col = detection.mapping().get("article_number")
+    if suggestion is None and nr_col is not None:
+        suggestion = suggest_by_code(db, [r[nr_col] for r in sheet.rows[start:] if nr_col < len(r)])
     dup = db.scalar(
         select(PriceList).where(
             PriceList.file_sha256 == pl.file_sha256,

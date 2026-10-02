@@ -12,6 +12,7 @@ from backend.calculations.engine import RuleDefinition
 from backend.comparison.service import run_comparison
 from backend.database.engine import session_scope
 from backend.excel import columns as col
+from backend.excel.importer import PRICE_TYPE
 from backend.excel.reader import read_sheet
 from backend.jobs.runner import JobContext, handler
 from backend.matching.cascade import Item, fuzzy_candidates
@@ -44,16 +45,48 @@ def import_job(ctx: JobContext, p: dict) -> dict:
             elif code and not m.code:
                 m.code = code
             manufacturer_id = m.id
+    kwargs = dict(sheet_name=p["sheet"], header_row=p["header_row"], header_rows=p["header_rows"],
+                  manufacturer_id=manufacturer_id, new_manufacturer=None, currency=p.get("currency"),
+                  decimal_separators={int(k): v for k, v in p.get("separators", {}).items()},
+                  valid_from=p.get("valid_from"), progress=progress)
+    split = p.get("split")
+    if not split:
+        with session_scope() as db:
+            pl = db.get(PriceList, p["price_list_id"])
+            summary = confirm_import(db, pl, ctx.settings, mapping=p["mapping"], **kwargs)
+        ctx.progress(1, 1, "Import abgeschlossen")
+        return {"price_list_id": p["price_list_id"], "summary": summary}
+
+    # Eine Datei mit zwei Preisspalten (z. B. EK 2025 und EK 2026): zwei Listen + Vergleich
+    list_ids, summaries = [], []
     with session_scope() as db:
-        pl = db.get(PriceList, p["price_list_id"])
-        summary = confirm_import(
-            db, pl, ctx.settings, sheet_name=p["sheet"], header_row=p["header_row"], header_rows=p["header_rows"],
-            mapping=p["mapping"], manufacturer_id=manufacturer_id, new_manufacturer=None,
-            currency=p.get("currency"), decimal_separators={int(k): v for k, v in p.get("separators", {}).items()},
-            valid_from=p.get("valid_from"), progress=progress,
-        )
-    ctx.progress(1, 1, "Import abgeschlossen")
-    return {"price_list_id": p["price_list_id"], "summary": summary}
+        base_name = db.get(PriceList, p["price_list_id"]).name
+    for idx, (column, label) in enumerate(zip(split["columns"], split["labels"])):
+        mapping = {**p["mapping"], split["field"]: column}
+        with session_scope() as db:
+            base = db.get(PriceList, p["price_list_id"])
+            if idx == 0:
+                pl = base
+            else:
+                pl = PriceList(source_file=base.source_file, stored_file=base.stored_file,
+                               file_sha256=base.file_sha256, uploaded_by=base.uploaded_by,
+                               status="WARTESCHLANGE", name="")
+                db.add(pl)
+                db.flush()
+            pl.name = f"{base_name} – {label}"[:255]
+            summaries.append(confirm_import(db, pl, ctx.settings, mapping=mapping, **kwargs))
+            list_ids.append(pl.id)
+    with session_scope() as db:
+        cmp = Comparison(old_price_list_id=list_ids[0], new_price_list_id=list_ids[1], manufacturer_id=None,
+                         price_type=PRICE_TYPE[split["field"]], quantity=Decimal(1),
+                         created_by=p.get("user_id") or db.get(PriceList, list_ids[0]).uploaded_by)
+        db.add(cmp)
+        db.flush()
+        run_comparison(db, cmp)
+        cmp_id = cmp.id
+    ctx.progress(1, 1, "Import und Vergleich abgeschlossen")
+    return {"price_list_id": list_ids[0], "price_list_ids": list_ids, "summary": summaries[0],
+            "summaries": summaries, "comparison_id": cmp_id, "labels": split["labels"]}
 
 
 @handler("IMPORT:finally")

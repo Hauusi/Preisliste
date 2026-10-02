@@ -24,9 +24,9 @@ def dt_de(value) -> str:
 
 def artnr(number, code=None) -> str:
     """Artikelnummer mit Hersteller-Kürzel (Anzeige), z. B. RT + 12345 = RT12345."""
-    if not number:
-        return ""
-    return f"{code}{number}" if code else number
+    from backend.services.manufacturers import with_code
+
+    return with_code(number, code) or ""
 
 
 templates.env.filters["money"] = money

@@ -31,6 +31,8 @@ def result_link(job: Job) -> tuple[str, str] | None:
         if job.type == "IMPORT":
             return f"/import/{p.get('price_list_id')}", "Zurück zur Import-Vorschau"
         return None
+    if job.type == "IMPORT" and r.get("comparison_id"):
+        return f"/vergleiche/{r['comparison_id']}", "Zum Vergleich alt/neu"
     if job.type == "IMPORT":
         return f"/listen/{r.get('price_list_id')}", "Zur importierten Liste"
     if job.type == "AI_COLUMNS":

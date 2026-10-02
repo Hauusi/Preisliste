@@ -58,6 +58,15 @@ def _int(value, default=None):
         return default
 
 
+def order_split(split: dict, labels: dict[int, str]) -> dict:
+    """Alt/neu festlegen: älteres Jahr in der Überschrift = alt, sonst linke Spalte = alt."""
+    cols = list(split["columns"])
+    years = [re.search(r"(?:19|20)\d{2}", labels.get(c, "")) for c in cols]
+    if all(years) and years[0].group(0) != years[1].group(0):
+        cols.sort(key=lambda c: re.search(r"(?:19|20)\d{2}", labels[c]).group(0))
+    return {**split, "columns": cols, "labels": [labels.get(c, f"Spalte {c + 1}") for c in cols]}
+
+
 def _ai_columns(db: Session, ki_job: str | None, pl: PriceList, user: User, pv) -> dict | None:
     """KI-Spaltenvorschlag aus einem fertigen Job, nur wenn er zu Liste, Blatt und Kopfzeile passt."""
     job_id = _int(ki_job)
@@ -122,19 +131,32 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
     header_rows = _int(form.get("header_rows"), 1)
     mapping: dict[str, int] = {}
     separators: dict[int, str | None] = {}
+    assigned: dict[str, list[int]] = {}
     errors = []
     for key, value in form.multi_items():
         m = re.fullmatch(r"col_(\d+)", key)
         if m and value:
             if value not in FIELDS:
                 errors.append(f"Unbekanntes Feld {value!r}")
-            elif value in mapping:
-                errors.append(f"{FIELDS[value]} ist mehreren Spalten zugeordnet")
             else:
-                mapping[value] = int(m.group(1))
+                assigned.setdefault(value, []).append(int(m.group(1)))
         m = re.fullmatch(r"sep_(\d+)", key)
         if m and value in (",", "."):
             separators[int(m.group(1))] = value
+    split = None
+    for fld, cols in assigned.items():
+        cols.sort()
+        mapping[fld] = cols[0]
+        if len(cols) == 1:
+            continue
+        if fld not in PRICE_FIELDS:
+            errors.append(f"{FIELDS[fld]} ist mehreren Spalten zugeordnet")
+        elif len(cols) > 2:
+            errors.append(f"{FIELDS[fld]} ist mehr als zwei Spalten zugeordnet (höchstens zwei: alt und neu)")
+        elif split is not None:
+            errors.append("Nur eine Preisart darf zwei Spalten haben")
+        else:
+            split = {"field": fld, "columns": cols}
     if "article_number" not in mapping:
         errors.append("Artikelnummer-Spalte zuordnen")
     if not any(f in mapping for f in PRICE_FIELDS):
@@ -164,6 +186,11 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
 
     if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
         errors.append("Hersteller nicht gefunden")
+    if split and not errors:
+        pv = build_preview(db, pl, settings, sheet or None, header_row, header_rows)
+        labels = {c.index: c.label or f"Spalte {c.index + 1}" for c in pv.detection.columns}
+        split = order_split(split, labels)
+        mapping[split["field"]] = split["columns"][0]
 
     if not errors:
         # Import läuft als Hintergrundjob (große Listen dauern länger als eine Web-Anfrage)
@@ -171,7 +198,7 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         job = enqueue(db, "IMPORT", {
             "price_list_id": pl.id, "sheet": sheet, "header_row": header_row, "header_rows": header_rows,
             "mapping": mapping, "manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer,
-            "new_manufacturer_code": new_code,
+            "new_manufacturer_code": new_code, "split": split, "user_id": user.id,
             "currency": currency, "separators": {str(k): v for k, v in separators.items()}, "valid_from": valid_from,
         }, user)
         audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},
