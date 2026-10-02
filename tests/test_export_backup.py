@@ -111,3 +111,18 @@ def test_reset_data(admin_client, tmp_path, settings, monkeypatch):
     con.close()
     assert list(settings.upload_dir.iterdir()) == []
     assert list((settings.data_dir / "backups").glob("preisliste-*.tar.gz"))  # Sicherung vorhanden
+
+
+def test_clear_data_keeps_users_and_rules(admin_client, tmp_path, settings, monkeypatch):
+    _flow(admin_client, tmp_path)
+    from backend import cli
+    monkeypatch.setattr(cli, "get_settings", lambda: settings)
+    assert cli.main(["clear-data"]) == 2
+    assert cli.main(["clear-data", "--ja"]) == 0
+    import sqlite3
+    con = sqlite3.connect(settings.db_path)
+    q = lambda t: con.execute(f"select count(*) from {t}").fetchone()[0]
+    assert q("manufacturers") == q("price_lists") == q("articles") == q("comparisons") == 0
+    assert q("users") == 2 and q("rules") == 1 and q("rule_versions") == 1
+    con.close()
+    assert admin_client.get("/").status_code == 200  # Anmeldung bleibt gültig

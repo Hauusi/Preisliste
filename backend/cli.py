@@ -4,6 +4,8 @@
   create-admin <benutzername>   Administrator anlegen (Passwort wird abgefragt)
   reset-password <benutzername> Passwort setzen, Sperre aufheben, Sessions beenden
   backup [anzahl]               Sicherung (Datenbank + Uploads) nach data/backups, behält die letzten N (Standard 14)
+  clear-data --ja               Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Uploads löschen.
+                                Benutzer, Regeln und Protokoll bleiben. Vorher automatische Sicherung.
   reset-data --ja               ALLE Daten löschen (Listen, Hersteller, Regeln, Vergleiche, Benutzer, Uploads).
                                 Vorher wird automatisch eine Sicherung erstellt. Danach create-admin ausführen.
 """
@@ -45,6 +47,33 @@ def reset_data(settings) -> str:
     return str(backup)
 
 
+def clear_data(settings) -> tuple[str, dict]:
+    """Geschäftsdaten löschen, Benutzer, Regeln und Protokoll behalten."""
+    from sqlalchemy import delete, func, select, update
+
+    from backend.models import entities as e
+    from backend.services.backup import create_backup
+
+    backup, _ = create_backup(settings, keep=1000)
+    counts = {}
+    with db_engine.session_scope() as db:
+        counts["Hersteller"] = db.scalar(select(func.count(e.Manufacturer.id)))
+        counts["Preislisten"] = db.scalar(select(func.count(e.PriceList.id)))
+        counts["Artikel"] = db.scalar(select(func.count(e.Article.id)))
+        for model in (e.AiMatchSuggestion, e.MatchDecision, e.ComparisonItem, e.Comparison, e.CalculationResult,
+                      e.CalculationRun, e.Job, e.ImportMessage, e.ArticlePrice, e.Article, e.PriceList):
+            db.execute(delete(model))
+        # Regeln bleiben, verlieren aber die Zuordnung zum gelöschten Hersteller
+        db.execute(update(e.Rule).values(manufacturer_id=None))
+        db.execute(delete(e.Manufacturer))
+        audit(db, None, "daten_geloescht_cli", details={**counts, "sicherung": str(backup)})
+    if settings.upload_dir.exists():
+        for f in settings.upload_dir.iterdir():
+            if f.is_file():
+                f.unlink()
+    return str(backup), counts
+
+
 def main(argv: list[str]) -> int:
     settings = get_settings()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -77,6 +106,13 @@ def main(argv: list[str]) -> int:
                 end_all_sessions(db, user.id)
                 audit(db, None, "passwort_gesetzt_cli", "user", user.id, {"username": user.username})
             print("Passwort gesetzt.")
+        elif cmd == "clear-data":
+            if argv[1:] != ["--ja"]:
+                print("Sicherheitsabfrage: zum Löschen 'clear-data --ja' eingeben.", file=sys.stderr)
+                return 2
+            backup, counts = clear_data(settings)
+            print("Gelöscht: " + ", ".join(f"{v} {k}" for k, v in counts.items()))
+            print("Benutzer und Regeln sind erhalten. Sicherung vorher: " + backup)
         elif cmd == "reset-data":
             if argv[1:] != ["--ja"]:
                 print("Sicherheitsabfrage: zum Löschen aller Daten 'reset-data --ja' eingeben.", file=sys.stderr)

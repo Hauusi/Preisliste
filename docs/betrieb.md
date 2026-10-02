@@ -23,6 +23,16 @@ Installationsort: `/root/apps/preisliste`, Docker-Dateien in `deploy/`.
 | KI-Status | `docker compose logs app \| grep "KI:"` oder Dashboard |
 | nginx-Passwort ändern | `htpasswd /etc/nginx/.htpasswd <benutzer>` (Paket `apache2-utils`) |
 
+## Nur Daten löschen (Benutzer und Regeln bleiben)
+
+Löscht Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Uploads. Vorher wird automatisch gesichert.
+Regeln bleiben erhalten, verlieren aber die Zuordnung zum Hersteller.
+
+```
+cd /root/apps/preisliste/deploy
+docker compose exec app python -m backend.cli clear-data --ja
+```
+
 ## Alle Daten löschen (Neustart)
 
 Löscht Listen, Hersteller, Regeln, Vergleiche, Benutzer und Uploads. Vorher wird automatisch eine Sicherung angelegt.
