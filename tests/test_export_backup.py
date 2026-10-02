@@ -126,3 +126,21 @@ def test_clear_data_keeps_users_and_rules(admin_client, tmp_path, settings, monk
     assert q("users") == 2 and q("rules") == 1 and q("rule_versions") == 1
     con.close()
     assert admin_client.get("/").status_code == 200  # Anmeldung bleibt gültig
+
+
+def test_clear_data_everything_keeps_only_admins(admin_client, user_client, tmp_path, settings, monkeypatch):
+    _flow(admin_client, tmp_path)
+    from backend import cli
+    monkeypatch.setattr(cli, "get_settings", lambda: settings)
+    assert cli.main(["clear-data", "--ja", "--alles"]) == 0
+    import sqlite3
+    con = sqlite3.connect(settings.db_path)
+    q = lambda sql: con.execute(sql).fetchone()[0]
+    assert q("select count(*) from rules") == q("select count(*) from rule_versions") == 0
+    assert q("select count(*) from manufacturers") == q("select count(*) from articles") == 0
+    assert q("select group_concat(username) from users") == "admin"
+    # Schutz der Regelversionen ist wieder aktiv
+    assert q("select count(*) from sqlite_master where type='trigger' and name='rule_versions_no_delete'") == 1
+    con.close()
+    assert admin_client.get("/").status_code == 200
+    assert user_client.get("/", follow_redirects=False).status_code == 303

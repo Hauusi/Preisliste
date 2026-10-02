@@ -33,6 +33,12 @@ cd /root/apps/preisliste/deploy
 docker compose exec app python -m backend.cli clear-data --ja
 ```
 
+Mit `--alles` werden zusätzlich alle Regeln und alle Benutzer außer Administratoren gelöscht:
+
+```
+docker compose exec app python -m backend.cli clear-data --ja --alles
+```
+
 ## Alle Daten löschen (Neustart)
 
 Löscht Listen, Hersteller, Regeln, Vergleiche, Benutzer und Uploads. Vorher wird automatisch eine Sicherung angelegt.
