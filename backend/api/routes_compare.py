@@ -67,7 +67,18 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _us
         "pl": pl, "rules": _rules(db), "runs": runs, "rule_names": rule_names, "error": None,
         "preselect": preselect, "preselect_hint": hint, "step": 5, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
         "article_count": db.scalar(select(func.count(Article.id)).where(Article.price_list_id == pl.id)),
+        **_update_defaults(db, pl, mid),
     })
+
+
+def _update_defaults(db: Session, pl: PriceList, mid: int | None) -> dict:
+    """Vorauswahl für 'Neue Preisliste nur mit unseren Artikeln': ältere Liste desselben Herstellers."""
+    from backend.api.routes_updates import main_price_type
+
+    others = [o for o in _imported(db) if o.id != pl.id]
+    same = [o for o in others if mid and list_manufacturer(db, o) == mid and o.id < pl.id]
+    return {"update_bases": others, "update_base_default": same[0].id if same else None,
+            "update_price_type": main_price_type(db, pl.id)}
 
 
 def list_manufacturer(db: Session, pl: PriceList) -> int | None:

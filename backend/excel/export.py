@@ -182,3 +182,45 @@ def export_calculation(db: Session, run: CalculationRun) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def export_price_update(db: Session, upd) -> bytes:
+    """Neue Preisliste: nur unsere Artikel, Herstellerpreis und kalkulierter Preis."""
+    from backend.comparison.update import STATUS_LABELS as UL
+    from backend.models.entities import PriceUpdateItem
+
+    codes = code_map(db)
+    mfr = {m.id: m.name for m in db.scalars(select(Manufacturer))}
+    items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
+                       .order_by(PriceUpdateItem.id)).all()
+    rule_label = None
+    if upd.rule_version:
+        rule_label = f"{db.get(Rule, upd.rule_version.rule_id).name} v{upd.rule_version.version}"
+    wb = openpyxl.Workbook(write_only=True)
+    s = upd.summary or {}
+    info = _Sheet(wb, "Zusammenfassung", ["Angabe", "Wert"], [36, 60])
+    for label, value in [
+        ("Unsere Liste (Artikelauswahl)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
+        ("Herstellerliste (neue Preise)", f"{upd.source_list.name} ({upd.source_list.source_file})"),
+        ("Preisart", upd.price_type), ("Regel", rule_label or "keine"), ("Menge", upd.quantity),
+        ("Artikel", s.get("artikel", 0)),
+    ] + [(UL[k], s.get(k, 0)) for k in UL] + [
+        ("Nur beim Hersteller (ignoriert)", s.get("ignoriert_nur_beim_hersteller", 0))]:
+        info.row([label, value])
+
+    header = ["Artikelnummer", "Original-Nr.", "Hersteller", "Bezeichnung", "Preis alt", "Preis Hersteller neu",
+              "Kalkulierter Preis", "Währung", "Differenz", "Differenz %", "Status", "Hinweis"]
+    widths = [18, 16, 18, 40, 12, 16, 16, 9, 12, 12, 22, 60]
+    main = _Sheet(wb, "Neue Preisliste", header, widths)
+    open_items = _Sheet(wb, "Zu prüfen", header, widths)
+    for i in items:
+        row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number,
+               mfr.get(i.manufacturer_id), i.description, main.money(i.old_amount), main.money(i.new_amount),
+               main.money(i.calculated_amount), i.currency, main.money(i.difference),
+               main.percent(i.difference_percent), UL.get(i.status, i.status), i.note]
+        main.row(row)
+        if i.status in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG", "FEHLER"):
+            open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Neue Preislisten{% endblock %}
+{% block content %}
+<h1>Neue Preislisten aus Herstellerlisten</h1>
+<p class="hint">Unsere Liste bestimmt die Artikel, die Herstellerliste liefert die neuen Preise. Bequemer geht es im Ablauf „+ Neue Liste“ in Schritt 5.</p>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" action="/aktualisierungen" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Unsere Liste <select name="base_id" required><option value="">– wählen –</option>{% for l in lists %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
+  <label>Herstellerliste <select name="source_id" required><option value="">– wählen –</option>{% for l in lists %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
+  <label>Preisart <select name="price_type">{% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></label>
+  <label>Regel <select name="rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+  <label>Menge <input name="quantity" value="1" size="5"></label>
+  <button type="submit">Erstellen</button>
+</form>
+<table>
+  <thead><tr><th>Datum</th><th>Unsere Liste</th><th>Herstellerliste</th><th>Artikel</th><th>Neuer Preis</th><th>Nicht beim Hersteller</th><th>Nicht eindeutig</th><th>Fehler</th></tr></thead>
+  <tbody>
+  {% for u in updates %}{% set s = u.summary or {} %}
+    <tr><td><a href="/aktualisierungen/{{ u.id }}">{{ u.created_at | dt }}</a></td><td>{{ u.base_list.name }}</td><td>{{ u.source_list.name }}</td>
+      <td class="num">{{ s.artikel }}</td><td class="num">{{ s.AKTUALISIERT }}</td><td class="num">{{ s.NICHT_IN_HERSTELLERLISTE }}</td><td class="num">{{ s.NICHT_EINDEUTIG }}</td><td class="num">{{ s.FEHLER }}</td></tr>
+  {% else %}<tr><td colspan="8">Noch keine.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

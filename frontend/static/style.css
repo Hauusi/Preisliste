@@ -93,3 +93,5 @@ a.secondary-link { background: #fff; color: var(--accent); }
 .nav-primary { font-weight: 700; }
 table.compact th { width: 220px; background: none; }
 details.card > summary { font-weight: 600; }
+.AKTUALISIERT { color: var(--accent); border-color: var(--accent); }
+.NICHT_IN_HERSTELLERLISTE { color: var(--warn); border-color: var(--warn); }

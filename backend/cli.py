@@ -69,7 +69,7 @@ def clear_data(settings, everything: bool = False) -> tuple[str, dict]:
         counts["Hersteller"] = db.scalar(select(func.count(e.Manufacturer.id)))
         counts["Preislisten"] = db.scalar(select(func.count(e.PriceList.id)))
         counts["Artikel"] = db.scalar(select(func.count(e.Article.id)))
-        for model in (e.AiMatchSuggestion, e.MatchDecision, e.ComparisonItem, e.Comparison, e.CalculationResult,
+        for model in (e.PriceUpdateItem, e.PriceUpdate, e.AiMatchSuggestion, e.MatchDecision, e.ComparisonItem, e.Comparison, e.CalculationResult,
                       e.CalculationRun, e.Job, e.ImportMessage, e.ArticlePrice, e.Article, e.PriceList):
             db.execute(delete(model))
         if everything:

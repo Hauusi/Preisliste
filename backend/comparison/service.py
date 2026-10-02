@@ -122,6 +122,16 @@ def _single_amount(a: Article, cmp: Comparison, rule) -> tuple:
     return am[key]
 
 
+def match_articles(db: Session, olds: dict, news: dict):
+    """Matching-Kaskade mit Hersteller-Einstellungen (führende Nullen) und bestätigten Zuordnungen."""
+    to_item = lambda a: Item(a.id, a.manufacturer_id, a.article_number, a.article_number_normalized, a.description)
+    ignore = {m.id for m in db.scalars(select(Manufacturer).where(Manufacturer.ignore_leading_zeros.is_(True)))}
+    decisions = {(d.manufacturer_id, d.old_number_normalized, d.new_number_normalized): d.decision
+                 for d in db.scalars(select(MatchDecision))}
+    return match([to_item(a) for a in olds.values() if a.article_number],
+                 [to_item(a) for a in news.values() if a.article_number], ignore, decisions)
+
+
 def run_comparison(db: Session, cmp: Comparison) -> dict:
     rule = None
     if cmp.price_type == "KALKULIERT":
@@ -135,12 +145,7 @@ def run_comparison(db: Session, cmp: Comparison) -> dict:
         return {a.id: a for a in db.scalars(stmt)}
 
     olds, news = load(cmp.old_price_list_id), load(cmp.new_price_list_id)
-    to_item = lambda a: Item(a.id, a.manufacturer_id, a.article_number, a.article_number_normalized, a.description)
-    ignore = {m.id for m in db.scalars(select(Manufacturer).where(Manufacturer.ignore_leading_zeros.is_(True)))}
-    decisions = {(d.manufacturer_id, d.old_number_normalized, d.new_number_normalized): d.decision
-                 for d in db.scalars(select(MatchDecision))}
-    result = match([to_item(a) for a in olds.values() if a.article_number],
-                   [to_item(a) for a in news.values() if a.article_number], ignore, decisions)
+    result = match_articles(db, olds, news)
 
     # KI-Vorschläge einarbeiten: nur als Kandidaten, nie als automatische Zuordnung (F3)
     ai = {s.new_article_id: s for s in db.scalars(select(AiMatchSuggestion).where(

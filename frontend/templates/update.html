@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Neue Preisliste{% endblock %}
+{% block content %}
+{% include "_steps.html" %}
+{% set s = upd.summary or {} %}
+<h1>Schritt 6: Neue Preisliste <small class="hint">nur Artikel aus „{{ upd.base_list.name }}“</small></h1>
+<p class="hint">Neue Preise aus „{{ upd.source_list.name }}“ · Preisart {{ upd.price_type }} · Regel {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "keine" }} · {{ upd.created_at | dt }}</p>
+<div class="stats">
+  <a class="stat" href="?"><span>{{ s.artikel }}</span>unsere Artikel</a>
+  {% for st in statuses %}<a class="stat {{ st }}" href="?status={{ st }}"><span>{{ s[st] }}</span>{{ labels[st] }}</a>{% endfor %}
+</div>
+<p class="hint">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und wurden ignoriert.</p>
+<div class="actions"><a class="button" href="/aktualisierungen/{{ upd.id }}/export">Excel-Export (neue Preisliste)</a></div>
+<form method="get" class="card row">
+  <label>Status <select name="status"><option value="">alle</option>{% for st in statuses %}<option value="{{ st }}" {% if st == status %}selected{% endif %}>{{ labels[st] }}</option>{% endfor %}</select></label>
+  <label>Suche <input name="q" value="{{ q }}" maxlength="100"></label>
+  <button type="submit" class="secondary">Filtern</button>
+</form>
+{% set base_query = ({"status": status, "q": q} | urlencode) ~ "&" %}
+{% include "_pager.html" %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>Preis alt</th><th>Preis Hersteller neu</th><th>Kalkuliert</th><th>Differenz</th><th>%</th><th>Status</th><th>Hinweis</th></tr></thead>
+  <tbody>
+  {% for i in rows %}
+    <tr>
+      <td>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</td><td>{{ i.description or "" }}</td>
+      <td class="num">{{ i.old_amount | money }}</td><td class="num">{{ i.new_amount | money }}</td>
+      <td class="num"><b>{{ i.calculated_amount | money }}</b></td>
+      <td class="num">{{ i.difference | money }}</td><td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
+      <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span></td><td class="small">{{ i.note or "" }}</td>
+    </tr>
+  {% else %}<tr><td colspan="9">Keine Einträge.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% include "_pager.html" %}
+{% endblock %}

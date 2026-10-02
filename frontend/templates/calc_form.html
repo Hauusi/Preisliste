@@ -25,6 +25,32 @@
 </form>
 {% endif %}
 
+{% if update_bases %}
+<form method="post" action="/aktualisierungen" class="card">
+  <h2>Oder: neue Preisliste nur mit unseren Artikeln</h2>
+  <p class="hint">Diese Liste ({{ pl.name }}) liefert die neuen Preise. Übernommen werden nur Artikel, die in unserer Liste stehen. Artikel, die beim Hersteller fehlen, behalten den alten Preis und werden markiert. Neue Artikel des Herstellers werden ignoriert.</p>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="source_id" value="{{ pl.id }}">
+  <div class="row">
+    <label>Unsere Liste (Vorjahr)
+      <select name="base_id" required><option value="">– wählen –</option>
+        {% for o in update_bases %}<option value="{{ o.id }}" {% if o.id == update_base_default %}selected{% endif %}>{{ o.name }} ({{ o.imported_at | dt }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Preisart
+      <select name="price_type">{% for t in ["EK", "LISTE", "UVP"] %}<option value="{{ t }}" {% if t == update_price_type %}selected{% endif %}>{{ {"EK": "Einkaufspreis", "LISTE": "Listenpreis", "UVP": "UVP"}[t] }}</option>{% endfor %}</select>
+    </label>
+    <label>Kalkulationsregel
+      <select name="rule_id"><option value="">– keine –</option>
+        {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Menge <input name="quantity" value="1" size="6"></label>
+  </div>
+  <div class="actions"><button type="submit">Neue Preisliste erstellen →</button></div>
+</form>
+{% endif %}
+
 {% if user.role == "admin" %}
 <p class="{{ 'msg UNKLAR' if not rules or not preselect else 'hint' }}">
   {% if not rules %}Es gibt noch keine Kalkulationsregel.{% elif not preselect and list_manufacturer %}{{ list_manufacturer.name }} hat noch keine Standardregel.{% endif %}

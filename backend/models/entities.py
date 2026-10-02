@@ -337,3 +337,46 @@ class AiMatchSuggestion(Base):
     status: Mapped[str] = mapped_column(String(10))  # OK | UNKLAR
     model: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PriceUpdate(Base):
+    """Neue Preisliste aus Herstellerliste, nur mit den Artikeln unserer Basisliste."""
+
+    __tablename__ = "price_updates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    base_price_list_id: Mapped[int] = mapped_column(ForeignKey("price_lists.id", ondelete="CASCADE"))
+    source_price_list_id: Mapped[int] = mapped_column(ForeignKey("price_lists.id", ondelete="CASCADE"))
+    price_type: Mapped[str] = mapped_column(String(10))
+    rule_version_id: Mapped[int | None] = mapped_column(ForeignKey("rule_versions.id"))
+    quantity: Mapped[object] = mapped_column(DecimalText)
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    base_list: Mapped[PriceList] = relationship(foreign_keys=[base_price_list_id])
+    source_list: Mapped[PriceList] = relationship(foreign_keys=[source_price_list_id])
+    rule_version: Mapped[RuleVersion | None] = relationship()
+
+
+class PriceUpdateItem(Base):
+    __tablename__ = "price_update_items"
+    __table_args__ = (Index("ix_price_update_items_status", "update_id", "status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    update_id: Mapped[int] = mapped_column(ForeignKey("price_updates.id", ondelete="CASCADE"))
+    base_article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    source_article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
+    article_number: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30))
+    old_amount: Mapped[object | None] = mapped_column(DecimalText)
+    new_amount: Mapped[object | None] = mapped_column(DecimalText)
+    calculated_amount: Mapped[object | None] = mapped_column(DecimalText)
+    currency: Mapped[str | None] = mapped_column(String(3))
+    difference: Mapped[object | None] = mapped_column(DecimalText)
+    difference_percent: Mapped[object | None] = mapped_column(DecimalText)
+    match_method: Mapped[str | None] = mapped_column(String(20))
+    note: Mapped[str | None] = mapped_column(Text)
+    trace: Mapped[list | None] = mapped_column(JSON)
