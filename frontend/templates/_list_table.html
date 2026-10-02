@@ -1,5 +1,6 @@
+{% from "_icons.html" import delete_link %}
 <table>
-  <thead><tr><th>Name</th><th>Datei</th><th>Status</th><th>Artikel</th><th>Fehler</th><th>Unklar</th><th>Warnungen</th><th>Hochgeladen</th></tr></thead>
+  <thead><tr><th>Name</th><th>Datei</th><th>Status</th><th>Artikel</th><th>Fehler</th><th>Unklar</th><th>Warnungen</th><th>Hochgeladen</th><th></th></tr></thead>
   <tbody>
   {% for pl in lists %}
     <tr>
@@ -11,9 +12,10 @@
       <td class="num">{{ pl.summary.messages.UNKLAR if pl.summary else "" }}</td>
       <td class="num">{{ pl.summary.messages.WARNUNG if pl.summary else "" }}</td>
       <td>{{ pl.uploaded_at | dt }}</td>
+      <td class="row-actions">{% if pl.status != "WARTESCHLANGE" and (user.role == "admin" or pl.uploaded_by == user.id) %}{{ delete_link("/listen/" ~ pl.id ~ "/loeschen", "Preisliste löschen") }}{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="8">Noch keine Preislisten.</td></tr>
+    <tr><td colspan="9">Noch keine Preislisten.</td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -46,7 +46,8 @@ def test_rule_create_version_test_and_delete(admin_client):
         assert versions[1].definition["steps"][0]["percent"] == "20"
     page = admin_client.get(f"/regeln/{rule_id}?version=1").text
     assert "Version 1" in page
-    admin_client.post(f"/regeln/{rule_id}/loeschen", data={"csrf_token": admin_client.csrf})
+    assert admin_client.post(f"/regeln/{rule_id}/loeschen", data={"csrf_token": admin_client.csrf}).status_code == 400
+    admin_client.post(f"/regeln/{rule_id}/loeschen", data={"csrf_token": admin_client.csrf, "bestaetigt": "ja"})
     assert admin_client.get(f"/regeln/{rule_id}").status_code == 404
     with session_scope() as db:
         assert db.get(Rule, rule_id).deleted

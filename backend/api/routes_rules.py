@@ -228,14 +228,6 @@ async def update(request: Request, rule_id: int, db: Session = Depends(get_db), 
     return await _save(request, db, admin, _rule(db, rule_id))
 
 
-@router.post("/regeln/{rule_id}/loeschen", dependencies=[Depends(check_csrf)])
-def remove(request: Request, rule_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    rule = _rule(db, rule_id)
-    rule.deleted = True  # Versionen bleiben erhalten, alte Ergebnisse bleiben nachvollziehbar
-    audit(db, admin, "regel_geloescht", "rule", rule.id, {"name": rule.name}, client_ip(request))
-    return RedirectResponse("/regeln", status_code=303)
-
-
 @router.post("/regeln/{rule_id}/test", dependencies=[Depends(check_csrf)])
 async def test_rule(request: Request, rule_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     rule = _rule(db, rule_id)

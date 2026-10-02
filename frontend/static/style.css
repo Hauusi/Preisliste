@@ -95,3 +95,17 @@ table.compact th { width: 220px; background: none; }
 details.card > summary { font-weight: 600; }
 .AKTUALISIERT { color: var(--accent); border-color: var(--accent); }
 .NICHT_IN_HERSTELLERLISTE { color: var(--warn); border-color: var(--warn); }
+/* Symbole und Löschen */
+.icon { vertical-align: -3px; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; color: var(--muted); text-decoration: none; border: 1px solid transparent; }
+.icon-btn:hover { background: #eef1f5; color: var(--fg); border-color: var(--line); }
+.icon-btn.danger:hover { background: #fdecea; color: var(--err); border-color: #f3c3be; }
+td.row-actions { white-space: nowrap; text-align: right; width: 1%; }
+button.danger { background: var(--err); border-color: var(--err); display: inline-flex; gap: 6px; align-items: center; }
+a.danger-link { background: #fff; color: var(--err); border-color: #f3c3be; display: inline-flex; gap: 6px; align-items: center; }
+a.danger-link:hover { background: #fdecea; }
+.danger-card { border-color: #f3c3be; }
+.danger-card h1 { color: var(--err); display: flex; gap: 8px; align-items: center; }
+.big-name { font-size: 1.2rem; font-weight: 600; }
+.narrow-wide { max-width: 640px; margin: 30px auto; }
+.confirm-check { font-weight: 600; margin: 14px 0; }

@@ -55,9 +55,6 @@
     <button type="submit">Als neue Version speichern</button>
   </form>
 </details>
-<form method="post" action="/regeln/{{ rule.id }}/loeschen" class="inline">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <button type="submit" class="secondary">Regel löschen (Versionen bleiben erhalten)</button>
-</form>
+<a class="button danger-link" href="/regeln/{{ rule.id }}/loeschen">Regel löschen</a>
 {% endif %}
 {% endblock %}

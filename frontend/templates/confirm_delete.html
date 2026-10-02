@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_icons.html" import warn, trash %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<section class="card narrow-wide danger-card">
+  <h1>{{ warn() }} {{ title }}</h1>
+  <p class="big-name">„{{ name }}“</p>
+  {% if blocked %}
+    <p class="msg FEHLER">{{ blocked }}</p>
+    <div class="actions"><a class="button secondary-link" href="{{ back }}">Zurück</a></div>
+  {% else %}
+    {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+    <p>Dabei wird ebenfalls gelöscht bzw. geändert:</p>
+    <ul>{% for i in impact %}<li>{{ i }}</li>{% endfor %}</ul>
+    <p class="hint">Das lässt sich in der Anwendung nicht rückgängig machen. Die nächtliche Sicherung enthält den Stand von vorher.</p>
+    <form method="post" action="{{ action }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="inline-label confirm-check"><input type="checkbox" name="bestaetigt" value="ja" required> Ja, „{{ name }}“ endgültig löschen</label>
+      <div class="actions">
+        <button type="submit" class="danger">{{ trash() }} Löschen</button>
+        <a class="button secondary-link" href="{{ back }}">Abbrechen</a>
+      </div>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}
