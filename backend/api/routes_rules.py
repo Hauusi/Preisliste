@@ -136,8 +136,8 @@ def rules(request: Request, db: Session = Depends(get_db), _user: User = Depends
 
 
 @router.get("/regeln/neu")
-def new_rule_form(request: Request, ki_job: int | None = None, db: Session = Depends(get_db),
-                  admin: User = Depends(require_admin)):
+def new_rule_form(request: Request, ki_job: int | None = None, hersteller: int | None = None,
+                  zurueck: str | None = None, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     definition: dict = {"start_price": "LISTE", "rounding": {}}
     ai = None
     job = db.get(Job, ki_job) if ki_job else None
@@ -145,8 +145,16 @@ def new_rule_form(request: Request, ki_job: int | None = None, db: Session = Dep
         ai = job.result or {}
         if ai.get("definition"):
             definition = {**ai["definition"], "rounding": {}}
+    m = db.get(Manufacturer, hersteller) if hersteller else None
     return render(request, "rule_edit.html", _ctx(db, rule=None, definition=definition, rows=form_rows(definition),
-                                                  errors=[], name="", manufacturer_id=None, ai=ai))
+                                                  errors=[], name=m.name if m else "",
+                                                  manufacturer_id=m.id if m else None, ai=ai,
+                                                  zurueck=_safe_return(zurueck)))
+
+
+def _safe_return(url: str | None) -> str | None:
+    """Nur interne Rücksprünge in die Kalkulation erlauben (kein offener Redirect)."""
+    return url if url and re.fullmatch(r"/listen/\d+/kalkulation", url) else None
 
 
 @router.post("/regeln/ki", dependencies=[Depends(check_csrf)])
@@ -174,13 +182,21 @@ async def _save(request: Request, db: Session, admin: User, rule: Rule | None):
             defn = RuleDefinition.model_validate(data)
         except ValidationError as exc:
             errors.extend(_validation_messages(exc))
+    zurueck = _safe_return(str(form.get("zurueck") or ""))
     if errors:
         return render(request, "rule_edit.html", _ctx(
             db, rule=rule, definition=data, rows=form_rows(data), errors=errors, name=name,
-            manufacturer_id=manufacturer_id), status_code=400)
+            manufacturer_id=manufacturer_id, zurueck=zurueck), status_code=400)
     if rule is None:
         rule = create_rule(db, name, manufacturer_id, defn, admin, comment)
         audit(db, admin, "regel_angelegt", "rule", rule.id, {"version": 1, "definition": data}, client_ip(request))
+        m = db.get(Manufacturer, manufacturer_id) if manufacturer_id else None
+        if m is not None and m.default_rule_id is None:
+            # Erste Regel eines Herstellers wird seine Standardregel (Vorauswahl bei der Kalkulation)
+            m.default_rule_id = rule.id
+            audit(db, admin, "hersteller_standardregel", "manufacturer", m.id, {"regel": rule.id}, client_ip(request))
+        if zurueck:
+            return RedirectResponse(zurueck, status_code=303)
     else:
         rv = new_version(db, rule, name, manufacturer_id, defn, admin, comment)
         audit(db, admin, "regel_geaendert", "rule", rule.id, {"version": rv.version, "definition": data},

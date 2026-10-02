@@ -53,7 +53,8 @@ def run_calculation(db: Session, price_list_id: int, rv: RuleVersion, quantity: 
     db.add(run)
     db.flush()
     rule = db.get(Rule, rv.rule_id)
-    stmt = select(Article).where(Article.price_list_id == price_list_id).options(selectinload(Article.prices))
+    stmt = (select(Article).where(Article.price_list_id == price_list_id).options(selectinload(Article.prices))
+            .order_by(Article.source_row))
     if rule.manufacturer_id is not None:
         stmt = stmt.where(Article.manufacturer_id == rule.manufacturer_id)
     rows, counts = [], defaultdict(int)

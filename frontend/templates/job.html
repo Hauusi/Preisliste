@@ -2,6 +2,7 @@
 {% block title %}Job {{ job.id }}{% endblock %}
 {% block head %}{% if running %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
 {% block content %}
+{% if step %}{% include "_steps.html" %}{% endif %}
 <h1>{{ labels.get(job.type, job.type) }} <small class="hint">Job {{ job.id }}</small></h1>
 <section class="card">
   <p>Status: <span class="badge {{ {'FERTIG': 'OK', 'FEHLER': 'FEHLER', 'ABGEBROCHEN': 'WARNUNG'}.get(job.status, 'UNKLAR') }}">{{ job.status }}</span>
@@ -26,6 +27,12 @@
     </form>
     <p class="hint">Seite aktualisiert sich alle 2 Sekunden.</p>
   {% endif %}
-  {% if link %}<p><a class="button" href="{{ link[0] }}">{{ link[1] }}</a></p>{% endif %}
+  {% if link %}<div class="actions">
+    <a class="button" href="{{ link[0] }}">{{ link[1] }}</a>
+    {% if job.type == "IMPORT" and job.status == "FERTIG" and job.result %}
+      {% if job.result.comparison_id %}<a class="button secondary-link" href="/vergleiche/{{ job.result.comparison_id }}">Vergleich alt/neu ansehen</a>{% endif %}
+      <a class="button secondary-link" href="/listen/{{ (job.result.price_list_ids or [job.result.price_list_id])[-1] }}">Liste ansehen</a>
+    {% endif %}
+  </div>{% endif %}
 </section>
 {% endblock %}

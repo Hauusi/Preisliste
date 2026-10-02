@@ -29,9 +29,15 @@ def test_two_year_columns_split_into_two_lists_and_compare(admin_client, tmp_pat
     mid = _setup(admin_client)
     p = make_xlsx(tmp_path / "RAPREISLISTE.xlsx", ROWS)
     list_id = int(upload(admin_client, p).headers["location"].rsplit("/", 1)[1])
-    page = admin_client.get(f"/import/{list_id}").text
-    # Hersteller über das Kürzel der Artikelnummern vorgeschlagen
-    assert f'<option value="{mid}" selected>RaphiLED</option>' in page
+    # Schritt 2 -> 3, Hersteller über das Kürzel der Artikelnummern vorgeschlagen
+    r = admin_client.post(f"/import/{list_id}/spalten", data={
+        "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "header_rows": "1",
+        "col_0": "article_number", "col_1": "description", "col_2": "supplier_price", "col_3": "supplier_price"},
+        follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == f"/import/{list_id}/hersteller"
+    page = admin_client.get(r.headers["location"]).text
+    assert f'<option value="{mid}" selected>RaphiLED (RA)</option>' in page
+    assert "in zwei Listen aufgeteilt" in page
     # Beide Spalten als EK, rechte Spalte zuerst im Formular -> Reihenfolge kommt aus den Jahren
     r = admin_client.post(f"/import/{list_id}/confirm", data={
         "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "header_rows": "1",
@@ -40,7 +46,8 @@ def test_two_year_columns_split_into_two_lists_and_compare(admin_client, tmp_pat
     assert r.status_code == 303, r.text
     run_jobs(app)
     job_page = admin_client.get(r.headers["location"]).text
-    assert "Datei in zwei Listen aufgeteilt" in job_page and "Zum Vergleich alt/neu" in job_page
+    assert "Datei in zwei Listen aufgeteilt" in job_page and "Vergleich alt/neu ansehen" in job_page
+    assert "Weiter: Kalkulieren" in job_page
     with session_scope() as db:
         job = db.scalar(select(Job).order_by(Job.id.desc()))
         assert job.status == "FERTIG", job.message

@@ -75,3 +75,21 @@ input.code { text-transform: uppercase; font-weight: 600; }
 .step.empty .step-fields, .step.empty .step-help { display: none; }
 [hidden] { display: none !important; }
 input.code::placeholder { text-transform: none; font-weight: normal; }
+/* Schrittleiste */
+.steps-bar { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; padding: 0; margin: 0 0 16px; counter-reset: s; }
+.steps-bar li { flex: 1 1 120px; padding: 8px 10px; background: #e9edf2; color: var(--muted); border-radius: 4px; font-size: .9rem; white-space: nowrap; }
+.steps-bar li span { display: inline-block; width: 1.5em; height: 1.5em; line-height: 1.5em; text-align: center; border-radius: 50%; background: #fff; margin-right: 6px; font-weight: 700; }
+.steps-bar li.done { background: #dcefe1; color: var(--ok); }
+.steps-bar li.current { background: var(--accent); color: #fff; font-weight: 600; }
+.steps-bar li.current span { color: var(--accent); }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.two-col .card { margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+a.secondary-link { background: #fff; color: var(--accent); }
+.button.big { font-size: 1.1rem; padding: 12px 22px; }
+.hero { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+.hero h2 { margin-top: 0; }
+.hero-steps { margin: 0; padding-left: 20px; color: var(--muted); }
+.nav-primary { font-weight: 700; }
+table.compact th { width: 220px; background: none; }
+details.card > summary { font-weight: 600; }

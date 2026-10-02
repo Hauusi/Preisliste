@@ -18,6 +18,7 @@
 {% endif %}
 <form method="post" action="{{ '/regeln/' ~ rule.id if rule else '/regeln/neu' }}">
   {% include "_rule_form.html" %}
+  {% if zurueck %}<input type="hidden" name="zurueck" value="{{ zurueck }}"><p class="hint">Nach dem Speichern geht es zurück zur Kalkulation.</p>{% endif %}
   <button type="submit">Speichern{% if rule %} (neue Version){% endif %}</button>
 </form>
 {% endblock %}

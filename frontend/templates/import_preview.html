@@ -2,7 +2,9 @@
 {% block title %}Import prüfen{% endblock %}
 {% block content %}
 {% set det = pv.detection %}
-<h1>Import prüfen: {{ pl.source_file }}</h1>
+{% include "_steps.html" %}
+<h1>Schritt 2: Spalten zuordnen <small class="hint">{{ pl.source_file }}</small></h1>
+<p class="hint">Prüfe für jede Spalte, was darin steht. Pflicht sind Artikelnummer und mindestens ein Preis. Nicht benötigte Spalten auf „ignorieren“ lassen.</p>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 {% if pv.duplicate_of %}<p class="msg WARNUNG">Diese Datei wurde bereits importiert ({{ pv.duplicate_of.name }}, {{ pv.duplicate_of.imported_at | dt }}).</p>{% endif %}
 {% if pv.hidden_sheet %}<p class="msg WARNUNG">Das gewählte Tabellenblatt ist in Excel ausgeblendet.</p>{% endif %}
@@ -13,7 +15,9 @@
 {% endif %}
 {% if pv.sheet.formula_without_cache %}<p class="msg WARNUNG">{{ pv.sheet.formula_without_cache | length }} Formelzellen ohne gespeichertes Ergebnis (in den ersten Zeilen). Datei in Excel öffnen und speichern, dann erneut hochladen.</p>{% endif %}
 
-<form method="get" class="card row">
+<details class="card"{% if det.notes %} open{% endif %}>
+<summary>Tabellenblatt oder Kopfzeile ändern (nur nötig, wenn die Spalten unten nicht stimmen)</summary>
+<form method="get" class="row">
   <label>Tabellenblatt
     <select name="sheet">{% for s in pv.sheets %}<option value="{{ s }}" {% if s == pv.sheet.name %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
   </label>
@@ -23,6 +27,7 @@
   </label>
   <button type="submit" class="secondary">Neu erkennen</button>
 </form>
+</details>
 {% if ai_status and ai_status.active %}
 <form method="post" action="/import/{{ pl.id }}/ki-spalten" class="inline">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -34,7 +39,7 @@
 </form>
 {% endif %}
 
-<form method="post" action="/import/{{ pl.id }}/confirm">
+<form method="post" action="/import/{{ pl.id }}/spalten">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="sheet" value="{{ pv.sheet.name }}">
   <input type="hidden" name="header_row" value="{{ det.header_row }}">
@@ -78,28 +83,8 @@
     </div>
   </section>
 
-  <section class="card row">
-    <label>Hersteller (wenn keine Herstellerspalte)
-      <select name="manufacturer_id">
-        <option value="">– wählen –</option>
-        {% for m in manufacturers %}<option value="{{ m.id }}" {% if pv.manufacturer_suggestion == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>oder neuer Hersteller <input name="new_manufacturer" maxlength="200"></label>
-    <label>Kürzel (neuer Hersteller) <input name="new_manufacturer_code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
-    <label>Währung (wenn nicht in den Zellen)
-      <select name="currency">
-        <option value="">– keine Annahme –</option>
-        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>Gültig ab <input type="date" name="valid_from"></label>
-  </section>
-  <p class="hint">Währung: Preise ohne Währungszeichen in der Zelle und ohne Währungsspalte werden als FEHLER markiert, wenn hier keine Währung gewählt ist. Es wird nichts angenommen.</p>
-  {% if pv.manufacturer_suggestion %}<p class="hint">Hersteller wurde vorgeschlagen (aus Datei-/Blattname oder dem Kürzel am Anfang der Artikelnummern). Bitte prüfen.</p>{% endif %}
-
   <div class="actions">
-    <button type="submit">Import ausführen</button>
+    <button type="submit">Weiter: Hersteller & Währung →</button>
   </div>
 </form>
 <form method="post" action="/import/{{ pl.id }}/verwerfen" class="inline">

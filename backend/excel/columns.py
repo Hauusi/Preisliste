@@ -275,9 +275,9 @@ def detect_columns(
             notes.append("Mehrere Spalten sehen wie Preise aus. Bitte Preisspalten zuordnen.")
 
     if "article_number" not in claimed:
-        notes.append("Keine Artikelnummer-Spalte erkannt.")
+        notes.append("Artikelnummer-Spalte nicht automatisch erkannt, bitte unten zuordnen.")
     if not any(f in claimed for f in PRICE_FIELDS):
-        notes.append("Keine Preisspalte erkannt.")
+        notes.append("Preisspalte nicht automatisch erkannt, bitte unten zuordnen.")
 
     seps = {}
     for g in guesses:

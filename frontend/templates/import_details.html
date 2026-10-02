@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Hersteller & Währung{% endblock %}
+{% block content %}
+{% include "_steps.html" %}
+<h1>Schritt 3: Hersteller & Währung <small class="hint">{{ pl.source_file }}</small></h1>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+
+<form method="post" action="/import/{{ pl.id }}/confirm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="sheet" value="{{ cols.sheet }}">
+  <input type="hidden" name="header_row" value="{{ cols.header_row }}">
+  <input type="hidden" name="header_rows" value="{{ cols.header_rows }}">
+  {% for f, cs in cols.assigned.items() %}{% for c in cs %}<input type="hidden" name="col_{{ c }}" value="{{ f }}">{% endfor %}{% endfor %}
+  {% for c, sep in cols.separators.items() %}{% if sep %}<input type="hidden" name="sep_{{ c }}" value="{{ sep }}">{% endif %}{% endfor %}
+
+  <div class="two-col">
+    <section class="card">
+      <h2>Hersteller</h2>
+      {% if "manufacturer" in cols.assigned %}
+        <p>Der Hersteller kommt aus der Spalte „{{ summary | selectattr(0, "equalto", fields.manufacturer) | map(attribute=1) | first }}“. Unbekannte Namen werden automatisch angelegt.</p>
+      {% else %}
+        <label>Vorhandener Hersteller
+          <select name="manufacturer_id">
+            <option value="">– wählen –</option>
+            {% for m in manufacturers %}<option value="{{ m.id }}" {% if pv.manufacturer_suggestion == m.id %}selected{% endif %}>{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        {% if pv.manufacturer_suggestion %}<p class="hint">Automatisch vorgeschlagen, bitte prüfen.</p>{% endif %}
+        <p class="hint">oder neu anlegen:</p>
+        <div class="row">
+          <label>Name <input name="new_manufacturer" maxlength="200" placeholder="z. B. Redtronic"></label>
+          <label>Kürzel <input name="new_manufacturer_code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Währung & Gültigkeit</h2>
+      <label>Währung der Preise
+        <select name="currency">
+          <option value="">– aus den Zellen lesen –</option>
+          {% for c in currencies %}<option value="{{ c }}" {% if c == "EUR" %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </label>
+      <p class="hint">Gilt für Preise ohne Währungszeichen. „Aus den Zellen lesen“ markiert Preise ohne Währungszeichen als FEHLER.</p>
+      <label>Gültig ab (optional) <input type="date" name="valid_from"></label>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Zusammenfassung</h2>
+    <table class="compact">
+      <tbody>
+        {% for label, col in summary %}<tr><th>{{ label }}</th><td>{{ col }}</td></tr>{% endfor %}
+        <tr><th>Tabellenblatt</th><td>{{ cols.sheet }}, Kopfzeile {{ cols.header_row }}</td></tr>
+      </tbody>
+    </table>
+    {% if cols.split %}<p class="msg UNKLAR">Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch verglichen (älteres Jahr bzw. linke Spalte = alt).</p>{% endif %}
+  </section>
+
+  <div class="actions">
+    <a class="button secondary-link" href="/import/{{ pl.id }}?sheet={{ cols.sheet | urlencode }}&header_row={{ cols.header_row }}&header_rows={{ cols.header_rows }}">← Zurück zu den Spalten</a>
+    <button type="submit">Import starten →</button>
+  </div>
+</form>
+{% endblock %}

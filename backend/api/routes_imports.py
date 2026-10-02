@@ -35,7 +35,7 @@ def _draft(db: Session, list_id: int) -> PriceList:
 
 @router.get("/import")
 def upload_form(request: Request, _user: User = Depends(current_user)):
-    return render(request, "import_upload.html", {"error": None})
+    return render(request, "import_upload.html", {"error": None, "step": 1})
 
 
 @router.post("/import", dependencies=[Depends(check_csrf)])
@@ -46,7 +46,7 @@ def upload(request: Request, file: UploadFile = File(...), db: Session = Depends
     except ExcelRejected as exc:
         audit(db, user, "upload_abgelehnt", details={"datei": (file.filename or "")[:200], "grund": str(exc)},
               ip=client_ip(request))
-        return render(request, "import_upload.html", {"error": str(exc)}, status_code=400)
+        return render(request, "import_upload.html", {"error": str(exc), "step": 1}, status_code=400)
     audit(db, user, "upload", "price_list", pl.id, {"datei": pl.source_file}, client_ip(request))
     return RedirectResponse(f"/import/{pl.id}", status_code=303)
 
@@ -101,10 +101,9 @@ def preview(request: Request, list_id: int, sheet: str | None = None, header_row
         pv = build_preview(db, pl, settings, sheet, _int(header_row), _int(header_rows))
     except ExcelRejected as exc:
         raise HTTPException(400, str(exc))
-    manufacturers = list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))
     return render(request, "import_preview.html", {
-        "pl": pl, "pv": pv, "fields": FIELDS, "currencies": SUPPORTED_CURRENCIES,
-        "manufacturers": manufacturers, "error": None, "ai": _ai_columns(db, ki_job, pl, user, pv),
+        "pl": pl, "pv": pv, "fields": FIELDS, "error": None, "ai": _ai_columns(db, ki_job, pl, user, pv),
+        "step": 2,
     })
 
 
@@ -121,14 +120,8 @@ async def ai_columns(request: Request, list_id: int, db: Session = Depends(get_d
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
-@router.post("/import/{list_id}/confirm", dependencies=[Depends(check_csrf)])
-async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
-                  settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
-    pl = _draft(db, list_id)
-    form = await request.form()
-    sheet = str(form.get("sheet") or "")
-    header_row = _int(form.get("header_row"))
-    header_rows = _int(form.get("header_rows"), 1)
+def _parse_columns(form) -> dict:
+    """Schritt 2: Blatt, Kopfzeile und Spaltenzuordnung aus dem Formular lesen und prüfen."""
     mapping: dict[str, int] = {}
     separators: dict[int, str | None] = {}
     assigned: dict[str, list[int]] = {}
@@ -161,6 +154,17 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         errors.append("Artikelnummer-Spalte zuordnen")
     if not any(f in mapping for f in PRICE_FIELDS):
         errors.append("Mindestens eine Preisspalte zuordnen (EK, Listenpreis oder UVP)")
+    header_row = _int(form.get("header_row"))
+    if header_row is None:
+        errors.append("Kopfzeile angeben")
+    return {"sheet": str(form.get("sheet") or ""), "header_row": header_row,
+            "header_rows": _int(form.get("header_rows"), 1), "mapping": mapping, "assigned": assigned,
+            "separators": separators, "split": split, "errors": errors}
+
+
+def _parse_details(db: Session, form, mapping: dict) -> dict:
+    """Schritt 3: Hersteller, Währung, Gültigkeit."""
+    errors = []
     manufacturer_id = _int(form.get("manufacturer_id"))
     new_manufacturer = str(form.get("new_manufacturer") or "").strip()[:200] or None
     new_code = normalize_code(str(form.get("new_manufacturer_code") or ""))
@@ -175,42 +179,104 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
             errors.append(f"Hersteller {existing.name} hat bereits das Kürzel {existing.code}")
     if "manufacturer" not in mapping and manufacturer_id is None and not new_manufacturer:
         errors.append("Hersteller wählen oder neu anlegen (oder Herstellerspalte zuordnen)")
+    if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
+        errors.append("Hersteller nicht gefunden")
     currency = str(form.get("currency") or "") or None
     if currency is not None and currency not in SUPPORTED_CURRENCIES:
         errors.append("Ungültige Währung")
     valid_from = str(form.get("valid_from") or "") or None
     if valid_from and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", valid_from):
         errors.append("Gültig ab: Datum im Format JJJJ-MM-TT")
-    if header_row is None:
-        errors.append("Kopfzeile angeben")
+    return {"manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer, "new_code": new_code,
+            "currency": currency, "valid_from": valid_from, "errors": errors}
 
-    if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
-        errors.append("Hersteller nicht gefunden")
-    if split and not errors:
-        pv = build_preview(db, pl, settings, sheet or None, header_row, header_rows)
-        labels = {c.index: c.label or f"Spalte {c.index + 1}" for c in pv.detection.columns}
+
+def _columns_page(request, db, pl, settings, cols: dict, errors: list[str]):
+    pv = build_preview(db, pl, settings, cols["sheet"] or None, cols["header_row"], cols["header_rows"])
+    # Auswahl des Benutzers beibehalten
+    chosen = {c: f for f, cs in cols["assigned"].items() for c in cs}
+    for c in pv.detection.columns:
+        if chosen:
+            c.field = chosen.get(c.index)
+    return render(request, "import_preview.html", {
+        "pl": pl, "pv": pv, "fields": FIELDS, "error": "; ".join(errors), "step": 2,
+    }, status_code=400)
+
+
+def _details_context(db: Session, pl: PriceList, settings: Settings, cols: dict) -> dict:
+    pv = build_preview(db, pl, settings, cols["sheet"] or None, cols["header_row"], cols["header_rows"])
+    labels = {c.index: c.label or f"Spalte {c.index + 1}" for c in pv.detection.columns}
+    summary = [(FIELDS[f], ", ".join(labels.get(c, f"Spalte {c + 1}") for c in cs))
+               for f, cs in cols["assigned"].items()]
+    return {"pl": pl, "pv": pv, "cols": cols, "summary": summary, "fields": FIELDS,
+            "currencies": SUPPORTED_CURRENCIES, "step": 3,
+            "manufacturers": list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))}
+
+
+def _stored_columns(pl: PriceList) -> dict | None:
+    data = pl.column_mapping or {}
+    if not data.get("draft"):
+        return None
+    return {**data, "assigned": {k: list(v) for k, v in data["assigned"].items()},
+            "separators": {int(k): v for k, v in data.get("separators", {}).items()}, "errors": []}
+
+
+@router.post("/import/{list_id}/spalten", dependencies=[Depends(check_csrf)])
+async def save_columns(request: Request, list_id: int, db: Session = Depends(get_db),
+                       settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
+    """Schritt 2 -> 3: Zuordnung prüfen und im Entwurf merken."""
+    pl = _draft(db, list_id)
+    cols = _parse_columns(await request.form())
+    if cols["errors"]:
+        return _columns_page(request, db, pl, settings, cols, cols["errors"])
+    pl.column_mapping = {"draft": True, **{k: v for k, v in cols.items() if k != "errors"},
+                         "separators": {str(k): v for k, v in cols["separators"].items()}}
+    return RedirectResponse(f"/import/{pl.id}/hersteller", status_code=303)
+
+
+@router.get("/import/{list_id}/hersteller")
+def details_form(request: Request, list_id: int, db: Session = Depends(get_db),
+                 settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
+    pl = _draft(db, list_id)
+    cols = _stored_columns(pl)
+    if cols is None:
+        return RedirectResponse(f"/import/{pl.id}", status_code=303)
+    return render(request, "import_details.html", {**_details_context(db, pl, settings, cols), "error": None})
+
+
+@router.post("/import/{list_id}/confirm", dependencies=[Depends(check_csrf)])
+async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
+                  settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
+    """Schritt 3 -> 4: Import als Hintergrundjob starten."""
+    pl = _draft(db, list_id)
+    form = await request.form()
+    cols = _parse_columns(form)
+    if cols["errors"]:
+        return _columns_page(request, db, pl, settings, cols, cols["errors"])
+    details = _parse_details(db, form, cols["mapping"])
+    if details["errors"]:
+        ctx = _details_context(db, pl, settings, cols)
+        return render(request, "import_details.html", {**ctx, "error": "; ".join(details["errors"])},
+                      status_code=400)
+    mapping, split = cols["mapping"], cols["split"]
+    if split:
+        labels = {c.index: c.label or f"Spalte {c.index + 1}"
+                  for c in build_preview(db, pl, settings, cols["sheet"] or None, cols["header_row"],
+                                         cols["header_rows"]).detection.columns}
         split = order_split(split, labels)
         mapping[split["field"]] = split["columns"][0]
-
-    if not errors:
-        # Import läuft als Hintergrundjob (große Listen dauern länger als eine Web-Anfrage)
-        pl.status = "WARTESCHLANGE"
-        job = enqueue(db, "IMPORT", {
-            "price_list_id": pl.id, "sheet": sheet, "header_row": header_row, "header_rows": header_rows,
-            "mapping": mapping, "manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer,
-            "new_manufacturer_code": new_code, "split": split, "user_id": user.id,
-            "currency": currency, "separators": {str(k): v for k, v in separators.items()}, "valid_from": valid_from,
-        }, user)
-        audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},
-              client_ip(request))
-        return RedirectResponse(f"/jobs/{job.id}", status_code=303)
-
-    pv = build_preview(db, pl, settings, sheet or None, header_row, header_rows)
-    manufacturers = list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))
-    return render(request, "import_preview.html", {
-        "pl": pl, "pv": pv, "fields": FIELDS, "currencies": SUPPORTED_CURRENCIES,
-        "manufacturers": manufacturers, "error": "; ".join(errors),
-    }, status_code=400)
+    # Import läuft als Hintergrundjob (große Listen dauern länger als eine Web-Anfrage)
+    pl.status = "WARTESCHLANGE"
+    job = enqueue(db, "IMPORT", {
+        "price_list_id": pl.id, "sheet": cols["sheet"], "header_row": cols["header_row"],
+        "header_rows": cols["header_rows"], "mapping": mapping, "manufacturer_id": details["manufacturer_id"],
+        "new_manufacturer": details["new_manufacturer"], "new_manufacturer_code": details["new_code"],
+        "split": split, "user_id": user.id, "currency": details["currency"],
+        "separators": {str(k): v for k, v in cols["separators"].items()}, "valid_from": details["valid_from"],
+    }, user)
+    audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},
+          client_ip(request))
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
 @router.post("/import/{list_id}/verwerfen", dependencies=[Depends(check_csrf)])

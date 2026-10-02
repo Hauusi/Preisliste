@@ -31,10 +31,10 @@ def result_link(job: Job) -> tuple[str, str] | None:
         if job.type == "IMPORT":
             return f"/import/{p.get('price_list_id')}", "Zurück zur Import-Vorschau"
         return None
-    if job.type == "IMPORT" and r.get("comparison_id"):
-        return f"/vergleiche/{r['comparison_id']}", "Zum Vergleich alt/neu"
     if job.type == "IMPORT":
-        return f"/listen/{r.get('price_list_id')}", "Zur importierten Liste"
+        # Nächster Schritt im Ablauf: kalkulieren (bei aufgeteilter Datei die neue Liste)
+        target = (r.get("price_list_ids") or [r.get("price_list_id")])[-1]
+        return f"/listen/{target}/kalkulation", "Weiter: Kalkulieren →"
     if job.type == "AI_COLUMNS":
         query = urlencode({"sheet": p.get("sheet"), "header_row": p.get("header_row"),
                            "header_rows": p.get("header_rows", 1), "ki_job": job.id})
@@ -58,6 +58,7 @@ def jobs(request: Request, db: Session = Depends(get_db), user: User = Depends(c
 def job_detail(request: Request, job_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     job = _job(db, job_id, user)
     return render(request, "job.html", {"job": job, "labels": JOB_LABELS, "link": result_link(job),
+                                        "step": 4 if job.type == "IMPORT" else None,
                                         "running": job.status in ("WARTEND", "LAEUFT"), "live": live_progress(job)})
 
 

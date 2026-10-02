@@ -96,3 +96,18 @@ def test_backup_consistent_and_rotates(admin_client, tmp_path, settings):
     con = sqlite3.connect(tmp_path / "restore" / "preisliste.sqlite3")
     assert con.execute("select count(*) from articles").fetchone()[0] == 9
     con.close()
+
+
+def test_reset_data(admin_client, tmp_path, settings, monkeypatch):
+    _flow(admin_client, tmp_path)
+    from backend import cli
+    monkeypatch.setattr(cli, "get_settings", lambda: settings)
+    assert cli.main(["reset-data"]) == 2  # ohne --ja passiert nichts
+    assert cli.main(["reset-data", "--ja"]) == 0
+    import sqlite3
+    con = sqlite3.connect(settings.db_path)
+    assert con.execute("select count(*) from users").fetchone()[0] == 0
+    assert con.execute("select count(*) from articles").fetchone()[0] == 0
+    con.close()
+    assert list(settings.upload_dir.iterdir()) == []
+    assert list((settings.data_dir / "backups").glob("preisliste-*.tar.gz"))  # Sicherung vorhanden

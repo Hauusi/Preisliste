@@ -23,6 +23,19 @@ Installationsort: `/root/apps/preisliste`, Docker-Dateien in `deploy/`.
 | KI-Status | `docker compose logs app \| grep "KI:"` oder Dashboard |
 | nginx-Passwort ändern | `htpasswd /etc/nginx/.htpasswd <benutzer>` (Paket `apache2-utils`) |
 
+## Alle Daten löschen (Neustart)
+
+Löscht Listen, Hersteller, Regeln, Vergleiche, Benutzer und Uploads. Vorher wird automatisch eine Sicherung angelegt.
+Die App muss dabei gestoppt sein, sonst arbeitet sie mit der gelöschten Datei weiter.
+
+```
+cd /root/apps/preisliste/deploy
+docker compose stop app
+docker compose run --rm app python -m backend.cli reset-data --ja
+docker compose start app
+docker compose exec app python -m backend.cli create-admin <name>
+```
+
 ## Backup
 
 - Täglich 02:17 Uhr per `/etc/cron.d/preisliste-backup`, Log `/var/log/preisliste-backup.log`.

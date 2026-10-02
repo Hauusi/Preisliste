@@ -4,10 +4,13 @@
   create-admin <benutzername>   Administrator anlegen (Passwort wird abgefragt)
   reset-password <benutzername> Passwort setzen, Sperre aufheben, Sessions beenden
   backup [anzahl]               Sicherung (Datenbank + Uploads) nach data/backups, behält die letzten N (Standard 14)
+  reset-data --ja               ALLE Daten löschen (Listen, Hersteller, Regeln, Vergleiche, Benutzer, Uploads).
+                                Vorher wird automatisch eine Sicherung erstellt. Danach create-admin ausführen.
 """
 
 import getpass
 import sys
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -25,6 +28,21 @@ def _ask_password(settings) -> str:
         raise AuthError("Passwörter stimmen nicht überein")
     validate_password(pw, settings)
     return pw
+
+
+def reset_data(settings) -> str:
+    """Sicherung anlegen, dann Datenbank und Uploads löschen. Die nächste Migration legt alles leer neu an."""
+    from backend.services.backup import create_backup
+
+    backup, _ = create_backup(settings, keep=1000)
+    db_engine.get_engine().dispose()
+    for suffix in ("", "-wal", "-shm"):
+        Path(f"{settings.db_path}{suffix}").unlink(missing_ok=True)
+    if settings.upload_dir.exists():
+        for f in settings.upload_dir.iterdir():
+            if f.is_file():
+                f.unlink()
+    return str(backup)
 
 
 def main(argv: list[str]) -> int:
@@ -59,6 +77,14 @@ def main(argv: list[str]) -> int:
                 end_all_sessions(db, user.id)
                 audit(db, None, "passwort_gesetzt_cli", "user", user.id, {"username": user.username})
             print("Passwort gesetzt.")
+        elif cmd == "reset-data":
+            if argv[1:] != ["--ja"]:
+                print("Sicherheitsabfrage: zum Löschen aller Daten 'reset-data --ja' eingeben.", file=sys.stderr)
+                return 2
+            backup = reset_data(settings)
+            upgrade(url)
+            print(f"Alle Daten gelöscht. Sicherung vorher: {backup}")
+            print("Jetzt Administrator anlegen: python -m backend.cli create-admin <name>")
         elif cmd == "backup":
             from backend.services.backup import create_backup
 

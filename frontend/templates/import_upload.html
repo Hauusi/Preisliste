@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Import{% endblock %}
 {% block content %}
+{% include "_steps.html" %}
 <section class="card">
-  <h1>Preisliste importieren</h1>
+  <h1>Schritt 1: Preisliste hochladen</h1>
   {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
   <form method="post" action="/import" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Excel-Datei (.xlsx) <input type="file" name="file" accept=".xlsx" required></label>
-    <button type="submit">Hochladen und prüfen</button>
+    <button type="submit">Hochladen und weiter →</button>
   </form>
   <p class="hint">Nur .xlsx. Dateien mit Makros (.xlsm) und das alte Format (.xls) werden abgelehnt. Formeln werden nicht ausgeführt, es zählt der in Excel gespeicherte Wert.</p>
 </section>

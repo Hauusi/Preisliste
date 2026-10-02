@@ -62,9 +62,21 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _us
                       .options(selectinload(CalculationRun.rule_version)).order_by(CalculationRun.id.desc())).all()
     rule_names = {r.id: r.name for r in db.scalars(select(Rule))}
     preselect, hint = default_rule_for_list(db, pl)
-    return render(request, "calc_form.html", {"pl": pl, "rules": _rules(db), "runs": runs,
-                                              "rule_names": rule_names, "error": None,
-                                              "preselect": preselect, "preselect_hint": hint})
+    mid = list_manufacturer(db, pl)
+    return render(request, "calc_form.html", {
+        "pl": pl, "rules": _rules(db), "runs": runs, "rule_names": rule_names, "error": None,
+        "preselect": preselect, "preselect_hint": hint, "step": 5, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
+        "article_count": db.scalar(select(func.count(Article.id)).where(Article.price_list_id == pl.id)),
+    })
+
+
+def list_manufacturer(db: Session, pl: PriceList) -> int | None:
+    """Hersteller der Liste: fest gewählt oder der einzige Hersteller der Artikel."""
+    if pl.manufacturer_id:
+        return pl.manufacturer_id
+    mids = set(db.scalars(select(distinct(Article.manufacturer_id)).where(Article.price_list_id == pl.id,
+                                                                         Article.manufacturer_id.is_not(None))))
+    return mids.pop() if len(mids) == 1 else None
 
 
 def default_rule_for_list(db: Session, pl: PriceList) -> tuple[int | None, str | None]:
@@ -117,9 +129,16 @@ def calc_results(request: Request, run_id: int, status: str | None = None, page:
     rows = db.scalars(stmt.options(selectinload(CalculationResult.article)).order_by(CalculationResult.id)
                       .offset(info["offset"]).limit(settings.page_size)).all()
     rule = db.get(Rule, run.rule_version.rule_id)
-    return render(request, "calc_results.html", {"run": run, "rule": rule, "rows": rows, "info": info,
-                                                 "status": status, "pl": db.get(PriceList, run.price_list_id),
-                                                 "codes": code_map(db)})
+    pl = db.get(PriceList, run.price_list_id)
+    mid = list_manufacturer(db, pl)
+    others = [o for o in _imported(db) if o.id != pl.id]
+    same = [o for o in others if mid and list_manufacturer(db, o) == mid and o.id < pl.id]
+    existing = db.scalars(select(Comparison).where(Comparison.new_price_list_id == pl.id)
+                          .order_by(Comparison.id.desc())).all()
+    return render(request, "calc_results.html", {
+        "run": run, "rule": rule, "rows": rows, "info": info, "status": status, "pl": pl, "codes": code_map(db),
+        "step": 6, "others": others, "compare_default": same[0].id if same else None, "comparisons": existing,
+    })
 
 
 # ---------- Vergleiche ----------

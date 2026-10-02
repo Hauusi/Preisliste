@@ -1,14 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Kalkulation{% endblock %}
 {% block content %}
-<h1>Kalkulation: {{ pl.name }}</h1>
+{% include "_steps.html" %}
+<h1>Schritt 6: Ergebnis <small class="hint">{{ pl.name }}</small></h1>
 <p class="hint">Regel <a href="/regeln/{{ rule.id }}?version={{ run.rule_version.version }}">{{ rule.name }} v{{ run.rule_version.version }}</a> · Menge {{ run.quantity }} · {{ run.created_at | dt }}</p>
 <div class="stats">
   <a class="stat" href="?"><span>{{ run.summary.artikel }}</span>Artikel</a>
   <a class="stat OK" href="?status=OK"><span>{{ run.summary.OK }}</span>berechnet</a>
   <a class="stat FEHLER" href="?status=FEHLER"><span>{{ run.summary.FEHLER }}</span>Fehler</a>
 </div>
-<p><a class="button" href="/kalkulationen/{{ run.id }}/export">Excel-Export</a></p>
+<div class="two-col">
+  <section class="card">
+    <h2>Herunterladen</h2>
+    <p>Alle kalkulierten Preise mit Rechenweg als Excel-Datei.</p>
+    <a class="button" href="/kalkulationen/{{ run.id }}/export">Excel-Export</a>
+  </section>
+  <section class="card">
+    <h2>Mit Vorgängerliste vergleichen</h2>
+    {% for c in comparisons %}<p><a href="/vergleiche/{{ c.id }}">Vorhandener Vergleich vom {{ c.created_at | dt }}</a></p>{% endfor %}
+    {% if others %}
+    <form method="post" action="/vergleiche" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="new_id" value="{{ pl.id }}">
+      <input type="hidden" name="quantity" value="{{ run.quantity }}">
+      <label>Alte Liste
+        <select name="old_id" required><option value="">– wählen –</option>
+          {% for o in others %}<option value="{{ o.id }}" {% if o.id == compare_default %}selected{% endif %}>{{ o.name }} ({{ o.imported_at | dt }})</option>{% endfor %}
+        </select>
+      </label>
+      <label>Verglichen wird
+        <select name="price_type">
+          <option value="KALKULIERT" selected>kalkulierter Preis ({{ rule.name }})</option>
+          <option value="EK">Einkaufspreis</option><option value="LISTE">Listenpreis</option><option value="UVP">UVP</option>
+        </select>
+      </label>
+      <input type="hidden" name="rule_id" value="{{ rule.id }}">
+      <button type="submit" class="secondary">Vergleichen →</button>
+    </form>
+    {% else %}<p class="hint">Noch keine andere Liste zum Vergleichen vorhanden.</p>{% endif %}
+  </section>
+</div>
+<h2>Kalkulierte Artikel</h2>
 {% set base_query = ({"status": status or ""} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
 <table>

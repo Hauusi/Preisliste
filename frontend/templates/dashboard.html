@@ -2,6 +2,20 @@
 {% block title %}Übersicht{% endblock %}
 {% block content %}
 <h1>Übersicht</h1>
+<section class="card hero">
+  <div>
+    <h2>Preisliste einspielen und kalkulieren</h2>
+    <ol class="hero-steps">
+      <li>Excel-Datei hochladen</li>
+      <li>Spalten prüfen</li>
+      <li>Hersteller und Währung wählen</li>
+      <li>Kalkulieren (Regel des Herstellers ist vorausgewählt)</li>
+      <li>Ergebnis exportieren oder mit der Vorgängerliste vergleichen</li>
+    </ol>
+  </div>
+  <a class="button big" href="/import">Neue Preisliste starten →</a>
+</section>
+<p class="hint">Einmalig vorbereiten: <a href="/hersteller">Hersteller</a> mit Kürzel anlegen und <a href="/regeln">Kalkulationsregeln</a> erstellen. Die erste Regel eines Herstellers wird automatisch seine Standardregel.</p>
 <div class="stats">
   <div class="stat"><span>{{ stats.lists }}</span>importierte Listen</div>
   <div class="stat"><span>{{ stats.articles }}</span>Artikel</div>
@@ -15,5 +29,5 @@
 </section>
 <h2>Letzte Uploads</h2>
 {% include "_list_table.html" %}
-<p><a class="button" href="/import">Neue Preisliste importieren</a></p>
+
 {% endblock %}

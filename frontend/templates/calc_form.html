@@ -1,27 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Kalkulation{% endblock %}
 {% block content %}
-<h1>Kalkulation: {{ pl.name }}</h1>
+{% include "_steps.html" %}
+<h1>Schritt 5: Kalkulieren <small class="hint">{{ pl.name }}</small></h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<form method="post" class="card row">
+<p class="hint">{{ article_count }} Artikel{% if list_manufacturer %} von {{ list_manufacturer.name }}{% if list_manufacturer.code %} ({{ list_manufacturer.code }}){% endif %}{% endif %}.</p>
+
+{% if rules %}
+<form method="post" class="card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>Regel
-    <select name="rule_id" required><option value="">– wählen –</option>
-      {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }} (v{{ r.current_version }}{% if r.manufacturer %}, {{ r.manufacturer.name }}{% endif %})</option>{% endfor %}
-    </select>
-  </label>
-  <label>Menge (für Staffeln) <input name="quantity" value="1"></label>
-  <button type="submit">Kalkulieren</button>
+  <div class="row">
+    <label>Kalkulationsregel
+      <select name="rule_id" required><option value="">– wählen –</option>
+        {% for r in rules %}<option value="{{ r.id }}" {% if r.id == preselect %}selected{% endif %}>{{ r.name }} (v{{ r.current_version }}{% if r.manufacturer %}, {{ r.manufacturer.name }}{% endif %})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Menge (für Staffelpreise) <input name="quantity" value="1" size="6"></label>
+  </div>
+  {% if preselect_hint %}<p class="hint">{{ preselect_hint }}</p>{% endif %}
+  <div class="actions">
+    <button type="submit">Jetzt kalkulieren →</button>
+    <a class="button secondary-link" href="/listen/{{ pl.id }}">Ohne Kalkulation: Liste ansehen</a>
+  </div>
 </form>
-{% if preselect_hint %}<p class="hint">{{ preselect_hint }}</p>{% endif %}
-{% if not rules %}<p class="hint">Noch keine Regeln. <a href="/regeln">Regeln anlegen</a></p>{% endif %}
-<h2>Bisherige Kalkulationen</h2>
+{% endif %}
+
+{% if user.role == "admin" %}
+<p class="{{ 'msg UNKLAR' if not rules or not preselect else 'hint' }}">
+  {% if not rules %}Es gibt noch keine Kalkulationsregel.{% elif not preselect and list_manufacturer %}{{ list_manufacturer.name }} hat noch keine Standardregel.{% endif %}
+  <a href="/regeln/neu?zurueck=/listen/{{ pl.id }}/kalkulation{% if list_manufacturer %}&hersteller={{ list_manufacturer.id }}{% endif %}">Neue Regel{% if list_manufacturer %} für {{ list_manufacturer.name }}{% endif %} anlegen</a> – danach geht es hier weiter.
+</p>
+{% elif not rules %}<p class="msg UNKLAR">Es gibt noch keine Kalkulationsregel. Ein Administrator muss eine anlegen.</p>{% endif %}
+
+{% if runs %}
+<h2>Frühere Kalkulationen dieser Liste</h2>
 <table>
   <thead><tr><th>Datum</th><th>Regel</th><th>Version</th><th>Menge</th><th>Artikel</th><th>Fehler</th></tr></thead>
   <tbody>
   {% for r in runs %}
     <tr><td><a href="/kalkulationen/{{ r.id }}">{{ r.created_at | dt }}</a></td><td>{{ rule_names.get(r.rule_version.rule_id, "") }}</td><td>v{{ r.rule_version.version }}</td><td>{{ r.quantity }}</td><td class="num">{{ r.summary.artikel if r.summary else "" }}</td><td class="num">{{ r.summary.FEHLER if r.summary else "" }}</td></tr>
-  {% else %}<tr><td colspan="6">Keine.</td></tr>{% endfor %}
+  {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endblock %}
