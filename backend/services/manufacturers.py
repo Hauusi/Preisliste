@@ -34,10 +34,8 @@ def code_map(db: Session) -> dict[int, str]:
 
 
 def with_code(number: str | None, code: str | None) -> str | None:
-    """Kürzel voranstellen, außer die Nummer beginnt schon damit (kein RARALED1)."""
-    if not number or not code or number.upper().startswith(code.upper()):
-        return number
-    return f"{code}{number}"
+    """Firmenkürzel direkt vor die Artikelnummer: RA + LED1 = RALED1."""
+    return f"{code}{number}" if number and code else number
 
 
 def suggest_by_code(db: Session, numbers: list) -> int | None:

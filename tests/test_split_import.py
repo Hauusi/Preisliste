@@ -38,11 +38,12 @@ def test_two_year_columns_split_into_two_lists_and_compare(admin_client, tmp_pat
     page = admin_client.get(r.headers["location"]).text
     assert f'<option value="{mid}" selected>RaphiLED (RA)</option>' in page
     assert "in zwei Listen aufgeteilt" in page
+    assert 'name="strip_code" value="1" checked' in page  # Datei enthält das Kürzel schon
     # Beide Spalten als EK, rechte Spalte zuerst im Formular -> Reihenfolge kommt aus den Jahren
     r = admin_client.post(f"/import/{list_id}/confirm", data={
         "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "header_rows": "1",
         "col_0": "article_number", "col_1": "description", "col_3": "supplier_price", "col_2": "supplier_price",
-        "manufacturer_id": str(mid), "currency": "EUR"}, follow_redirects=False)
+        "manufacturer_id": str(mid), "currency": "EUR", "strip_code": "1"}, follow_redirects=False)
     assert r.status_code == 303, r.text
     run_jobs(app)
     job_page = admin_client.get(r.headers["location"]).text
@@ -57,11 +58,12 @@ def test_two_year_columns_split_into_two_lists_and_compare(admin_client, tmp_pat
         cmp = db.get(Comparison, job.result["comparison_id"])
         assert (cmp.old_price_list_id, cmp.new_price_list_id, cmp.price_type) == (old_id, new_id, "EK")
         items = {i.article_number: i for i in db.scalars(select(ComparisonItem).where(ComparisonItem.comparison_id == cmp.id))}
-    assert items["RALED1"].status == "PREIS_ERHOEHT" and items["RALED1"].difference == Decimal("2.1")
-    assert items["RABLITZ1"].status == "UNVERAENDERT"
-    assert items["RABLITZ2"].status == "PREIS_GESENKT"
+    # Kürzel wurde beim Import abgeschnitten: gespeichert LED1, angezeigt RALED1
+    assert items["LED1"].status == "PREIS_ERHOEHT" and items["LED1"].difference == Decimal("2.1")
+    assert items["BLITZ1"].status == "UNVERAENDERT"
+    assert items["BLITZ2"].status == "PREIS_GESENKT"
     page = admin_client.get(f"/vergleiche/{cmp.id}").text
-    assert "RALED1" in page and "RARALED1" not in page  # Kürzel nicht doppelt
+    assert "RALED1" in page and "RARALED1" not in page
 
 
 def test_left_column_is_old_without_years(admin_client, tmp_path, app):
@@ -89,3 +91,29 @@ def test_split_limits(admin_client, tmp_path):
     r = admin_client.post(f"/import/{list_id}/confirm", data={**base, "col_1": "supplier_price",
                                                               "col_2": "supplier_price", "col_3": "article_number"})
     assert r.status_code == 400 and "Artikelnummer ist mehreren Spalten zugeordnet" in r.text
+
+
+def test_supplier_numbers_get_prefix_and_strip_warns(admin_client, tmp_path, app):
+    mid = _setup(admin_client)
+    rows = [["Artikelnummer", "EK"], ["LED1", "10,00"], ["RAD5", "1,00"]]
+    list_id = int(upload(admin_client, make_xlsx(tmp_path / "led.xlsx", rows)).headers["location"].rsplit("/", 1)[1])
+    base = {"csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "col_0": "article_number",
+            "col_1": "supplier_price", "sep_1": ",", "manufacturer_id": str(mid), "currency": "EUR"}
+    admin_client.post(f"/import/{list_id}/confirm", data=base)
+    run_jobs(app)
+    data = admin_client.get(f"/api/price-lists/{list_id}/articles").json()
+    shown = {a["artikelnummer"]: a["artikelnummer_anzeige"] for a in data["artikel"]}
+    assert shown == {"LED1": "RALED1", "RAD5": "RARAD5"}  # immer Kürzel davor, auch wenn die Nummer mit RA beginnt
+
+
+def test_strip_code_requires_code(admin_client, tmp_path):
+    admin_client.post("/hersteller", data={"csrf_token": admin_client.csrf, "name": "OhneKuerzel"})
+    with session_scope() as db:
+        from backend.models.entities import Manufacturer
+        mid = db.scalar(select(Manufacturer)).id
+    rows = [["Artikelnummer", "EK"], ["X1", "1,00"]]
+    list_id = int(upload(admin_client, make_xlsx(tmp_path / "x.xlsx", rows)).headers["location"].rsplit("/", 1)[1])
+    r = admin_client.post(f"/import/{list_id}/confirm", data={
+        "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "col_0": "article_number",
+        "col_1": "supplier_price", "manufacturer_id": str(mid), "currency": "EUR", "strip_code": "1"})
+    assert r.status_code == 400 and "kein Kürzel" in r.text

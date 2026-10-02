@@ -45,7 +45,13 @@ def import_job(ctx: JobContext, p: dict) -> dict:
             elif code and not m.code:
                 m.code = code
             manufacturer_id = m.id
-    kwargs = dict(sheet_name=p["sheet"], header_row=p["header_row"], header_rows=p["header_rows"],
+    strip_prefix = None
+    if p.get("strip_code") and manufacturer_id:
+        with session_scope() as db:
+            strip_prefix = db.get(Manufacturer, manufacturer_id).code
+        if not strip_prefix:
+            raise ValueError("Kürzel abschneiden gewählt, aber der Hersteller hat kein Kürzel")
+    kwargs = dict(strip_prefix=strip_prefix, sheet_name=p["sheet"], header_row=p["header_row"], header_rows=p["header_rows"],
                   manufacturer_id=manufacturer_id, new_manufacturer=None, currency=p.get("currency"),
                   decimal_separators={int(k): v for k, v in p.get("separators", {}).items()},
                   valid_from=p.get("valid_from"), progress=progress)

@@ -78,6 +78,7 @@ class Preview:
     manufacturer_suggestion: int | None
     duplicate_of: PriceList | None
     hidden_sheet: bool
+    prefix_suggestion: bool = False
 
 
 def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: str | None = None,
@@ -92,8 +93,12 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
     known = [(m.id, m.name, m.aliases or []) for m in db.scalars(select(Manufacturer))]
     suggestion = col.suggest_manufacturer(known, pl.source_file, sheet, detection.header_row)
     nr_col = detection.mapping().get("article_number")
-    if suggestion is None and nr_col is not None:
-        suggestion = suggest_by_code(db, [r[nr_col] for r in sheet.rows[start:] if nr_col < len(r)])
+    prefix_suggestion = False
+    if nr_col is not None:
+        by_code = suggest_by_code(db, [r[nr_col] for r in sheet.rows[start:] if nr_col < len(r)])
+        if by_code is not None:
+            prefix_suggestion = suggestion in (None, by_code)
+            suggestion = suggestion or by_code
     dup = db.scalar(
         select(PriceList).where(
             PriceList.file_sha256 == pl.file_sha256,
@@ -102,13 +107,15 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
         )
     )
     return Preview(sheets=sheets, sheet=sheet, detection=detection, sample_rows=sample,
-                   manufacturer_suggestion=suggestion, duplicate_of=dup, hidden_sheet=sheet.hidden)
+                   manufacturer_suggestion=suggestion, duplicate_of=dup, hidden_sheet=sheet.hidden,
+                   prefix_suggestion=prefix_suggestion)
 
 
 def confirm_import(db: Session, pl: PriceList, settings: Settings, *, sheet_name: str, header_row: int,
                    header_rows: int, mapping: dict[str, int], manufacturer_id: int | None,
                    new_manufacturer: str | None, currency: str | None,
-                   decimal_separators: dict[int, str | None], valid_from: str | None, progress=None) -> dict:
+                   decimal_separators: dict[int, str | None], valid_from: str | None, progress=None,
+                   strip_prefix: str | None = None) -> dict:
     if pl.status not in ("ENTWURF", "WARTESCHLANGE"):
         raise ValueError("Diese Liste wurde bereits verarbeitet")
     if new_manufacturer:
@@ -133,11 +140,12 @@ def confirm_import(db: Session, pl: PriceList, settings: Settings, *, sheet_name
         default_currency=currency,
         decimal_separators=decimal_separators,
         valid_from=valid_from,
+        strip_prefix=strip_prefix,
     )
     summary = run_import(db, pl.id, sheet, cfg, progress)
     pl.sheet = sheet_name
     pl.header_row = header_row
-    pl.column_mapping = {"mapping": mapping, "header_rows": header_rows,
+    pl.column_mapping = {"mapping": mapping, "header_rows": header_rows, "strip_prefix": strip_prefix,
                          "decimal_separators": {str(k): v for k, v in decimal_separators.items()}}
     pl.manufacturer_id = manufacturer_id
     pl.currency = currency

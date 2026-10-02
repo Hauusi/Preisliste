@@ -72,6 +72,7 @@ class ImportConfig:
     default_currency: str | None
     decimal_separators: dict[int, str | None] = field(default_factory=dict)
     valid_from: str | None = None
+    strip_prefix: str | None = None  # Firmenkürzel, das in der Datei schon vor der Nummer steht
 
 
 @dataclass
@@ -150,6 +151,13 @@ def process_row(sheet: SheetData, row_idx: int, row: list, cfg: ImportConfig) ->
             ))
 
     number = cell_text(_get(row, m.get("article_number")))
+    if number and cfg.strip_prefix:
+        if number.upper().startswith(cfg.strip_prefix) and len(number) > len(cfg.strip_prefix):
+            number = number[len(cfg.strip_prefix):]
+        else:
+            messages.append(("WARNUNG", "KUERZEL_FEHLT",
+                             f"Artikelnummer beginnt nicht mit dem Kürzel {cfg.strip_prefix}, unverändert übernommen",
+                             FIELDS["article_number"]))
     price_cells = {f: _get(row, m[f]) for f in PRICE_FIELDS if f in m}
     if number is None and all(is_empty(v) for v in price_cells.values()):
         return "SKIP"

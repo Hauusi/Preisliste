@@ -31,6 +31,12 @@
           <label>Name <input name="new_manufacturer" maxlength="200" placeholder="z. B. Redtronic"></label>
           <label>Kürzel <input name="new_manufacturer_code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
         </div>
+        <h3>Artikelnummer</h3>
+        <p class="hint">In Anzeige und Export steht das Firmenkürzel direkt vor der Nummer aus der Liste: Kürzel RA + LED1 = <b>RALED1</b>.
+          {% if samples %}Erste Nummern in dieser Datei: {{ samples | join(", ") }}.{% endif %}</p>
+        <label class="inline-label"><input type="checkbox" name="strip_code" value="1" {% if prefixed %}checked{% endif %}>
+          Die Nummern in der Datei enthalten das Kürzel bereits (z. B. RALED1) – beim Import abschneiden, damit es nicht doppelt wird</label>
+        {% if prefixed %}<p class="hint">Automatisch angehakt, weil fast alle Nummern mit dem Kürzel des vorgeschlagenen Herstellers beginnen.</p>{% endif %}
       {% endif %}
     </section>
 

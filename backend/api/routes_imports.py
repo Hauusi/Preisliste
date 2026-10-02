@@ -187,8 +187,15 @@ def _parse_details(db: Session, form, mapping: dict) -> dict:
     valid_from = str(form.get("valid_from") or "") or None
     if valid_from and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", valid_from):
         errors.append("Gültig ab: Datum im Format JJJJ-MM-TT")
+    strip_code = form.get("strip_code") == "1"
+    if strip_code and "manufacturer" in mapping:
+        errors.append("Kürzel abschneiden geht nur mit einem fest gewählten Hersteller, nicht mit Herstellerspalte")
+    elif strip_code:
+        m = db.get(Manufacturer, manufacturer_id) if manufacturer_id else None
+        if not ((m and m.code) or (new_manufacturer and new_code)):
+            errors.append("Kürzel abschneiden: Der gewählte Hersteller hat kein Kürzel")
     return {"manufacturer_id": manufacturer_id, "new_manufacturer": new_manufacturer, "new_code": new_code,
-            "currency": currency, "valid_from": valid_from, "errors": errors}
+            "currency": currency, "valid_from": valid_from, "strip_code": strip_code, "errors": errors}
 
 
 def _columns_page(request, db, pl, settings, cols: dict, errors: list[str]):
@@ -208,7 +215,11 @@ def _details_context(db: Session, pl: PriceList, settings: Settings, cols: dict)
     labels = {c.index: c.label or f"Spalte {c.index + 1}" for c in pv.detection.columns}
     summary = [(FIELDS[f], ", ".join(labels.get(c, f"Spalte {c + 1}") for c in cs))
                for f, cs in cols["assigned"].items()]
-    return {"pl": pl, "pv": pv, "cols": cols, "summary": summary, "fields": FIELDS,
+    nr_col = cols["mapping"].get("article_number")
+    samples = [str(r[nr_col]).strip() for r in pv.sheet.rows[pv.detection.header_row:pv.detection.header_row + 5]
+               if nr_col is not None and nr_col < len(r) and r[nr_col] not in (None, "")]
+    return {"pl": pl, "pv": pv, "cols": cols, "summary": summary, "fields": FIELDS, "samples": samples,
+            "prefixed": pv.manufacturer_suggestion is not None and pv.prefix_suggestion,
             "currencies": SUPPORTED_CURRENCIES, "step": 3,
             "manufacturers": list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))}
 
@@ -271,7 +282,7 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
         "price_list_id": pl.id, "sheet": cols["sheet"], "header_row": cols["header_row"],
         "header_rows": cols["header_rows"], "mapping": mapping, "manufacturer_id": details["manufacturer_id"],
         "new_manufacturer": details["new_manufacturer"], "new_manufacturer_code": details["new_code"],
-        "split": split, "user_id": user.id, "currency": details["currency"],
+        "split": split, "user_id": user.id, "currency": details["currency"], "strip_code": details["strip_code"],
         "separators": {str(k): v for k, v in cols["separators"].items()}, "valid_from": details["valid_from"],
     }, user)
     audit(db, user, "import_gestartet", "price_list", pl.id, {"mapping": mapping, "job": job.id},
