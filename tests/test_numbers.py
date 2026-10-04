@@ -54,7 +54,7 @@ def test_ambiguous_resolved_by_column_separator():
 
 
 @pytest.mark.parametrize("text,code", [
-    ("12,50 GBP", "WAEHRUNG_UNBEKANNT"),
+    ("12,50 JPY", "WAEHRUNG_UNBEKANNT"),
     ("auf Anfrage", "KEIN_BETRAG"),
     ("12,5,0", "KEIN_BETRAG"),
     ("1.23.4,5", "KEIN_BETRAG"),

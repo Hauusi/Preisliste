@@ -15,10 +15,10 @@ from tests.test_import_web import upload
 D = Decimal
 
 
-def _import(c, app, tmp_path, name, rows, mid, kind, fields=("supplier_price",)):
+def _import(c, app, tmp_path, name, rows, mid, kind, fields=("supplier_price",), currency="EUR"):
     list_id = int(upload(c, make_xlsx(tmp_path / f"{name}.xlsx", rows)).headers["location"].rsplit("/", 1)[1])
     data = {"csrf_token": c.csrf, "sheet": "Preise", "header_row": "1", "col_0": "article_number",
-            "col_1": "description", "manufacturer_id": str(mid), "currency": "EUR", "kind": kind}
+            "col_1": "description", "manufacturer_id": str(mid), "currency": currency, "kind": kind}
     for idx, f in enumerate(fields, start=2):
         data[f"col_{idx}"] = f
         data[f"sep_{idx}"] = ","
@@ -197,7 +197,7 @@ def test_vk_below_ek_and_missing_ek_price(admin_client, tmp_path, app):
                    mid, "HERSTELLER")
     c.post("/aktualisierungen", data={"csrf_token": c.csrf, "base_id": ours, "source_id": new2, "rule_id": rule_id})
     _, items = _items()
-    assert items["LED1"].status == "PRUEFEN" and items["LED1"].reasons == ["VK_UNTER_EK"]
+    assert items["LED1"].status == "PRUEFEN" and items["LED1"].reasons == ["VK_ABWEICHUNG", "VK_UNTER_EK"]
 
 
 def test_update_form_validation(admin_client, tmp_path, app):

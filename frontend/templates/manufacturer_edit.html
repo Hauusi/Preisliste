@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_icons.html" import trash %}
+{% block title %}{{ m.name }}{% endblock %}
+{% block content %}
+{% set admin = user.role == "admin" %}
+<p><a href="/hersteller">← alle Hersteller</a></p>
+<h1>{{ m.name }}{% if m.code %} <small class="hint">Kürzel {{ m.code }}</small>{% endif %}</h1>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+{% if message %}<p class="msg {{ 'FEHLER' if 'ACHTUNG' in message else 'OK' }}">{{ message }}</p>{% endif %}
+
+<form method="post" action="/hersteller">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="id" value="{{ m.id }}">
+  <fieldset {% if not admin %}disabled{% endif %}>
+  <div class="two-col">
+    <section class="card">
+      <h2>1. Stammdaten</h2>
+      <label>Name <input name="name" value="{{ m.name }}" required maxlength="200"></label>
+      <label>Kürzel <input name="code" value="{{ m.code or '' }}" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
+      <p class="hint">Steht in Anzeige und Export direkt vor der Artikelnummer: {{ m.code or "RT" }} + 12345 = {{ m.code or "RT" }}12345.</p>
+      <label>Aliase (mit ; getrennt) <input name="aliases" value="{{ (m.aliases or []) | join('; ') }}"></label>
+      <label class="inline-label"><input type="checkbox" name="ignore_leading_zeros" value="1" {% if m.ignore_leading_zeros %}checked{% endif %}> Führende Nullen ignorieren (00123 = 123)</label>
+    </section>
+
+    <section class="card">
+      <h2>2. Herstellerliste</h2>
+      <label>Die Liste des Herstellers enthält
+        <select name="list_basis"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>unseren EK</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP</option></select>
+      </label>
+      <label>Händlerrabatt % <small class="hint">nur bei UVP: EK = UVP − Rabatt</small>
+        <input name="dealer_discount" value="{{ m.dealer_discount | money if m.dealer_discount is not none else '' }}" size="6"></label>
+      <div class="row">
+        <label>Währung der Liste
+          <select name="list_currency">{% for c in currencies %}<option value="{{ c }}" {% if c == (m.list_currency or "EUR") %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        </label>
+        <label>Umrechnungskurs <small class="hint">1 Einheit = ? EUR</small>
+          <input name="exchange_rate" value="{{ m.exchange_rate | num }}" size="8" placeholder="z. B. 0,095"></label>
+      </div>
+      <p class="hint">Beispiel SEK mit Kurs 0,095: EK 100,00 SEK × 0,095 = 9,50 €. Der umgerechnete EK wird kaufmännisch auf Cent gerundet und dann kalkuliert.</p>
+      <label>Prüfschwelle % <small class="hint">ab dieser EK-Änderung muss bestätigt werden</small>
+        <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="6"></label>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>3. Kalkulation (VK aus EK)</h2>
+    <label>Standardregel
+      <select name="default_rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}" {% if r.id == m.default_rule_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select>
+    </label>
+    {% if admin %}<p class="hint"><a href="/regeln/neu?zurueck=/hersteller/{{ m.id }}&hersteller={{ m.id }}">Neue Regel anlegen</a> (z. B. EK × 2,6) – danach hier auswählen.</p>{% endif %}
+  </section>
+  {% if admin %}<div class="actions"><button type="submit">Speichern</button></div>{% endif %}
+  </fieldset>
+</form>
+
+<section class="card">
+  <h2>4. Ausnahmen für Serien</h2>
+  <p class="hint">Für diese Artikel gilt statt der Standardregel eine andere Regel (z. B. EK × 2,7). Passen auf einen Artikel mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten: der Artikel landet als Fehler in der Prüfung.</p>
+  <table>
+    <thead><tr><th>Gilt für</th><th>Wert</th><th>Regel</th><th>Notiz</th><th></th></tr></thead>
+    <tbody>
+    {% for ex in exceptions %}
+      <tr><td>{{ match_types[ex.match_type] }}</td><td><b>{{ ex.value }}</b></td><td>{{ ex.rule.name }}{% if ex.rule.deleted %} <span class="FEHLER">(gelöscht)</span>{% endif %}</td><td class="small">{{ ex.note or "" }}</td>
+        <td>{% if admin %}<form method="post" action="/hersteller/{{ m.id }}/ausnahmen/{{ ex.id }}/loeschen" class="row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label class="inline-label small"><input type="checkbox" name="bestaetigt" value="ja" required> sicher</label>
+          <button type="submit" class="secondary" title="Ausnahme löschen">{{ trash() }}</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5">Keine Ausnahmen – für alle Artikel gilt die Standardregel.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if admin %}
+  <form method="post" action="/hersteller/{{ m.id }}/ausnahmen" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Gilt für <select name="match_type">{% for k, v in match_types.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+    <label>Wert <input name="value" required maxlength="200" placeholder="z. B. Serie Nova oder LED5"></label>
+    <label>Regel <select name="rule_id" required><option value="">– wählen –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+    <label>Notiz <input name="note" maxlength="200"></label>
+    <button type="submit">Ausnahme hinzufügen</button>
+  </form>
+  <p class="hint">„Serie / Kategorie“ vergleicht mit der Spalte Kategorie bzw. Serie unserer Liste oder der Herstellerliste (Groß-/Kleinschreibung egal). „Artikelnummer beginnt mit“ vergleicht mit der Nummer ohne Kürzel{% if m.code %} {{ m.code }}{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}

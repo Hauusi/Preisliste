@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-SUPPORTED_CURRENCIES = ("EUR", "USD", "CHF")
+SUPPORTED_CURRENCIES = ("EUR", "USD", "CHF", "SEK", "NOK", "DKK", "GBP", "PLN", "CZK")
 
 _CURRENCY_TOKENS = {
     "€": "EUR",
@@ -24,6 +24,14 @@ _CURRENCY_TOKENS = {
     "SFR": "CHF",
     "SFR.": "CHF",
     "FR.": "CHF",
+    # Kronen nur mit Code: "kr" allein ist mehrdeutig (SEK, NOK, DKK) und wird nicht geraten
+    "SEK": "SEK",
+    "NOK": "NOK",
+    "DKK": "DKK",
+    "GBP": "GBP",
+    "£": "GBP",
+    "PLN": "PLN",
+    "CZK": "CZK",
 }
 
 # Leerzeichen-Varianten und Apostroph (Schweiz) als Tausendertrennzeichen

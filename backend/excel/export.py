@@ -205,10 +205,17 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
                   info._cell(f"ENTWURF – {open_} Positionen ungeprüft. Nicht als Preisliste verwenden.", bold=True)])
     basis = (f"UVP/RRP, EK = UVP - {upd.dealer_discount} % Händlerrabatt" if upd.price_type == "UVP"
              else "EK direkt")
+    if upd.list_currency and upd.list_currency != "EUR":
+        basis += f", Währung {upd.list_currency} × Kurs {upd.exchange_rate} = EUR (auf Cent gerundet)"
+    exceptions = "; ".join(f"{'Serie' if ex['typ'] == 'SERIE' else 'Nr. beginnt mit'} {ex['wert']}: {ex['regel']}"
+                           for ex in upd.exceptions or []) or "keine"
     for label, value in [
-        ("Unsere Liste (EK/VK Vorjahr)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
+        ("Unsere Liste (EK/VK bisher)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
         ("Herstellerliste (neu)", f"{upd.source_list.name} ({upd.source_list.source_file})"),
-        ("Herstellerliste liefert", basis), ("VK-Regel (aus neuem EK)", rule_label or "keine"),
+        ("Umfang", "Teilliste (nur einzelne Serien)" if upd.scope == "TEIL" else "Jahrespreisliste"),
+        ("Herstellerliste liefert", basis), ("VK-Standardregel (aus neuem EK)", rule_label or "keine"),
+        ("Ausnahmen", exceptions),
+        ("Gegenrechnung", "jeder VK unabhängig nachgerechnet; Abweichungen sind als Fehler markiert"),
         ("Prüfschwelle EK-Änderung %", upd.review_threshold), ("Artikel", s.get("artikel", 0)),
     ] + [(UL[k], s.get(k, 0)) for k in UL] + [
         ("Noch ungeprüft", open_),
@@ -216,24 +223,27 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
         info.row([label, value])
 
     decisions = {"NEU": "neuer Preis", "ALT": "alter Preis behalten", "MANUELL": "VK von Hand"}
-    header = ["Artikelnummer", "Original-Nr.", "Bezeichnung", "EK alt", "EK neu", "EK Δ%", "VK alt", "VK neu",
-              "VK Δ%", "Währung", "Status", "Prüfhinweise", "Entscheidung", "geprüft von", "geprüft am (UTC)"]
-    if upd.price_type == "UVP":
-        header.insert(4, "UVP neu")
-    widths = [18, 16, 40, 12, 12, 10, 12, 12, 10, 9, 20, 60, 20, 14, 18] + ([12] if upd.price_type == "UVP" else [])
+    checks = {True: "stimmt", False: "ABWEICHUNG"}
+    cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40), ("Herstellerpreis", 14),
+            ("Währung Hersteller", 10), ("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
+            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Währung", 9), ("Status", 20),
+            ("Prüfhinweise", 60), ("Entscheidung", 20), ("Regel", 36), ("Rechenweg EK", 50),
+            ("Gegenrechnung", 13), ("geprüft von", 14), ("geprüft am (UTC)", 18)]
+    header, widths = [c[0] for c in cols], [c[1] for c in cols]
     main = _Sheet(wb, "ENTWURF Neue Preisliste" if draft else "Neue Preisliste", header, widths)
     open_items = _Sheet(wb, "Zu prüfen", header, widths)
     for i in items:
         hints = "; ".join([REASON_LABELS.get(r, r) for r in i.reasons or []] + ([i.note] if i.note else []))
-        ek_pct = percent_change(i.old_amount, i.final_ek) if i.old_amount and i.final_ek is not None else None
-        vk_pct = percent_change(i.vk_old, i.final_vk) if i.vk_old and i.final_vk is not None else None
+        new = i.decision != "ALT"
+        ek_pct = percent_change(i.old_amount, i.final_ek) if new and i.old_amount and i.final_ek is not None else None
+        vk_pct = percent_change(i.vk_old, i.final_vk) if new and i.vk_old and i.final_vk is not None else None
         row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
-               main.money(i.old_amount), main.money(i.final_ek), main.percent(ek_pct), main.money(i.vk_old),
-               main.money(i.final_vk), main.percent(vk_pct), i.currency, UL.get(i.status, i.status), hints,
-               decisions.get(i.decision, i.decision), users.get(i.reviewed_by),
+               main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
+               main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
+               main._cell(i.factor, "0.0000") if i.factor is not None and i.decision == "NEU" else None,
+               i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision),
+               i.rule_label, i.ek_text, checks.get(i.check_ok, "nicht prüfbar" if i.decision == "NEU" else ""), users.get(i.reviewed_by),
                i.reviewed_at.strftime("%d.%m.%Y %H:%M") if i.reviewed_at else None]
-        if upd.price_type == "UVP":
-            row.insert(4, main.money(i.source_amount))
         main.row(row)
         if i.needs_review and not i.reviewed_at:
             open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])

@@ -32,3 +32,15 @@ def artnr(number, code=None) -> str:
 templates.env.filters["money"] = money
 templates.env.filters["artnr"] = artnr
 templates.env.filters["dt"] = dt_de
+
+
+def num(value) -> str:
+    """Zahl deutsch mit allen Nachkommastellen: 0.095 -> 0,095 (Kurse, Faktoren)."""
+    from backend.comparison.update import de
+
+    if value is None:
+        return ""
+    return de(value if isinstance(value, Decimal) else Decimal(str(value)), 0)
+
+
+templates.env.filters["num"] = num

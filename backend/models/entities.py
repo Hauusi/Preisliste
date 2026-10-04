@@ -71,6 +71,9 @@ class Manufacturer(Base):
     dealer_discount: Mapped[object | None] = mapped_column(DecimalText)
     # Ab dieser EK-Änderung (in %, Betrag) muss ein Artikel geprüft werden
     review_threshold: Mapped[object] = mapped_column(DecimalText, default=Decimal(10), server_default="10")
+    # Währung der Herstellerliste und Umrechnung: 1 Einheit list_currency = exchange_rate EUR (z. B. SEK 0,095)
+    list_currency: Mapped[str] = mapped_column(String(3), default="EUR", server_default="EUR")
+    exchange_rate: Mapped[object | None] = mapped_column(DecimalText)
     # Voreingestellte Kalkulationsregel (nur Vorauswahl)
     default_rule_id: Mapped[int | None] = mapped_column(ForeignKey("rules.id", use_alter=True,
                                                                    name="fk_manufacturers_default_rule"))
@@ -78,6 +81,25 @@ class Manufacturer(Base):
 
     def display_number(self, number: str | None) -> str | None:
         return f"{self.code}{number}" if number and self.code else number
+
+
+class RuleException(Base):
+    """Abweichende Kalkulationsregel für eine Serie (Kategorie) oder einen Nummernanfang eines Herstellers."""
+
+    __tablename__ = "rule_exceptions"
+    __table_args__ = (UniqueConstraint("manufacturer_id", "match_type", "value_normalized",
+                                       name="uq_rule_exceptions_match"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    manufacturer_id: Mapped[int] = mapped_column(ForeignKey("manufacturers.id", ondelete="CASCADE"), index=True)
+    match_type: Mapped[str] = mapped_column(String(10))  # SERIE | PREFIX
+    value: Mapped[str] = mapped_column(String(200))
+    value_normalized: Mapped[str] = mapped_column(String(200))
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
+    note: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    rule: Mapped["Rule"] = relationship()
 
 
 class PriceList(Base):
@@ -361,6 +383,14 @@ class PriceUpdate(Base):
     # Einstellungen zum Zeitpunkt der Berechnung (Nachvollziehbarkeit)
     dealer_discount: Mapped[object | None] = mapped_column(DecimalText)
     review_threshold: Mapped[object | None] = mapped_column(DecimalText)
+    # VOLL = Jahrespreisliste (fehlende Artikel prüfen), TEIL = Preiserhöhung einzelner Serien
+    scope: Mapped[str] = mapped_column(String(5), default="VOLL", server_default="VOLL")
+    list_currency: Mapped[str | None] = mapped_column(String(3))
+    exchange_rate: Mapped[object | None] = mapped_column(DecimalText)
+    # Ausnahmen zum Zeitpunkt der Berechnung: [{id, typ, wert, rule_version_id, regel}]
+    exceptions: Mapped[list | None] = mapped_column(JSON)
+    adopted_list_id: Mapped[int | None] = mapped_column(ForeignKey("price_lists.id", ondelete="SET NULL",
+                                                                   name="fk_price_updates_adopted_list"))
     summary: Mapped[dict | None] = mapped_column(JSON)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -404,3 +434,8 @@ class PriceUpdateItem(Base):
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    source_currency: Mapped[str | None] = mapped_column(String(3))
+    ek_text: Mapped[str | None] = mapped_column(Text)  # Rechenweg EK (Rabatt, Umrechnung)
+    rule_label: Mapped[str | None] = mapped_column(String(250))
+    factor: Mapped[object | None] = mapped_column(DecimalText)  # VK neu / EK neu
+    check_ok: Mapped[bool | None] = mapped_column(Boolean)  # unabhängige Gegenrechnung

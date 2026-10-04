@@ -20,7 +20,7 @@ FIELDS: dict[str, str] = {
     "article_number": "Artikelnummer",
     "manufacturer": "Hersteller",
     "description": "Bezeichnung",
-    "category": "Kategorie",
+    "category": "Kategorie / Serie",
     "supplier_price": "Einkaufspreis (EK)",
     "list_price": "VK / Listenpreis",
     "rrp": "UVP",

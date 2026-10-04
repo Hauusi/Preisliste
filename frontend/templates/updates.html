@@ -2,15 +2,16 @@
 {% block title %}Jahresabgleich{% endblock %}
 {% block content %}
 <h1>Jahresabgleich</h1>
-<p class="hint">Unsere EK/VK-Liste vom Vorjahr bestimmt die Artikel, die neue Herstellerliste liefert den neuen EK (direkt oder UVP − Händlerrabatt), der VK wird mit der Regel aus dem neuen EK berechnet. Bequemer geht es im Ablauf „+ Neue Liste“: Herstellerliste importieren, in Schritt 5 „Abgleich starten“.</p>
+<p class="hint">Unsere aktuelle EK/VK-Liste bestimmt die Artikel, die neue Herstellerliste liefert den neuen EK (direkt oder UVP − Händlerrabatt), der VK wird mit der Regel aus dem neuen EK berechnet. Bequemer geht es im Ablauf „+ Neue Liste“: Herstellerliste importieren, in Schritt 5 „Abgleich starten“.</p>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 <form method="post" action="/aktualisierungen" class="card row">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>Unsere Liste (EK/VK Vorjahr) <select name="base_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "HERSTELLER" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
+  <label>Unsere aktuelle Liste (EK/VK) <select name="base_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "HERSTELLER" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
   <label>Neue Herstellerliste <select name="source_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "UNSERE" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
   <label>Regel für den VK <select name="rule_id" required><option value="">– wählen –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+  <label>Umfang <select name="scope"><option value="VOLL">Jahrespreisliste (vollständig)</option><option value="TEIL">Preiserhöhung einzelner Serien (Teilliste)</option></select></label>
   <button type="submit">Abgleich starten</button>
-  <span class="hint">EK/UVP, Händlerrabatt und Prüfschwelle kommen aus den Hersteller-Einstellungen.</span>
+  <span class="hint">EK/UVP, Händlerrabatt, Währung/Kurs, Serien-Ausnahmen und Prüfschwelle kommen aus den Hersteller-Einstellungen.</span>
 </form>
 <table>
   <thead><tr><th>Datum</th><th>Unsere Liste</th><th>Herstellerliste</th><th>Artikel</th><th>in Ordnung</th><th>prüfen</th><th>fehlt beim Hersteller</th><th>unklar</th><th>Fehler</th><th>noch offen</th></tr></thead>

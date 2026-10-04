@@ -53,13 +53,16 @@ def manufacturer_impact(db: Session, m: e.Manufacturer) -> tuple[list[str], str 
 def delete_manufacturer(db: Session, m: e.Manufacturer) -> None:
     db.execute(update(e.Rule).where(e.Rule.manufacturer_id == m.id).values(manufacturer_id=None))
     db.execute(delete(e.MatchDecision).where(e.MatchDecision.manufacturer_id == m.id))
+    db.execute(delete(e.RuleException).where(e.RuleException.manufacturer_id == m.id))
     db.delete(m)
     db.flush()
 
 
 def rule_impact(db: Session, rule: e.Rule) -> list[str]:
     users = db.scalars(select(e.Manufacturer.name).where(e.Manufacturer.default_rule_id == rule.id)).all()
-    return [f"alle {len(rule.versions)} Version(en) werden ausgeblendet; bisherige Kalkulationen bleiben nachvollziehbar",
+    exc = db.scalars(select(e.RuleException).where(e.RuleException.rule_id == rule.id)).all()
+    extra = [f"{len(exc)} Serien-Ausnahme(n) mit dieser Regel werden entfernt"] if exc else []
+    return extra + [f"alle {len(rule.versions)} Version(en) werden ausgeblendet; bisherige Kalkulationen bleiben nachvollziehbar",
             ("Standardregel von " + ", ".join(users) + " wird entfernt") if users else "ist bei keinem Hersteller Standardregel"]
 
 
@@ -67,4 +70,5 @@ def delete_rule(db: Session, rule: e.Rule) -> None:
     # Regelversionen sind unveränderlich und werden von alten Ergebnissen referenziert: nur ausblenden
     rule.deleted = True
     db.execute(update(e.Manufacturer).where(e.Manufacturer.default_rule_id == rule.id).values(default_rule_id=None))
+    db.execute(delete(e.RuleException).where(e.RuleException.rule_id == rule.id))
     db.flush()

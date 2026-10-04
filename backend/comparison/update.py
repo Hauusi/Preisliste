@@ -1,9 +1,10 @@
-"""Jahresabgleich: unsere EK/VK-Liste (Vorjahr) + neue Herstellerliste -> neue EK/VK-Liste.
+"""Jahresabgleich: unsere aktuelle EK/VK-Liste + neue Herstellerliste -> neue EK/VK-Liste.
 
 Ablauf pro Artikel unserer Liste:
 - Zuordnung zur Herstellerliste über die Matching-Kaskade (unsichere Treffer werden nie übernommen).
-- EK neu = Preis der Herstellerliste (Hersteller liefert EK) bzw. UVP - Händlerrabatt (Hersteller liefert UVP).
-- VK neu = Regel des Herstellers, angewendet auf EK neu.
+- EK neu = Preis der Herstellerliste (EK) bzw. UVP - Händlerrabatt, bei Fremdwährung × Umrechnungskurs.
+- VK neu = Regel des Herstellers (oder Ausnahme-Regel der Serie), angewendet auf EK neu.
+- Jeder VK wird unabhängig nachgerechnet (Gegenrechnung). Abweichung = FEHLER, alter Preis bleibt.
 - Auffälligkeiten (Prüfgründe) verlangen eine Bestätigung, bevor final exportiert werden kann.
 Artikel, die nur in der Herstellerliste stehen, werden ignoriert.
 """
@@ -17,33 +18,60 @@ from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session, selectinload
 
 from backend.calculations.engine import PriceInput, RuleDefinition, calculate
+from backend.calculations.verify import recalc
 from backend.comparison.service import match_articles, percent_change
+from backend.excel.importer import normalize_article_number
 from backend.models.entities import (
     Article,
+    ArticlePrice,
     Manufacturer,
     MatchDecision,
+    PriceList,
     PriceUpdate,
     PriceUpdateItem,
+    Rule,
+    RuleException,
     RuleVersion,
     utcnow,
 )
 
 CENT = Decimal("0.01")
-STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "FEHLER")
+STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "UNVERAENDERT", "FEHLER")
 STATUS_LABELS = {
     "OK": "in Ordnung", "PRUEFEN": "prüfen", "NICHT_EINDEUTIG": "Zuordnung unklar",
-    "NICHT_IN_HERSTELLERLISTE": "fehlt beim Hersteller", "FEHLER": "Fehler",
+    "NICHT_IN_HERSTELLERLISTE": "fehlt beim Hersteller", "UNVERAENDERT": "nicht in Teilliste (unverändert)",
+    "FEHLER": "Fehler",
 }
 REASON_LABELS = {
     "EK_AENDERUNG": "EK-Änderung über Prüfschwelle",
+    "VK_ABWEICHUNG": "VK-Änderung passt nicht zur EK-Änderung (Vorjahr anders kalkuliert?)",
     "VK_UNTER_EK": "VK neu liegt unter EK neu",
     "PREIS_NULL": "Preis ist 0",
     "KEIN_ALTER_EK": "kein EK im Vorjahr",
     "KEIN_ALTER_VK": "kein VK im Vorjahr",
+    "NICHT_GEGENGEPRUEFT": "Kalkulation nicht automatisch nachrechenbar",
     "UNKLAR": "Zuordnung unklar",
     "FEHLT": "fehlt in der Herstellerliste",
     "FEHLER": "Berechnung nicht möglich",
 }
+SCOPES = {"VOLL": "Jahrespreisliste (vollständig)", "TEIL": "Preiserhöhung einzelner Serien (Teilliste)"}
+
+
+def de(v: Decimal | None, min_places: int = 2) -> str:
+    """Decimal deutsch für Rechenwege: 1234.5 -> 1.234,50, 0.095 -> 0,095."""
+    if v is None:
+        return ""
+    places = max(min_places, -v.normalize().as_tuple().exponent)
+    text = f"{abs(v):,.{places}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return ("-" if v < 0 else "") + text
+
+
+def normalize_series(value: str | None) -> str:
+    return " ".join((value or "").split()).casefold()
+
+
+def normalize_exception(match_type: str, value: str) -> str:
+    return normalize_article_number(value) if match_type == "PREFIX" else normalize_series(value)
 
 
 def _price(a: Article | None, price_type: str):
@@ -60,14 +88,53 @@ def _pct(old, new):
     return percent_change(old, new) if old not in (None, Decimal(0)) and new is not None else None
 
 
+def snapshot_exceptions(db: Session, manufacturer_id: int | None) -> list[dict]:
+    """Aktuelle Serien-Ausnahmen eines Herstellers mit der jeweils aktuellen Regelversion festhalten."""
+    if manufacturer_id is None:
+        return []
+    out = []
+    for ex in db.scalars(select(RuleException).where(RuleException.manufacturer_id == manufacturer_id)
+                         .order_by(RuleException.id)):
+        rule = db.get(Rule, ex.rule_id)
+        if rule is None or rule.deleted:
+            continue
+        rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == rule.id,
+                                                 RuleVersion.version == rule.current_version))
+        out.append({"id": ex.id, "typ": ex.match_type, "wert": ex.value, "norm": ex.value_normalized,
+                    "rule_version_id": rv.id, "regel": f"{rule.name} v{rv.version}"})
+    return out
+
+
 class _Ctx:
     def __init__(self, db: Session, upd: PriceUpdate):
         self.upd = upd
         rv = db.get(RuleVersion, upd.rule_version_id) if upd.rule_version_id else None
         self.rule = RuleDefinition.model_validate(rv.definition) if rv else None
+        self.rule_label = f"Standard: {db.get(Rule, rv.rule_id).name} v{rv.version}" if rv else None
         self.basis = upd.price_type  # EK oder UVP: was die Herstellerliste liefert
         self.discount = upd.dealer_discount
         self.threshold = upd.review_threshold if upd.review_threshold is not None else Decimal(10)
+        self.list_currency = upd.list_currency
+        self.rate = upd.exchange_rate
+        self.exceptions = []
+        for ex in upd.exceptions or []:
+            erv = db.get(RuleVersion, ex["rule_version_id"])
+            typ = "Serie" if ex["typ"] == "SERIE" else "Nummer beginnt mit"
+            self.exceptions.append({**ex, "rule": RuleDefinition.model_validate(erv.definition),
+                                    "label": f"Ausnahme {typ} „{ex['wert']}“: {ex['regel']}"})
+
+    def pick_rule(self, base: Article, source: Article):
+        """(Regel, Bezeichnung, Fehler). Mehrere passende Ausnahmen mit verschiedenen Regeln = Fehler."""
+        series = {normalize_series(base.category), normalize_series(source.category)} - {""}
+        number = base.article_number_normalized or ""
+        hits = [ex for ex in self.exceptions
+                if (ex["typ"] == "SERIE" and ex["norm"] in series)
+                or (ex["typ"] == "PREFIX" and number.startswith(ex["norm"]))]
+        if len({ex["rule_version_id"] for ex in hits}) > 1:
+            return None, None, "Mehrere Ausnahmen passen: " + "; ".join(ex["label"] for ex in hits)
+        if hits:
+            return hits[0]["rule"], hits[0]["label"], None
+        return self.rule, self.rule_label, None
 
 
 def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str | None,
@@ -76,18 +143,20 @@ def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str |
     ek_old_p, vk_old_p = _price(base, "EK"), _price(base, "LISTE")
     ek_old = ek_old_p.amount if ek_old_p else None
     vk_old = vk_old_p.amount if vk_old_p else None
-    currency = (ek_old_p or vk_old_p).currency if (ek_old_p or vk_old_p) else None
+    currency = (ek_old_p or vk_old_p).currency if (ek_old_p or vk_old_p) else "EUR"
     row = {"base_article_id": base.id, "manufacturer_id": base.manufacturer_id,
            "article_number": base.article_number, "description": base.description,
            "old_amount": ek_old, "vk_old": vk_old, "currency": currency, "source_article_id": None,
-           "match_method": method, "source_amount": None, "new_amount": None, "calculated_amount": None,
-           "difference": None, "difference_percent": None, "vk_difference": None, "vk_difference_percent": None,
-           "trace": None, "candidates": candidates or None, "note": None}
+           "match_method": method, "source_amount": None, "source_currency": None, "new_amount": None,
+           "calculated_amount": None, "difference": None, "difference_percent": None, "vk_difference": None,
+           "vk_difference_percent": None, "trace": None, "candidates": candidates or None, "note": None,
+           "ek_text": None, "rule_label": None, "factor": None, "check_ok": None}
     reasons: list[str] = []
     notes: list[str] = []
 
-    def keep_old(status: str, reason: str, note: str):
-        reasons.append(reason)
+    def keep_old(status: str, reason: str | None, note: str):
+        if reason:
+            reasons.append(reason)
         notes.append(note)
         row.update(status=status, final_ek=ek_old, final_vk=vk_old, decision="ALT")
 
@@ -95,68 +164,94 @@ def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str |
         keep_old("FEHLER", "FEHLER", f"Artikel ohne Artikelnummer (Zeile {base.source_row})")
     elif candidates:
         keep_old("NICHT_EINDEUTIG", "UNKLAR", "Möglicher Treffer in der Herstellerliste, bitte auswählen")
+    elif source is None and ctx.upd.scope == "TEIL":
+        keep_old("UNVERAENDERT", None, "Nicht in der Teilliste – EK und VK bleiben unverändert")
     elif source is None:
         keep_old("NICHT_IN_HERSTELLERLISTE", "FEHLT", "Fehlt in der Herstellerliste – alter EK und VK bleiben")
     else:
         row["source_article_id"] = source.id
-        src = _price(source, ctx.basis)
-        if src is None:
-            keep_old("FEHLER", "FEHLER", f"Herstellerliste enthält keinen {ctx.basis}-Preis für diesen Artikel")
-        elif currency and src.currency != currency:
-            keep_old("FEHLER", "FEHLER", f"Währung abweichend ({currency} -> {src.currency})")
-        else:
-            row["source_amount"] = src.amount
-            currency = row["currency"] = src.currency
-            if ctx.basis == "UVP":
-                if ctx.discount is None:
-                    keep_old("FEHLER", "FEHLER", "Händlerrabatt beim Hersteller nicht hinterlegt")
-                    ek_new = None
-                else:
-                    ek_new = (src.amount * (Decimal(100) - ctx.discount) / Decimal(100)).quantize(
-                        CENT, rounding=ROUND_HALF_UP)
-            else:
-                ek_new = src.amount
-            if ek_new is not None:
-                row["new_amount"] = ek_new
-                vk_new = None
-                if ctx.rule is None:
-                    keep_old("FEHLER", "FEHLER", "Keine Kalkulationsregel gewählt")
-                else:
-                    calc = calculate(ctx.rule, [PriceInput(ctx.rule.start_price, ek_new, currency, None,
-                                                           src.discount_percent, src.transport_cost)],
-                                     ctx.upd.quantity)
-                    row["trace"] = calc.trace
-                    if calc.status != "OK":
-                        keep_old("FEHLER", "FEHLER", f"Kalkulation: {calc.error}")
-                    else:
-                        vk_new = calc.result
-                if vk_new is not None:
-                    row.update(calculated_amount=vk_new, final_ek=ek_new, final_vk=vk_new, decision="NEU")
-                    if ek_old is not None:
-                        row["difference"] = ek_new - ek_old
-                        row["difference_percent"] = _pct(ek_old, ek_new)
-                    if vk_old is not None:
-                        row["vk_difference"] = vk_new - vk_old
-                        row["vk_difference_percent"] = _pct(vk_old, vk_new)
-                    pct = row["difference_percent"]
-                    if pct is not None and abs(pct) >= ctx.threshold:
-                        reasons.append("EK_AENDERUNG")
-                        notes.append(f"EK {'+' if pct > 0 else ''}{pct} % (Prüfschwelle {ctx.threshold} %)")
-                    if ek_old == 0 and ek_new != 0:
-                        reasons.append("EK_AENDERUNG")
-                    if vk_new < ek_new:
-                        reasons.append("VK_UNTER_EK")
-                    if ek_new == 0 or vk_new == 0:
-                        reasons.append("PREIS_NULL")
-                    if ek_old is None:
-                        reasons.append("KEIN_ALTER_EK")
-                    if vk_old is None:
-                        reasons.append("KEIN_ALTER_VK")
-                    row["status"] = "PRUEFEN" if reasons else "OK"
+        _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk_old, currency)
     row["reasons"] = sorted(set(reasons)) or None
     row["note"] = "; ".join(notes) or None
-    row["needs_review"] = row["status"] != "OK"
+    row["needs_review"] = row["status"] not in ("OK", "UNVERAENDERT")
     return row
+
+
+def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk_old, currency):
+    src = _price(source, ctx.basis)
+    if src is None:
+        return keep_old("FEHLER", "FEHLER", f"Herstellerliste enthält keinen {ctx.basis}-Preis für diesen Artikel")
+    row.update(source_amount=src.amount, source_currency=src.currency)
+    label = "UVP" if ctx.basis == "UVP" else "EK"
+    text = f"{label} Hersteller {de(src.amount)} {src.currency}"
+    value, changed = src.amount, False
+    if ctx.basis == "UVP":
+        if ctx.discount is None:
+            return keep_old("FEHLER", "FEHLER", "Händlerrabatt beim Hersteller nicht hinterlegt")
+        value = value * (Decimal(100) - ctx.discount) / Decimal(100)
+        text += f" − {de(ctx.discount, 0)} % Händlerrabatt"
+        changed = True
+    if src.currency != currency:
+        if not (ctx.rate and src.currency == ctx.list_currency and currency == "EUR"):
+            return keep_old("FEHLER", "FEHLER",
+                            f"Herstellerpreis in {src.currency}, unsere Liste in {currency}: "
+                            f"kein Umrechnungskurs {src.currency} → {currency} beim Hersteller hinterlegt")
+        value = value * ctx.rate
+        text += f" × Kurs {de(ctx.rate, 0)}"
+        changed = True
+    ek_new = value.quantize(CENT, rounding=ROUND_HALF_UP) if changed else value
+    if changed:
+        text += f" = {de(ek_new)} {currency}"
+    row.update(new_amount=ek_new, ek_text=text)
+
+    rule, rule_label, rule_error = ctx.pick_rule(base, source)
+    row["rule_label"] = rule_label
+    if rule_error:
+        return keep_old("FEHLER", "FEHLER", rule_error)
+    if rule is None:
+        return keep_old("FEHLER", "FEHLER", "Keine Kalkulationsregel gewählt")
+    calc = calculate(rule, [PriceInput(rule.start_price, ek_new, currency, None, src.discount_percent,
+                                       src.transport_cost)], ctx.upd.quantity)
+    row["trace"] = calc.trace
+    if calc.status != "OK":
+        return keep_old("FEHLER", "FEHLER", f"Kalkulation: {calc.error}")
+    vk_new = calc.result
+    check, why = recalc(rule, ek_new)
+    if check is not None and check != vk_new:
+        row["check_ok"] = False
+        return keep_old("FEHLER", "FEHLER", f"Gegenrechnung abweichend: Regel {de(vk_new)}, "
+                                            f"Gegenrechnung {de(check)} – bitte melden")
+    row["check_ok"] = True if check is not None else None  # None = nicht nachrechenbar (nicht: Abweichung)
+    if check is None:
+        reasons.append("NICHT_GEGENGEPRUEFT")
+        notes.append(why)
+    row.update(calculated_amount=vk_new, final_ek=ek_new, final_vk=vk_new, decision="NEU")
+    if ek_new > 0:
+        row["factor"] = (vk_new / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    if ek_old is not None:
+        row["difference"] = ek_new - ek_old
+        row["difference_percent"] = _pct(ek_old, ek_new)
+    if vk_old is not None:
+        row["vk_difference"] = vk_new - vk_old
+        row["vk_difference_percent"] = _pct(vk_old, vk_new)
+    pct, vk_pct = row["difference_percent"], row["vk_difference_percent"]
+    if pct is not None and abs(pct) >= ctx.threshold:
+        reasons.append("EK_AENDERUNG")
+        notes.append(f"EK {'+' if pct > 0 else ''}{de(pct)} % (Prüfschwelle {de(ctx.threshold, 0)} %)")
+    if ek_old == 0 and ek_new != 0:
+        reasons.append("EK_AENDERUNG")
+    if pct is not None and vk_pct is not None and abs(vk_pct - pct) >= ctx.threshold:
+        reasons.append("VK_ABWEICHUNG")
+        notes.append(f"EK {de(pct)} %, VK {de(vk_pct)} %")
+    if vk_new < ek_new:
+        reasons.append("VK_UNTER_EK")
+    if ek_new == 0 or vk_new == 0:
+        reasons.append("PREIS_NULL")
+    if ek_old is None:
+        reasons.append("KEIN_ALTER_EK")
+    if vk_old is None:
+        reasons.append("KEIN_ALTER_VK")
+    row["status"] = "PRUEFEN" if reasons else "OK"
 
 
 def run_update(db: Session, upd: PriceUpdate) -> dict:
@@ -267,11 +362,12 @@ def choose_candidate(db: Session, upd: PriceUpdate, item: PriceUpdateItem, new_i
 
 
 def bulk_accept(db: Session, upd: PriceUpdate, user_id: int, status: str | None, reason: str | None) -> int:
-    """Alle offenen Positionen eines Filters bestätigen (ohne manuelle Änderungen). Unklare Zuordnungen nie."""
+    """Alle offenen Positionen eines Filters bestätigen (ohne manuelle Änderungen).
+    Unklare Zuordnungen und Fehler nie: die müssen einzeln entschieden werden."""
     stmt = select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id,
                                          PriceUpdateItem.needs_review.is_(True),
                                          PriceUpdateItem.reviewed_at.is_(None),
-                                         PriceUpdateItem.status != "NICHT_EINDEUTIG")
+                                         PriceUpdateItem.status.not_in(("NICHT_EINDEUTIG", "FEHLER")))
     if status:
         stmt = stmt.where(PriceUpdateItem.status == status)
     n = 0
@@ -285,4 +381,40 @@ def bulk_accept(db: Session, upd: PriceUpdate, user_id: int, status: str | None,
 
 def manufacturer_settings(m: Manufacturer | None) -> dict:
     return {"basis": (m.list_basis if m else "EK") or "EK", "discount": m.dealer_discount if m else None,
-            "threshold": m.review_threshold if m and m.review_threshold is not None else Decimal(10)}
+            "threshold": m.review_threshold if m and m.review_threshold is not None else Decimal(10),
+            "currency": (m.list_currency if m else "EUR") or "EUR", "rate": m.exchange_rate if m else None}
+
+
+def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
+    """Geprüftes Ergebnis als neue aktuelle Liste (unsere EK/VK-Liste) speichern."""
+    if upd.adopted_list_id:
+        raise ValueError("Dieser Abgleich wurde bereits als aktuelle Liste übernommen")
+    refresh_summary(db, upd)
+    if upd.summary.get("offen"):
+        raise ValueError(f"Noch {upd.summary['offen']} Positionen ungeprüft")
+    base = upd.base_list
+    stem = base.name.split(" – Stand ")[0]
+    pl = PriceList(name=f"{stem} – Stand {utcnow():%d.%m.%Y}"[:255], source_file=f"Jahresabgleich #{upd.id}",
+                   stored_file=base.stored_file, file_sha256=base.file_sha256, manufacturer_id=base.manufacturer_id,
+                   currency=base.currency, status="IMPORTIERT", kind="UNSERE", uploaded_by=user_id,
+                   imported_at=utcnow(),
+                   summary={"aus_abgleich": upd.id, "basis_liste": base.id, "herstellerliste": upd.source_price_list_id})
+    db.add(pl)
+    db.flush()
+    items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
+                       .order_by(PriceUpdateItem.id)).all()
+    for n, item in enumerate(items, start=1):
+        old = db.get(Article, item.base_article_id)
+        art = Article(price_list_id=pl.id, source_row=old.source_row, article_number=old.article_number,
+                      article_number_normalized=old.article_number_normalized, manufacturer_id=old.manufacturer_id,
+                      manufacturer_raw=old.manufacturer_raw, description=old.description, category=old.category,
+                      unit=old.unit, status=old.status)
+        db.add(art)
+        db.flush()
+        cur = item.currency or "EUR"
+        for ptype, amount in (("EK", item.final_ek), ("LISTE", item.final_vk)):
+            if amount is not None:
+                db.add(ArticlePrice(article_id=art.id, price_type=ptype, amount=amount, currency=cur))
+    upd.adopted_list_id = pl.id
+    db.flush()
+    return pl

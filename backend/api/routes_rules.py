@@ -154,7 +154,7 @@ def new_rule_form(request: Request, ki_job: int | None = None, hersteller: int |
 
 def _safe_return(url: str | None) -> str | None:
     """Nur interne Rücksprünge in die Kalkulation erlauben (kein offener Redirect)."""
-    return url if url and re.fullmatch(r"/listen/\d+/kalkulation", url) else None
+    return url if url and re.fullmatch(r"/listen/\d+/kalkulation|/hersteller/\d+", url) else None
 
 
 @router.post("/regeln/ki", dependencies=[Depends(check_csrf)])

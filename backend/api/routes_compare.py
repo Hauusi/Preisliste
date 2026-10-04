@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from backend.api.deps import check_csrf, client_ip, current_user, require_admin
+from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
 from backend.api.routes_lists import page_info
 from backend.comparison.service import COMPARE_TYPES, STATUS_LABELS, STATUSES, decide, run_comparison
@@ -17,6 +17,7 @@ from backend.database.engine import get_db
 from backend.excel.numbers import parse_amount
 from backend.models.entities import (
     Article,
+    ArticlePrice,
     CalculationResult,
     CalculationRun,
     Job,
@@ -25,12 +26,13 @@ from backend.models.entities import (
     Manufacturer,
     PriceList,
     Rule,
+    RuleException,
     User,
 )
 from backend.excel.export import export_calculation, export_comparison
 from backend.jobs.runner import enqueue
 from backend.services.audit import audit
-from backend.services.manufacturers import code_map, normalize_code, search_conditions, validate_code
+from backend.services.manufacturers import code_map, search_conditions
 from backend.services.rules import current_version, run_calculation
 
 router = APIRouter()
@@ -79,12 +81,13 @@ def _update_defaults(db: Session, pl: PriceList, mid: int | None) -> dict:
     same = [o for o in others if mid and list_manufacturer(db, o) == mid]
     ours = [o for o in same if o.kind == "UNSERE"] or [o for o in same if o.id < pl.id]
     m = db.get(Manufacturer, mid) if mid else None
+    exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == mid)
+                            .order_by(RuleException.id)).all() if mid else []
     return {"update_bases": others, "update_base_default": ours[0].id if ours else None,
-            "update_settings": manufacturer_settings(m), "update_manufacturer": m}
-
-
-def _jsonable(d: dict) -> dict:
-    return {k: str(v) if isinstance(v, Decimal) else v for k, v in d.items()}
+            "update_settings": manufacturer_settings(m), "update_manufacturer": m,
+            "update_exceptions": exceptions, "list_currencies": sorted(
+                set(db.scalars(select(ArticlePrice.currency).distinct().join(Article)
+                               .where(Article.price_list_id == pl.id))))}
 
 
 def list_manufacturer(db: Session, pl: PriceList) -> int | None:
@@ -353,73 +356,3 @@ def recompute(request: Request, cmp_id: int, db: Session = Depends(get_db), user
     run_comparison(db, cmp)
     audit(db, user, "vergleich_neu_berechnet", "comparison", cmp_id, ip=client_ip(request))
     return RedirectResponse(f"/vergleiche/{cmp_id}", status_code=303)
-
-
-# ---------- Hersteller ----------
-
-def _manufacturer_page(request: Request, db: Session, error: str | None = None, status_code: int = 200):
-    return render(request, "manufacturers.html", {
-        "manufacturers": db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all(),
-        "rules": _rules(db), "error": error}, status_code=status_code)
-
-
-@router.get("/hersteller")
-def manufacturers(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    return _manufacturer_page(request, db)
-
-
-@router.post("/hersteller", dependencies=[Depends(check_csrf)])
-async def save_manufacturer(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    form = await request.form()
-    mid = str(form.get("id") or "")
-    name = str(form.get("name") or "").strip()[:200]
-    aliases = [a.strip()[:200] for a in str(form.get("aliases") or "").split(";") if a.strip()][:50]
-    ignore = form.get("ignore_leading_zeros") == "1"
-    code = normalize_code(str(form.get("code") or ""))
-    rule_raw = str(form.get("default_rule_id") or "")
-    rule_id = int(rule_raw) if rule_raw.isdigit() else None
-    current = db.get(Manufacturer, int(mid)) if mid.isdigit() else None
-    if mid.isdigit() and current is None:
-        raise HTTPException(404, "Hersteller nicht gefunden")
-    clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
-    error = None
-    if not name:
-        error = "Name fehlt"
-    elif clash and (current is None or clash.id != current.id):
-        error = "Name existiert bereits"
-    else:
-        error = validate_code(db, code, current.id if current else None)
-    list_basis = str(form.get("list_basis") or "EK")
-    discount = parse_amount(str(form.get("dealer_discount") or "").strip(), ",") \
-        if str(form.get("dealer_discount") or "").strip() else None
-    threshold = parse_amount(str(form.get("review_threshold") or "10").strip(), ",")
-    if not error and list_basis not in ("EK", "UVP"):
-        error = "Herstellerliste enthält: EK oder UVP wählen"
-    if not error and discount is not None and (not discount.ok or not 0 <= discount.value < 100):
-        error = "Händlerrabatt muss zwischen 0 und 100 % liegen"
-    if not error and list_basis == "UVP" and discount is None:
-        error = "Bei UVP-Listen ist der Händlerrabatt Pflicht (EK = UVP - Händlerrabatt)"
-    if not error and (not threshold.ok or not 0 < threshold.value <= 100):
-        error = "Prüfschwelle muss zwischen 0 und 100 % liegen"
-    if not error and rule_id is not None:
-        rule = db.get(Rule, rule_id)
-        if rule is None or rule.deleted:
-            error = "Regel nicht gefunden"
-    if error:
-        return _manufacturer_page(request, db, error, 400)
-    values = {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore, "code": code,
-              "default_rule_id": rule_id, "list_basis": list_basis,
-              "dealer_discount": discount.value if discount else None, "review_threshold": threshold.value}
-    if current:
-        before = {k: getattr(current, k) for k in values}
-        for k, v in values.items():
-            setattr(current, k, v)
-        audit(db, admin, "hersteller_geaendert", "manufacturer", current.id,
-              {"vorher": _jsonable(before), "nachher": _jsonable(values)},
-              client_ip(request))
-    else:
-        m = Manufacturer(**values)
-        db.add(m)
-        db.flush()
-        audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
-    return RedirectResponse("/hersteller", status_code=303)

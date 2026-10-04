@@ -116,3 +116,10 @@ a.danger-link:hover { background: #fdecea; }
 tr.open td { background: #fff8e6; }
 .review form { display: inline-flex; gap: 4px; align-items: center; margin: 2px 0; }
 .review input[name=manual_vk] { width: 80px; }
+fieldset.plain { border: 0; padding: 0; margin: 8px 0; }
+fieldset.plain legend { font-weight: 600; margin-bottom: 4px; }
+form > fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+details.calc summary { cursor: pointer; color: var(--accent); }
+details.calc ol { margin: 4px 0; padding-left: 18px; }
+.check-ok { color: var(--ok); }
+.check-bad { color: var(--err); font-weight: 700; }

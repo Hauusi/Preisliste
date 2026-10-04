@@ -3,18 +3,21 @@
 {% block content %}
 {% include "_steps.html" %}
 {% set s = upd.summary or {} %}
+{% set foreign = upd.price_type == "UVP" or (upd.list_currency and upd.list_currency != "EUR") %}
 <h1>Schritt 6: Jahresabgleich <small class="hint">neue EK/VK-Liste für „{{ upd.base_list.name }}“</small></h1>
-<p class="hint">Herstellerliste „{{ upd.source_list.name }}“ liefert {{ "UVP/RRP (EK = UVP − " ~ (upd.dealer_discount | money) ~ " % Händlerrabatt)" if upd.price_type == "UVP" else "den EK" }}
-  · VK mit Regel {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "–" }} aus dem neuen EK
+<p class="hint">{{ "Teilliste (Preiserhöhung einzelner Serien)" if upd.scope == "TEIL" else "Jahrespreisliste" }} „{{ upd.source_list.name }}“
+  · liefert {{ "UVP/RRP, EK = UVP − " ~ (upd.dealer_discount | money) ~ " % Händlerrabatt" if upd.price_type == "UVP" else "den EK" }}
+  {% if upd.list_currency and upd.list_currency != "EUR" %}· in {{ upd.list_currency }}, Kurs {{ upd.exchange_rate | num }}{% endif %}
+  · VK: {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "–" }}{% for ex in upd.exceptions or [] %}, Ausnahme {{ ex.wert }}: {{ ex.regel }}{% endfor %}
   · Prüfschwelle ±{{ upd.review_threshold | money }} % · {{ upd.created_at | dt }}</p>
 {% if meldung %}<p class="msg UNKLAR">{{ meldung }}</p>{% endif %}
 
 <div class="stats">
   <a class="stat" href="?"><span>{{ s.artikel }}</span>unsere Artikel</a>
   <a class="stat {{ 'FEHLER' if s.offen else 'OK' }}" href="?status=offen"><span>{{ s.offen }}</span>noch zu prüfen</a>
-  {% for st in statuses %}<a class="stat {{ st }}" href="?status={{ st }}"><span>{{ s[st] }}</span>{{ labels[st] }}</a>{% endfor %}
+  {% for st in statuses if st != "UNVERAENDERT" or upd.scope == "TEIL" %}<a class="stat {{ st }}" href="?status={{ st }}"><span>{{ s.get(st, 0) }}</span>{{ labels[st] }}</a>{% endfor %}
 </div>
-<p class="hint">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und wurden ignoriert.</p>
+<p class="hint">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und wurden ignoriert (bei uns nicht angelegt).</p>
 
 <div class="actions">
   {% if s.offen %}
@@ -24,6 +27,16 @@
     <a class="button" href="/aktualisierungen/{{ upd.id }}/export">Neue Preisliste exportieren (geprüft)</a>
   {% endif %}
 </div>
+{% if upd.adopted_list_id %}
+  <p class="msg OK">Als aktuelle Liste übernommen: <a href="/listen/{{ upd.adopted_list_id }}">zur neuen Liste</a>. Sie ist beim nächsten Abgleich vorausgewählt.</p>
+{% elif not s.offen %}
+<form method="post" action="/aktualisierungen/{{ upd.id }}/uebernehmen" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required> Alles geprüft – diese EK/VK als unsere neue aktuelle Liste speichern</label>
+  <button type="submit">Als aktuelle Liste übernehmen</button>
+  <span class="hint">Die alte Liste bleibt zum Nachvollziehen erhalten.</span>
+</form>
+{% endif %}
 
 <form method="get" class="card row">
   <label>Status <select name="status"><option value="">alle</option><option value="offen" {% if status == "offen" %}selected{% endif %}>noch zu prüfen</option>{% for st in statuses %}<option value="{{ st }}" {% if st == status %}selected{% endif %}>{{ labels[st] }}</option>{% endfor %}</select></label>
@@ -39,7 +52,7 @@
   <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required>
     Alle offenen Positionen im aktuellen Filter (Status: {{ labels[status] if status in labels else "alle" }}, Prüfgrund: {{ reasons[grund] if grund else "alle" }}) habe ich geprüft – Werte wie angezeigt übernehmen</label>
   <button type="submit" class="secondary">Sammelbestätigung</button>
-  <span class="hint">Unklare Zuordnungen müssen einzeln entschieden werden.</span>
+  <span class="hint">Unklare Zuordnungen und Fehler müssen einzeln entschieden werden.</span>
 </form>
 {% endif %}
 
@@ -47,22 +60,29 @@
 {% include "_pager.html" %}
 <div class="scroll">
 <table>
-  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>EK alt</th><th>{{ "UVP" if upd.price_type == "UVP" else "" }}</th><th>EK neu</th><th>EK Δ%</th><th>VK alt</th><th>VK neu</th><th>VK Δ%</th><th>Status</th><th>Prüfhinweise</th><th>Prüfung</th></tr></thead>
+  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th>{% if foreign %}<th>Herstellerpreis</th>{% endif %}<th>EK alt</th><th>EK neu</th><th>EK Δ%</th><th>VK alt</th><th>VK neu</th><th>VK Δ%</th><th>Faktor VK/EK</th><th>Status</th><th>Prüfhinweise / Rechenweg</th><th>Prüfung</th></tr></thead>
   <tbody>
   {% for i in rows %}
     {% set open = i.needs_review and not i.reviewed_at %}
     <tr class="{{ 'open' if open }}">
       <td>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</td><td>{{ i.description or "" }}</td>
+      {% if foreign %}<td class="num">{% if i.source_amount is not none %}{{ i.source_amount | money }} {{ i.source_currency or "" }}{% endif %}</td>{% endif %}
       <td class="num">{{ i.old_amount | money }}</td>
-      <td class="num">{{ i.source_amount | money if upd.price_type == "UVP" else "" }}</td>
       <td class="num">{{ i.final_ek | money }}</td>
-      <td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
+      <td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none and i.decision != "ALT" else "" }}</td>
       <td class="num">{{ i.vk_old | money }}</td>
       <td class="num"><b>{{ i.final_vk | money }}</b>{% if i.decision == "MANUELL" %} <small>(von Hand)</small>{% endif %}</td>
-      <td class="num">{{ (i.vk_difference_percent | money) ~ " %" if i.vk_difference_percent is not none else "" }}</td>
+      <td class="num">{{ (i.vk_difference_percent | money) ~ " %" if i.vk_difference_percent is not none and i.decision == "NEU" else "" }}</td>
+      <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "" }}</td>
       <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span></td>
       <td class="small">{% for r in i.reasons or [] %}{{ reasons[r] }}{% if not loop.last %}; {% endif %}{% endfor %}{% if i.note %}<br>{{ i.note }}{% endif %}
-        {% if i.decision == "ALT" %}<br><b>Übernommen: alter EK/VK</b>{% endif %}</td>
+        {% if i.decision == "ALT" %}<br><b>Übernommen: alter EK/VK</b>{% endif %}
+        {% if i.ek_text or i.trace %}<details class="calc"><summary>Rechenweg</summary>
+          {% if i.ek_text %}<div>EK: {{ i.ek_text }}</div>{% endif %}
+          {% if i.rule_label %}<div>VK: {{ i.rule_label }}</div>{% endif %}
+          {% if i.trace %}<ol>{% for t in i.trace %}<li>{{ t.text }} {{ t.operand or "" }} → {{ t.ergebnis | replace(".", ",") }}</li>{% endfor %}</ol>{% endif %}
+          {% if i.check_ok %}<div class="check-ok">Gegenrechnung stimmt</div>{% elif i.check_ok == false %}<div class="check-bad">Gegenrechnung abweichend</div>{% endif %}
+        </details>{% endif %}</td>
       <td class="review small">
         {% if not i.needs_review %}–
         {% elif i.reviewed_at %}
@@ -92,7 +112,7 @@
         {% endif %}
       </td>
     </tr>
-  {% else %}<tr><td colspan="12">Keine Einträge.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="14">Keine Einträge.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>

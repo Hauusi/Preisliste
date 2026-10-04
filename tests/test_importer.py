@@ -78,7 +78,7 @@ def test_missing_and_invalid_values(db, tmp_path):
         ["C", "auf Anfrage"],
         ["D", "-5,00"],
         ["E", "0"],
-        ["F", "12,00 GBP"],
+        ["F", "12,00 JPY"],
     ], {"article_number": 0, "supplier_price": 1})
     by_row = {a.source_row: a.status for a in arts}
     assert by_row == {2: "FEHLER", 3: "FEHLER", 4: "FEHLER", 5: "FEHLER", 6: "WARNUNG", 7: "FEHLER"}

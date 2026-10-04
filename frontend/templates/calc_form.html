@@ -10,7 +10,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="source_id" value="{{ pl.id }}">
   <div class="row">
-    <label>Unsere Liste (EK/VK Vorjahr)
+    <label>Unsere aktuelle Liste (EK/VK)
       <select name="base_id" required><option value="">– wählen –</option>
         {% for o in update_bases %}<option value="{{ o.id }}" {% if o.id == update_base_default %}selected{% endif %}>{{ o.name }}{% if o.kind == "UNSERE" %} · unsere Liste{% endif %} ({{ o.imported_at | dt }})</option>{% endfor %}
       </select>
@@ -21,13 +21,24 @@
       </select>
     </label>
   </div>
+  <fieldset class="plain">
+    <legend>Was ist das für eine Liste?</legend>
+    <label class="inline-label"><input type="radio" name="scope" value="VOLL" checked> <b>Neue Jahrespreisliste</b> (vollständig) – Artikel, die fehlen, werden zur Prüfung markiert</label>
+    <label class="inline-label"><input type="radio" name="scope" value="TEIL"> <b>Preiserhöhung einzelner Serien</b> (Teilliste) – nur enthaltene Artikel bekommen neue Preise, alle anderen bleiben unverändert</label>
+  </fieldset>
+  <h3>So wird gerechnet</h3>
   <ul class="hint">
     <li>Herstellerliste enthält: <b>{{ "UVP / RRP" if st.basis == "UVP" else "EK" }}</b>{% if st.basis == "UVP" %} → EK = UVP − {{ st.discount | money if st.discount is not none else "?" }} % Händlerrabatt{% endif %}</li>
-    <li>VK = Regel angewendet auf den neuen EK</li>
-    <li>Prüfen ab ±{{ st.threshold | money }} % EK-Änderung, außerdem immer bei VK unter EK, Preis 0, unklarer Zuordnung und fehlenden Artikeln</li>
+    {% if st.currency != "EUR" %}<li>Währung <b>{{ st.currency }}</b> → EUR mit Kurs <b>{{ st.rate | num if st.rate is not none else "?" }}</b>, EK in € auf Cent gerundet</li>{% endif %}
+    <li>VK = Regel angewendet auf den neuen EK{% if update_exceptions %}, Ausnahmen:
+      {% for ex in update_exceptions %}<b>{{ "Serie" if ex.match_type == "SERIE" else "Nr. beginnt mit" }} {{ ex.value }}</b> → {{ ex.rule.name }}{% if not loop.last %}; {% endif %}{% endfor %}{% endif %}</li>
+    <li>Jeder VK wird unabhängig nachgerechnet (Gegenrechnung)</li>
+    <li>Prüfen ab ±{{ st.threshold | money }} % EK-Änderung, außerdem bei VK unter EK, Preis 0, unklarer Zuordnung, fehlenden Artikeln und wenn die VK-Änderung nicht zur EK-Änderung passt</li>
   </ul>
-  {% if update_manufacturer %}<p class="hint">Einstellungen ändern: <a href="/hersteller">Hersteller {{ update_manufacturer.name }}</a></p>
-  {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste, Prüfschwelle 10 %).</p>{% endif %}
+  {% if list_currencies and st.currency not in list_currencies %}<p class="msg FEHLER">Diese Liste ist in {{ list_currencies | join(", ") }} importiert, der Hersteller liefert laut Einstellung in {{ st.currency }}. Bitte Liste mit der richtigen Währung neu importieren oder die Hersteller-Einstellung korrigieren.</p>{% endif %}
+  {% if st.currency != "EUR" and st.rate is none %}<p class="msg FEHLER">Umrechnungskurs fehlt beim Hersteller.</p>{% endif %}
+  {% if update_manufacturer %}<p class="hint">Einstellungen ändern: <a href="/hersteller/{{ update_manufacturer.id }}">Hersteller {{ update_manufacturer.name }}</a></p>
+  {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste in EUR, Prüfschwelle 10 %).</p>{% endif %}
   {% if st.basis == "UVP" and st.discount is none %}<p class="msg FEHLER">Beim Hersteller ist kein Händlerrabatt hinterlegt. Ohne ihn kann kein EK berechnet werden.</p>{% endif %}
   <div class="actions"><button type="submit">Abgleich starten →</button></div>
 </form>

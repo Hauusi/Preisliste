@@ -57,6 +57,9 @@
           {% for c in currencies %}<option value="{{ c }}" {% if c == "EUR" %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </label>
+      {% for m in manufacturers if m.list_currency and m.list_currency != "EUR" %}
+        <p class="msg UNKLAR">Neue Listen von {{ m.name }} sind laut Einstellung in <b>{{ m.list_currency }}</b> – dann hier {{ m.list_currency }} wählen.</p>
+      {% endfor %}
       <p class="hint">Gilt für Preise ohne Währungszeichen. „Aus den Zellen lesen“ markiert Preise ohne Währungszeichen als FEHLER.</p>
       <label>Gültig ab (optional) <input type="date" name="valid_from"></label>
     </section>

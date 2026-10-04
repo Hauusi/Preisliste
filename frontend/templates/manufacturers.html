@@ -1,32 +1,25 @@
 {% extends "base.html" %}
-{% from "_icons.html" import delete_link %}
+{% from "_icons.html" import delete_link, pencil %}
 {% block title %}Hersteller{% endblock %}
 {% block content %}
 <h1>Hersteller</h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<p class="hint">Das Kürzel steht in Anzeige und Export direkt vor der Artikelnummer (z. B. RT + 12345 = RT12345). Gespeichert bleibt die Original-Nummer der Lieferantenliste. Die Standardregel wird bei der Kalkulation vorausgewählt.</p>
-<p class="hint"><b>Jahresabgleich:</b> Liefert der Hersteller EK-Preise, wird der EK direkt übernommen. Liefert er UVP/RRP, gilt EK = UVP − Händlerrabatt. Der VK wird immer mit der Standardregel aus dem neuen EK berechnet. Ab der Prüfschwelle (EK-Änderung in %) muss eine Position bestätigt werden.</p>
+<p class="hint">Pro Hersteller: Kürzel vor der Artikelnummer (RT + 12345 = RT12345), Standardregel für den VK, Ausnahmen für einzelne Serien, und was die Herstellerliste enthält (EK oder UVP, Währung).</p>
 <div class="scroll">
 <table>
-  <thead><tr><th>Name</th><th>Kürzel</th><th>Standardregel</th><th>Herstellerliste enthält</th><th>Händlerrabatt %</th><th>Prüfschwelle %</th><th>Aliase (mit ; getrennt)</th><th>00123 = 123</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Kürzel</th><th>Standardregel</th><th>Ausnahmen</th><th>Herstellerliste</th><th>Prüfschwelle</th><th>Aliase</th><th></th></tr></thead>
   <tbody>
   {% for m in manufacturers %}
-    {% if user.role == "admin" %}
     <tr>
-      <td><input form="m{{ m.id }}" name="name" value="{{ m.name }}" required maxlength="200"></td>
-      <td><input form="m{{ m.id }}" name="code" value="{{ m.code or '' }}" maxlength="10" size="6" class="code" placeholder="z. B. RT"></td>
-      <td><select form="m{{ m.id }}" name="default_rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}" {% if r.id == m.default_rule_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select></td>
-      <td><select form="m{{ m.id }}" name="list_basis"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>EK</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP</option></select></td>
-      <td><input form="m{{ m.id }}" name="dealer_discount" value="{{ m.dealer_discount | money if m.dealer_discount is not none else '' }}" size="5"></td>
-      <td><input form="m{{ m.id }}" name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="5"></td>
-      <td><input form="m{{ m.id }}" name="aliases" value="{{ (m.aliases or []) | join('; ') }}" size="30"></td>
-      <td><input form="m{{ m.id }}" type="checkbox" name="ignore_leading_zeros" value="1" {% if m.ignore_leading_zeros %}checked{% endif %}></td>
-      <td><form method="post" action="/hersteller" id="m{{ m.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ m.id }}"><button type="submit" class="secondary">Speichern</button></form> {{ delete_link("/hersteller/" ~ m.id ~ "/loeschen", "Hersteller löschen") }}</td>
+      <td><a href="/hersteller/{{ m.id }}">{{ m.name }}</a></td><td><b>{{ m.code or "" }}</b></td>
+      <td>{% if m.default_rule_id and m.default_rule_id in rules %}{{ rules[m.default_rule_id].name }}{% else %}<span class="FEHLER">keine</span>{% endif %}</td>
+      <td class="num">{{ exception_counts.get(m.id, 0) }}</td>
+      <td>{{ "UVP − " ~ (m.dealer_discount | money) ~ " %" if m.list_basis == "UVP" else "EK" }}{% if m.list_currency and m.list_currency != "EUR" %} in {{ m.list_currency }} (× {{ m.exchange_rate | num }}){% endif %}</td>
+      <td class="num">±{{ m.review_threshold | money }} %</td>
+      <td class="small">{{ (m.aliases or []) | join("; ") }}</td>
+      <td>{% if user.role == "admin" %}<a class="icon-link" href="/hersteller/{{ m.id }}" title="Bearbeiten">{{ pencil() }}</a> {{ delete_link("/hersteller/" ~ m.id ~ "/loeschen", "Hersteller löschen") }}{% endif %}</td>
     </tr>
-    {% else %}
-    <tr><td>{{ m.name }}</td><td><b>{{ m.code or "" }}</b></td><td>{% for r in rules if r.id == m.default_rule_id %}{{ r.name }}{% endfor %}</td><td>{{ "UVP / RRP" if m.list_basis == "UVP" else "EK" }}</td><td>{{ m.dealer_discount | money if m.dealer_discount is not none else "" }}</td><td>{{ m.review_threshold | money }}</td><td>{{ (m.aliases or []) | join("; ") }}</td><td>{{ "ja" if m.ignore_leading_zeros else "nein" }}</td><td></td></tr>
-    {% endif %}
-  {% else %}<tr><td colspan="9">Noch keine Hersteller.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8">Noch keine Hersteller.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>
@@ -37,14 +30,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Name <input name="name" required maxlength="200" placeholder="z. B. Redtronic"></label>
     <label>Kürzel <input name="code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
-    <label>Standardregel <select name="default_rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
-    <label>Herstellerliste enthält <select name="list_basis"><option value="EK">EK</option><option value="UVP">UVP / RRP</option></select></label>
-    <label>Händlerrabatt % <input name="dealer_discount" size="5" placeholder="nur bei UVP"></label>
-    <label>Prüfschwelle % <input name="review_threshold" value="10" size="5"></label>
     <label>Aliase <input name="aliases" placeholder="z. B. Redtronic GmbH"></label>
-    <label class="inline-label"><input type="checkbox" name="ignore_leading_zeros" value="1" checked> Führende Nullen ignorieren</label>
-    <button type="submit">Anlegen</button>
+    <button type="submit">Anlegen →</button>
   </form>
+  <p class="hint">Danach öffnet sich die Seite für Kalkulation, Ausnahmen und Währung.</p>
 </section>
 {% endif %}
 {% endblock %}

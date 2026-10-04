@@ -14,15 +14,15 @@ from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
 from backend.api.routes_lists import page_info
 from backend.comparison.update import (
-    REASON_LABELS, STATUS_LABELS, STATUSES, accept, bulk_accept, choose_candidate, manufacturer_settings,
-    refresh_summary, run_update,
+    REASON_LABELS, SCOPES, STATUS_LABELS, STATUSES, accept, adopt_as_current, bulk_accept, choose_candidate,
+    manufacturer_settings, refresh_summary, run_update, snapshot_exceptions,
 )
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.excel.export import export_price_update
 from backend.excel.numbers import parse_amount
 from backend.api.routes_compare import list_manufacturer
-from backend.models.entities import Manufacturer, PriceList, PriceUpdate, PriceUpdateItem, Rule, User
+from backend.models.entities import Article, ArticlePrice, Manufacturer, PriceList, PriceUpdate, PriceUpdateItem, Rule, User
 from backend.services.audit import audit
 from backend.services.manufacturers import code_map, search_conditions
 from backend.services.rules import current_version
@@ -71,6 +71,9 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
         errors.append("Herstellerliste enthält: EK oder UVP")
     elif price_type == "UVP" and settings["discount"] is None:
         errors.append("Händlerrabatt beim Hersteller hinterlegen (EK = UVP - Händlerrabatt)")
+    scope = str(form.get("scope") or "VOLL")
+    if scope not in SCOPES:
+        errors.append("Umfang wählen: Jahrespreisliste oder Teilliste")
     qty = parse_amount(str(form.get("quantity") or "1"), ",")
     if not qty.ok or qty.value <= 0:
         errors.append("Menge muss größer 0 sein")
@@ -80,19 +83,50 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
         errors.append("Kalkulationsregel für den VK wählen")
     else:
         rule_version_id = current_version(db, rule).id
+    if not errors:
+        errors += currency_problems(db, base, source, settings)
     if errors:
         return _list_page(request, db, "; ".join(errors), 400)
     upd = PriceUpdate(base_price_list_id=base.id, source_price_list_id=source.id, price_type=price_type,
                       rule_version_id=rule_version_id, quantity=qty.value, created_by=user.id,
                       dealer_discount=settings["discount"] if price_type == "UVP" else None,
-                      review_threshold=settings["threshold"])
+                      review_threshold=settings["threshold"], scope=scope,
+                      list_currency=settings["currency"],
+                      exchange_rate=settings["rate"] if settings["currency"] != "EUR" else None,
+                      exceptions=snapshot_exceptions(db, mfr.id if mfr else None))
     db.add(upd)
     db.flush()
     summary = run_update(db, upd)
     audit(db, user, "jahresabgleich", "price_update", upd.id,
           {"basis": base.id, "hersteller": source.id, "typ": price_type, "rabatt": str(upd.dealer_discount),
-           "schwelle": str(upd.review_threshold), "zusammenfassung": summary}, client_ip(request))
+           "schwelle": str(upd.review_threshold), "umfang": scope, "waehrung": upd.list_currency,
+           "kurs": str(upd.exchange_rate), "ausnahmen": upd.exceptions, "zusammenfassung": summary}, client_ip(request))
     return RedirectResponse(f"/aktualisierungen/{upd.id}", status_code=303)
+
+
+def list_currencies(db: Session, pl: PriceList) -> set[str]:
+    return set(db.scalars(select(ArticlePrice.currency).distinct().join(Article)
+                          .where(Article.price_list_id == pl.id)))
+
+
+def currency_problems(db: Session, base: PriceList, source: PriceList, settings: dict) -> list[str]:
+    """Falsch importierte Währung ist der teuerste Fehler (SEK als EUR = Faktor 10): vorher abfangen."""
+    ours, theirs = list_currencies(db, base), list_currencies(db, source)
+    errors = []
+    if len(ours) > 1:
+        errors.append(f"Unsere Liste enthält mehrere Währungen ({', '.join(sorted(ours))})")
+    if len(theirs) > 1:
+        errors.append(f"Herstellerliste enthält mehrere Währungen ({', '.join(sorted(theirs))})")
+    if errors or not ours or not theirs:
+        return errors
+    our, their = ours.pop(), theirs.pop()
+    expected = settings["currency"]
+    if their != expected:
+        errors.append(f"Herstellerliste ist in {their} importiert, laut Hersteller-Einstellung liefert der Hersteller "
+                      f"in {expected}. Bitte Liste mit der richtigen Währung neu importieren oder Einstellung prüfen.")
+    elif their != our and not (our == "EUR" and settings["rate"]):
+        errors.append(f"Kein Umrechnungskurs {their} → {our} beim Hersteller hinterlegt")
+    return errors
 
 
 def _list_page(request, db, error, status_code=200):
@@ -234,3 +268,17 @@ def export(request: Request, upd_id: int, entwurf: int = 0, db: Session = Depend
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", f"{prefix}Neue_Preisliste_{upd.base_list.name}_{upd_id}")[:80]
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{name}.xlsx"'})
+
+
+@router.post("/aktualisierungen/{upd_id}/uebernehmen", dependencies=[Depends(check_csrf)])
+async def adopt(request: Request, upd_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    upd = _get(db, upd_id)
+    form = await request.form()
+    if form.get("bestaetigt") != "ja":
+        return _back(upd_id, form, "Bitte das Häkchen zur Bestätigung setzen")
+    try:
+        pl = adopt_as_current(db, upd, user.id)
+    except ValueError as e:
+        return _back(upd_id, form, str(e))
+    audit(db, user, "abgleich_uebernommen", "price_update", upd.id, {"neue_liste": pl.id}, client_ip(request))
+    return _back(upd_id, form, f"Als aktuelle Liste „{pl.name}“ gespeichert. Sie ist beim nächsten Abgleich vorausgewählt.")

@@ -18,17 +18,25 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 
 ## Jahresabgleich (Hauptablauf)
 
-1. Hersteller anlegen: Kürzel, Standardregel (VK aus EK), „Herstellerliste enthält“ EK oder UVP/RRP,
-   bei UVP den Händlerrabatt (EK = UVP − Rabatt), Prüfschwelle (Standard ±10 % EK-Änderung).
-2. Unsere Liste vom Vorjahr importieren, in Schritt 3 „Unsere Liste“ wählen (EK- und VK-Spalte nötig).
-3. Neue Herstellerliste importieren, in Schritt 3 „Neue Herstellerliste“ wählen, in Schritt 5 „Abgleich starten“.
-4. Ergebnis: nur unsere Artikel. EK neu aus der Herstellerliste, VK neu = Regel auf EK neu.
-   Zu prüfen sind: EK-Änderung ab Schwelle, VK unter EK, Preis 0, fehlender alter EK/VK,
-   unklare Zuordnung, Artikel fehlt beim Hersteller (alter EK/VK bleibt), Fehler (alter EK/VK bleibt).
-   Neue Artikel des Herstellers werden ignoriert.
-5. Positionen bestätigen (optional VK von Hand), unklare Zuordnungen auswählen. Der endgültige Export
-   ist erst möglich, wenn alles geprüft ist; vorher gibt es nur einen als ENTWURF markierten Export.
-   Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
+1. Hersteller anlegen (Seite Hersteller → Name/Kürzel → Bearbeiten):
+   - Kürzel (RT + 12345 = RT12345), Standardregel für den VK (z. B. EK × 2,6)
+   - Ausnahmen für Serien: „Serie/Kategorie ist …“ oder „Artikelnummer beginnt mit …“ → andere Regel (z. B. × 2,7).
+     Passen mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten (Fehler, muss geprüft werden).
+   - Herstellerliste enthält EK oder UVP/RRP (dann EK = UVP − Händlerrabatt)
+   - Währung der Liste und Kurs, z. B. SEK × 0,095 = EUR (EK in € kaufmännisch auf Cent gerundet)
+   - Prüfschwelle (Standard ±10 % EK-Änderung)
+2. Unsere aktuelle Liste importieren, in Schritt 3 „Unsere Liste“ wählen (EK- und VK-Spalte, optional Serie).
+3. Neue Herstellerliste importieren (in der Währung des Herstellers), „Neue Herstellerliste“ wählen,
+   in Schritt 5 „Abgleich starten“: Jahrespreisliste (vollständig) oder Preiserhöhung einzelner Serien (Teilliste).
+4. Ergebnis: nur unsere Artikel. EK alt/neu und VK alt/neu mit Änderung in %, Faktor VK/EK, Rechenweg pro Artikel.
+   Jeder VK wird unabhängig von der Regelengine nachgerechnet (Gegenrechnung); Abweichung = Fehler, alter Preis bleibt.
+   Zu prüfen: EK-Änderung ab Schwelle, VK-Änderung passt nicht zur EK-Änderung, VK unter EK, Preis 0,
+   fehlender alter EK/VK, unklare Zuordnung, Artikel fehlt (nur bei Jahrespreisliste), Fehler.
+   Neue Artikel des Herstellers werden ignoriert. Bei einer Teilliste bleiben nicht enthaltene Artikel unverändert.
+5. Positionen bestätigen (optional VK von Hand), unklare Zuordnungen auswählen. Fehler und unklare Zuordnungen
+   nur einzeln. Endgültiger Export erst, wenn alles geprüft ist; vorher nur ENTWURF.
+6. „Als aktuelle Liste übernehmen“: das Ergebnis wird unsere neue EK/VK-Liste und ist beim nächsten Abgleich
+   vorausgewählt. Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
 
 ## Entwicklung
 

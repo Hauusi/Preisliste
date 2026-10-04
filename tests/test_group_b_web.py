@@ -138,7 +138,8 @@ def test_manufacturer_settings(admin_client, user_client):
     assert r.status_code == 303
     page = admin_client.get("/hersteller").text
     assert "Robert Bosch; BOSCH GmbH" in page
-    mid = re.search(r'name="id" value="(\d+)"', page).group(1)
+    mid = r.headers["location"].split("?")[0].rsplit("/", 1)[1]
+    assert 'name="ignore_leading_zeros" value="1" checked' in admin_client.get(f"/hersteller/{mid}").text
     admin_client.post("/hersteller", data={"csrf_token": admin_client.csrf, "id": mid, "name": "Bosch", "aliases": ""})
-    assert "checked" not in admin_client.get("/hersteller").text.split("Hersteller anlegen")[0]
+    assert 'name="ignore_leading_zeros" value="1" checked' not in admin_client.get(f"/hersteller/{mid}").text
     assert user_client.post("/hersteller", data={"csrf_token": user_client.csrf, "name": "X"}).status_code == 403
