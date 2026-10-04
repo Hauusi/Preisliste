@@ -7,7 +7,7 @@ Installationsort: `/root/apps/preisliste`, Docker-Dateien in `deploy/`.
 
 - nginx (Host) → `127.0.0.1:8010` → Container `app` (FastAPI, SQLite in `deploy/data/`)
 - Container `ollama` im internen Netz ohne Internet, Modelle in `deploy/ollama/`
-- Zusätzlich zur App-Anmeldung: nginx-Passwortabfrage (`/etc/nginx/.htpasswd`)
+- Anmeldung nur über die App (Sperre nach Fehlversuchen, IP-Begrenzung). Die frühere nginx-Passwortabfrage entfernt `sudo bash deploy/remove-basic-auth.sh`.
 
 ## Häufige Aufgaben
 
@@ -21,7 +21,7 @@ Installationsort: `/root/apps/preisliste`, Docker-Dateien in `deploy/`.
 | Passwort zurücksetzen | `docker compose exec app python -m backend.cli reset-password <name>` |
 | Backup sofort | `docker compose exec app python -m backend.cli backup 14` |
 | KI-Status | `docker compose logs app \| grep "KI:"` oder Dashboard |
-| nginx-Passwort ändern | `htpasswd /etc/nginx/.htpasswd <benutzer>` (Paket `apache2-utils`) |
+| Browser-Popup (nginx-Passwort) entfernen | `sudo bash deploy/remove-basic-auth.sh` |
 
 ## Nur Daten löschen (Benutzer und Regeln bleiben)
 

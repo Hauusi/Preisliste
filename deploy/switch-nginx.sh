@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stellt https://salesassistent.duckdns.org auf die neue App um und stoppt die alte App.
 # - sichert nginx-Konfiguration, alten App-Ordner und alte Datenbank
-# - behält Zertifikat (certbot) und Passwortabfrage (/etc/nginx/.htpasswd)
+# - behält Zertifikat (certbot); nginx-Passwortabfrage nur mit KEEP_BASIC_AUTH=1 (App hat eigene Anmeldung)
 # - setzt nginx bei Fehler automatisch zurück
 # Die alte App wird nur gestoppt, nicht gelöscht. Löschen: siehe Ausgabe am Ende.
 # Aufruf: sudo bash deploy/switch-nginx.sh
@@ -29,7 +29,7 @@ if [ -d "$OLD_APP" ]; then
 fi
 
 AUTH=""
-if [ -f /etc/nginx/.htpasswd ]; then
+if [ "${KEEP_BASIC_AUTH:-0}" = "1" ] && [ -f /etc/nginx/.htpasswd ]; then
   AUTH='        auth_basic "Restricted";
         auth_basic_user_file /etc/nginx/.htpasswd;'
 fi
