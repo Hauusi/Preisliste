@@ -221,5 +221,7 @@ def add_rows(db: Session, rows: list[Row], selected: set[int]) -> list[tuple[Row
         db.add(ArticlePrice(article_id=art.id, price_type="EK", amount=row.ek, currency="EUR"))
         db.add(ArticlePrice(article_id=art.id, price_type="LISTE", amount=row.vk, currency="EUR"))
         added.append((row, art))
+        if isinstance(pl.summary, dict) and "articles" in pl.summary:
+            pl.summary = {**pl.summary, "articles": pl.summary["articles"] + 1}
     db.flush()
     return added

@@ -1,33 +1,102 @@
 {% extends "base.html" %}
-{% block title %}Übersicht{% endblock %}
+{% from "_icons.html" import icon %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1>Übersicht</h1>
-<section class="card hero">
+<div class="page-head">
   <div>
-    <h2>Preisliste einspielen und kalkulieren</h2>
-    <ol class="hero-steps">
-      <li>Excel-Datei hochladen</li>
-      <li>Spalten prüfen</li>
-      <li>Hersteller und Währung wählen</li>
-      <li>Kalkulieren (Regel des Herstellers ist vorausgewählt)</li>
-      <li>Ergebnis exportieren oder mit der Vorgängerliste vergleichen</li>
-    </ol>
+    <div class="eyebrow">Dashboard</div>
+    <h1>Hallo {{ user.username }}</h1>
+    <p class="greeting">{% if todo %}{{ todo | length }} {{ "Aufgabe wartet" if todo | length == 1 else "Aufgaben warten" }} auf dich.{% else %}Alles erledigt – nichts offen.{% endif %}</p>
   </div>
-  <a class="button big" href="/import">Neue Preisliste starten →</a>
-</section>
-<p class="hint">Einmalig vorbereiten: <a href="/hersteller">Hersteller</a> mit Kürzel anlegen und <a href="/regeln">Kalkulationsregeln</a> erstellen. Die erste Regel eines Herstellers wird automatisch seine Standardregel.</p>
-<div class="stats">
-  <div class="stat"><span>{{ stats.lists }}</span>importierte Listen</div>
-  <div class="stat"><span>{{ stats.articles }}</span>Artikel</div>
-  <div class="stat"><span>{{ stats.manufacturers }}</span>Hersteller</div>
+  <div class="actions m0">
+    <a class="button secondary" href="/neue-artikel">{{ icon("plus", 18) }} Neue Artikel</a>
+    <a class="button" href="/import">{{ icon("upload", 18) }} Herstellerliste einspielen</a>
+  </div>
 </div>
-<section class="card">
-  <h2>System</h2>
-  <p>KI: {% if ai_status.active %}<span class="badge OK">aktiv</span> {{ ai_status.provider }}, Modell {{ ai_status.model }}{% if ai_status.loaded_mb %}, geladen {{ ai_status.loaded_mb }} MB{% else %}, nicht im Speicher (wird bei Bedarf geladen){% endif %}{% else %}<span class="badge off">inaktiv</span> {{ ai_status.message }}. Die Anwendung funktioniert ohne KI vollständig.{% endif %}</p>
-  <p>Speicher App-Prozess: {{ memory_mb if memory_mb is not none else "unbekannt" }} MB · Keine Verbindungen zu externen Diensten.</p>
-  {% if jobs %}<p>Laufende Jobs: {% for j in jobs %}<a href="/jobs/{{ j.id }}">#{{ j.id }} {{ j.type }} ({{ j.status }})</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
-</section>
-<h2>Letzte Uploads</h2>
-{% include "_list_table.html" %}
 
+<div class="kpis">
+  <a class="kpi" href="/hersteller"><span class="kpi-icon">{{ icon("factory", 18) }}</span>Hersteller<span class="kpi-value">{{ kpis.manufacturers }}</span><div class="kpi-sub">mit Kürzel und Regel</div></a>
+  <a class="kpi" href="/listen"><span class="kpi-icon">{{ icon("box", 18) }}</span>Artikel aktuell<span class="kpi-value">{{ "{:,}".format(kpis.articles).replace(",", ".") }}</span><div class="kpi-sub">unsere finalen EK/VK</div></a>
+  <a class="kpi" href="/aktualisierungen"><span class="kpi-icon {{ 'err' if kpis.open else 'ok' }}">{{ icon("alert" if kpis.open else "check", 18) }}</span>Offene Prüfungen<span class="kpi-value">{{ kpis.open }}</span><div class="kpi-sub">{{ "müssen bestätigt werden" if kpis.open else "alles geprüft" }}</div></a>
+  <a class="kpi" href="/aktualisierungen"><span class="kpi-icon">{{ icon("sync", 18) }}</span>Abgleiche (Jahr)<span class="kpi-value">{{ kpis.updates_year }}</span><div class="kpi-sub">{{ kpis.adopted_year }} übernommen</div></a>
+  <a class="kpi" href="/neue-artikel"><span class="kpi-icon ok">{{ icon("plus", 18) }}</span>Neue Artikel<span class="kpi-value">{{ kpis.new_articles_30d }}</span><div class="kpi-sub">letzte 30 Tage aufgenommen</div></a>
+</div>
+
+<div class="grid grid-2">
+  <section class="card m0">
+    <h2>Zu erledigen</h2>
+    {% if todo %}
+    <ul class="todo">
+      {% for kind, title, sub, href, cta in todo[:8] %}
+      <li><span class="dot {{ kind }}">{{ icon({"err": "alert", "warn": "alert", "info": "arrow", "ok": "check"}[kind], 18) }}</span>
+        <div class="todo-text"><b>{{ title }}</b><span>{{ sub }}</span></div>
+        <a class="button {{ '' if kind == 'err' else 'secondary' }}" href="{{ href }}">{{ cta }}</a></li>
+      {% endfor %}
+    </ul>
+    {% if todo | length > 8 %}<p class="hint">… und {{ todo | length - 8 }} weitere.</p>{% endif %}
+    {% else %}
+    <div class="empty-state"><div class="dot ok">{{ icon("check", 22) }}</div>Nichts offen. Neue Herstellerliste? Einfach einspielen.</div>
+    {% endif %}
+  </section>
+
+  <section class="card m0">
+    {% if not (setup.manufacturer and setup.rule and setup.ours and setup.update) %}
+    <h2>So funktioniert's</h2>
+    <ol class="flow">
+      <li class="{{ 'done' if setup.manufacturer }}"><b>Hersteller anlegen</b><span>Kürzel (z. B. ST), Währung, EK oder UVP.</span> <a href="/hersteller">Hersteller →</a></li>
+      <li class="{{ 'done' if setup.rule }}"><b>Kalkulation festlegen</b><span>Standardregel, z. B. EK × 2,6.</span> <a href="/regeln/neu">Regel →</a></li>
+      <li class="{{ 'done' if setup.ours }}"><b>Unsere EK/VK-Liste</b><span>Einmal importieren als „Unsere Liste“.</span> <a href="/import">Import →</a></li>
+      <li class="{{ 'done' if setup.update }}"><b>Herstellerliste abgleichen</b><span>Neue Preise, prüfen, übernehmen.</span> <a href="/import">Einspielen →</a></li>
+    </ol>
+    {% else %}
+    <h2>Letzte Aktivitäten</h2>
+    {% if activity %}
+    <ul class="activity">
+      {% for a in activity %}<li><time>{{ a.timestamp | dt }}</time><span><b>{{ labels.get(a.action, a.action) }}</b>{% if a.username %} · {{ a.username }}{% endif %}</span></li>{% endfor %}
+    </ul>
+    {% else %}<div class="empty-state">Noch keine Aktivitäten.</div>{% endif %}
+    {% endif %}
+  </section>
+</div>
+
+<div class="page-head mt-lg">
+  <div><h2 class="m0">Hersteller</h2><p>Aktuelle EK/VK-Liste, letzter Abgleich und Kalkulation auf einen Blick.</p></div>
+  {% if user.role == "admin" %}<a class="button ghost" href="/hersteller">Alle verwalten {{ icon("arrow", 16) }}</a>{% endif %}
+</div>
+{% if cards %}
+<div class="grid grid-3">
+  {% for c in cards %}{% set m = c.m %}{% set u = c.upd %}{% set s = u.summary if u and u.summary else {} %}
+  <section class="card mfr-card">
+    <div class="mfr-head">
+      <span class="mfr-code">{{ m.code or "–" }}</span>
+      <div><h3><a href="/hersteller/{{ m.id }}">{{ m.name }}</a></h3>
+        <p class="hint">{{ c.rule.name if c.rule else "keine Standardregel" }}{% if c.exceptions %} · {{ c.exceptions }} eigene Kalk.{% endif %}{% if m.list_currency and m.list_currency != "EUR" %} · {{ m.list_currency }} × {{ m.exchange_rate | num }}{% endif %}</p></div>
+    </div>
+    <dl class="mfr-facts">
+      <div><dt>Aktuelle Liste</dt><dd>{% if c.current %}<a href="/listen/{{ c.current.id }}" title="{{ c.current.name }}">{{ "{:,}".format(c.articles).replace(",", ".") }} Artikel</a>{% else %}<span class="WARNUNG">fehlt</span>{% endif %}</dd></div>
+      <div><dt>Stand</dt><dd>{{ (c.current.imported_at or c.current.uploaded_at) | dt if c.current else "–" }}</dd></div>
+      <div><dt>Ø EK-Änderung</dt><dd class="{{ 'up' if c.ek_avg and c.ek_avg > 0 else 'down' if c.ek_avg and c.ek_avg < 0 else '' }}">{{ ("+" if c.ek_avg > 0 else "") ~ (c.ek_avg | num) ~ " %" if c.ek_avg is not none else "–" }}</dd></div>
+      <div><dt>Ø VK-Änderung</dt><dd>{{ ("+" if c.vk_avg > 0 else "") ~ (c.vk_avg | num) ~ " %" if c.vk_avg is not none else "–" }}</dd></div>
+      <div><dt>Letzter Abgleich</dt><dd>{% if u %}<a href="/aktualisierungen/{{ u.id }}">{{ u.created_at | dt }}</a>{% else %}–{% endif %}</dd></div>
+      <div><dt>Status</dt><dd>{% if not u %}–{% elif s.offen %}<span class="badge FEHLER">{{ s.offen }} offen</span>{% elif u.adopted_list_id %}<span class="badge OK">übernommen</span>{% else %}<span class="badge PRUEFEN">geprüft</span>{% endif %}</dd></div>
+    </dl>
+    <div class="mfr-actions">
+      {% if c.pending_source %}<a class="button" href="/listen/{{ c.pending_source.id }}/kalkulation">{{ icon("sync", 16) }} Abgleich starten</a>
+      {% elif u and s.offen %}<a class="button" href="/aktualisierungen/{{ u.id }}?status=offen">Prüfen</a>
+      {% else %}<a class="button secondary" href="/import">{{ icon("upload", 16) }} Neue Liste</a>{% endif %}
+      {% if user.role == "admin" %}<a class="button ghost" href="/hersteller/{{ m.id }}">Einstellungen</a>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<section class="card"><div class="empty-state"><div class="dot info">{{ icon("factory", 22) }}</div>Noch keine Hersteller. <a href="/hersteller">Ersten Hersteller anlegen →</a></div></section>
+{% endif %}
+
+<details class="card">
+  <summary>System</summary>
+  <p>KI: {% if ai_status.active %}<span class="badge OK">aktiv</span> {{ ai_status.provider }}, Modell {{ ai_status.model }}{% if ai_status.loaded_mb %}, geladen {{ ai_status.loaded_mb }} MB{% else %}, nicht im Speicher (wird bei Bedarf geladen){% endif %}{% else %}<span class="badge off">inaktiv</span> {{ ai_status.message }}. Die Anwendung funktioniert ohne KI vollständig.{% endif %}</p>
+  <p class="hint">Speicher App-Prozess: {{ memory_mb if memory_mb is not none else "unbekannt" }} MB · Keine Verbindungen zu externen Diensten.</p>
+  {% if jobs %}<p>Laufende Jobs: {% for j in jobs %}<a href="/jobs/{{ j.id }}">#{{ j.id }} {{ j.type }} ({{ j.status }})</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+</details>
 {% endblock %}

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Neue Artikel{% endblock %}
 {% block content %}
-<h1>Neue Artikel aufnehmen</h1>
-<p class="hint">Für Artikel, die unterm Jahr dazukommen. Der Hersteller wird am Kürzel erkannt (z. B. ST12345 → Strand). EK kommt aus der neuesten Herstellerliste (mit Händlerrabatt und Währung), der VK aus der Standardregel bzw. der eigenen Kalkulation des Artikels. Aufgenommen wird erst nach Bestätigung in die aktuelle EK/VK-Liste des Herstellers.</p>
+<div class="page-head"><div><h1>Neue Artikel aufnehmen</h1>
+<p>Für Artikel, die unterm Jahr dazukommen. Der Hersteller wird am Kürzel erkannt (z. B. ST12345 → Strand). EK kommt aus der neuesten Herstellerliste (mit Händlerrabatt und Währung), der VK aus der Standardregel bzw. der eigenen Kalkulation des Artikels. Aufgenommen wird erst nach Bestätigung in die aktuelle EK/VK-Liste des Herstellers.</p></div></div>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 {% if added is not none %}
   <p class="msg OK">{{ added | length }} Artikel aufgenommen.</p>

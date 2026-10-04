@@ -43,16 +43,11 @@ def query_articles(db: Session, list_id: int, status: str | None, q: str | None,
 
 
 @router.get("/")
-def dashboard(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    lists = db.scalars(select(PriceList).order_by(PriceList.uploaded_at.desc()).limit(10)).all()
-    stats = {
-        "lists": db.scalar(select(func.count(PriceList.id)).where(PriceList.status == "IMPORTIERT")),
-        "articles": db.scalar(select(func.count(Article.id))),
-        "manufacturers": db.scalar(select(func.count(Manufacturer.id))),
-    }
+def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    from backend.services.dashboard import build
+
     jobs = db.scalars(select(Job).where(Job.status.in_(("WARTEND", "LAEUFT"))).order_by(Job.id)).all()
-    return render(request, "dashboard.html", {"lists": lists, "stats": stats, "jobs": jobs,
-                                              "memory_mb": process_memory_mb()})
+    return render(request, "dashboard.html", {**build(db), "jobs": jobs, "memory_mb": process_memory_mb()})
 
 
 def process_memory_mb() -> int | None:

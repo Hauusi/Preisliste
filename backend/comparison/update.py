@@ -404,7 +404,8 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
                    stored_file=base.stored_file, file_sha256=base.file_sha256, manufacturer_id=base.manufacturer_id,
                    currency=base.currency, status="IMPORTIERT", kind="UNSERE", uploaded_by=user_id,
                    imported_at=utcnow(),
-                   summary={"aus_abgleich": upd.id, "basis_liste": base.id, "herstellerliste": upd.source_price_list_id})
+                   summary={"aus_abgleich": upd.id, "basis_liste": base.id, "herstellerliste": upd.source_price_list_id,
+                            "articles": 0, "messages": {}})
     db.add(pl)
     db.flush()
     items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
@@ -421,6 +422,7 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
         for ptype, amount in (("EK", item.final_ek), ("LISTE", item.final_vk)):
             if amount is not None:
                 db.add(ArticlePrice(article_id=art.id, price_type=ptype, amount=amount, currency=cur))
+    pl.summary = {**pl.summary, "articles": len(items)}
     upd.adopted_list_id = pl.id
     db.flush()
     return pl

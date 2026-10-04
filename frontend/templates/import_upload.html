@@ -1,15 +1,20 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Import{% endblock %}
 {% block content %}
 {% include "_steps.html" %}
-<section class="card">
-  <h1>Schritt 1: Preisliste hochladen</h1>
-  {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-  <form method="post" action="/import" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Excel-Datei (.xlsx) <input type="file" name="file" accept=".xlsx" required></label>
-    <button type="submit">Hochladen und weiter →</button>
-  </form>
-  <p class="hint">Nur .xlsx. Dateien mit Makros (.xlsm) und das alte Format (.xls) werden abgelehnt. Formeln werden nicht ausgeführt, es zählt der in Excel gespeicherte Wert.</p>
-</section>
+<div class="page-head"><div><h1>Preisliste einspielen</h1><p>Unsere EK/VK-Liste oder eine neue Liste vom Hersteller – die Art wählst du in Schritt 3.</p></div></div>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" action="/import" enctype="multipart/form-data" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="dropzone">
+    <span class="dropzone-icon">{{ icon("upload", 28) }}</span>
+    <b data-file-label>Excel-Datei hierher ziehen oder klicken</b>
+    <span class="hint">Nur .xlsx · Makros (.xlsm) und altes Format (.xls) werden abgelehnt</span>
+    <input type="file" name="file" accept=".xlsx" required data-file-input>
+  </label>
+  <div class="actions"><button type="submit" class="button big">Hochladen und weiter {{ icon("arrow", 18) }}</button></div>
+  <p class="hint m0">Formeln werden nicht ausgeführt, es zählt der in Excel gespeicherte Wert.</p>
+</form>
+<script src="/static/app.js"></script>
 {% endblock %}

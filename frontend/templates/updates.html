@@ -1,26 +1,41 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Jahresabgleich{% endblock %}
 {% block content %}
-<h1>Jahresabgleich</h1>
-<p class="hint">Unsere aktuelle EK/VK-Liste bestimmt die Artikel, die neue Herstellerliste liefert den neuen EK (direkt oder UVP − Händlerrabatt), der VK wird mit der Regel aus dem neuen EK berechnet. Bequemer geht es im Ablauf „+ Neue Liste“: Herstellerliste importieren, in Schritt 5 „Abgleich starten“.</p>
+<div class="page-head">
+  <div><h1>Jahresabgleich</h1>
+    <p>Unsere aktuelle EK/VK-Liste + neue Herstellerliste → neue EK/VK-Liste. Am einfachsten: Herstellerliste einspielen, dann „Abgleich starten“.</p></div>
+  <a class="button" href="/import">{{ icon("upload", 16) }} Herstellerliste einspielen</a>
+</div>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<form method="post" action="/aktualisierungen" class="card row">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>Unsere aktuelle Liste (EK/VK) <select name="base_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "HERSTELLER" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
-  <label>Neue Herstellerliste <select name="source_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "UNSERE" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
-  <label>Regel für den VK <select name="rule_id" required><option value="">– wählen –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
-  <label>Umfang <select name="scope"><option value="VOLL">Jahrespreisliste (vollständig)</option><option value="TEIL">Preiserhöhung einzelner Serien (Teilliste)</option></select></label>
-  <button type="submit">Abgleich starten</button>
-  <span class="hint">EK/UVP, Händlerrabatt, Währung/Kurs, Serien-Ausnahmen und Prüfschwelle kommen aus den Hersteller-Einstellungen.</span>
-</form>
+
+<details class="card" {% if error %}open{% endif %}>
+  <summary>Abgleich manuell starten</summary>
+  <form method="post" action="/aktualisierungen" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Unsere aktuelle Liste <select name="base_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "HERSTELLER" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
+    <label>Neue Herstellerliste <select name="source_id" required><option value="">– wählen –</option>{% for l in lists if l.kind != "UNSERE" %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></label>
+    <label>Regel für den VK <select name="rule_id" required><option value="">– wählen –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+    <label>Umfang <select name="scope"><option value="VOLL">Jahrespreisliste (vollständig)</option><option value="TEIL">Preiserhöhung einzelner Serien (Teilliste)</option></select></label>
+    <button type="submit">Abgleich starten</button>
+  </form>
+  <p class="hint">EK/UVP, Händlerrabatt, Währung/Kurs, eigene Kalkulationen und Prüfschwelle kommen aus den Hersteller-Einstellungen.</p>
+</details>
+
+<div class="scroll">
 <table>
-  <thead><tr><th>Datum</th><th>Unsere Liste</th><th>Herstellerliste</th><th>Artikel</th><th>in Ordnung</th><th>prüfen</th><th>fehlt beim Hersteller</th><th>unklar</th><th>Fehler</th><th>noch offen</th></tr></thead>
+  <thead><tr><th>Datum</th><th>Unsere Liste</th><th>Herstellerliste</th><th class="num">Artikel</th><th>Ergebnis</th><th>Status</th></tr></thead>
   <tbody>
   {% for u in updates %}{% set s = u.summary or {} %}
-    <tr><td><a href="/aktualisierungen/{{ u.id }}">{{ u.created_at | dt }}</a></td><td>{{ u.base_list.name }}</td><td>{{ u.source_list.name }}</td>
-      <td class="num">{{ s.artikel }}</td><td class="num">{{ s.OK }}</td><td class="num">{{ s.PRUEFEN }}</td><td class="num">{{ s.NICHT_IN_HERSTELLERLISTE }}</td><td class="num">{{ s.NICHT_EINDEUTIG }}</td><td class="num">{{ s.FEHLER }}</td>
-      <td class="num">{% if s.offen %}<b class="FEHLER">{{ s.offen }}</b>{% else %}<span class="OK">0</span>{% endif %}</td></tr>
-  {% else %}<tr><td colspan="10">Noch keine.</td></tr>{% endfor %}
+    <tr>
+      <td><a href="/aktualisierungen/{{ u.id }}"><b>{{ u.created_at | dt }}</b></a></td>
+      <td>{{ u.base_list.name }}</td><td>{{ u.source_list.name }}{% if u.scope == "TEIL" %} <span class="badge">Teilliste</span>{% endif %}</td>
+      <td class="num">{{ s.artikel }}</td>
+      <td class="small">{{ s.OK or 0 }} in Ordnung · {{ s.PRUEFEN or 0 }} prüfen{% if s.NICHT_IN_HERSTELLERLISTE %} · {{ s.NICHT_IN_HERSTELLERLISTE }} fehlen{% endif %}{% if s.NICHT_EINDEUTIG %} · {{ s.NICHT_EINDEUTIG }} unklar{% endif %}{% if s.FEHLER %} · <span class="FEHLER">{{ s.FEHLER }} Fehler</span>{% endif %}</td>
+      <td>{% if s.offen %}<a class="badge FEHLER" href="/aktualisierungen/{{ u.id }}?status=offen">{{ s.offen }} offen</a>{% elif u.adopted_list_id %}<span class="badge OK">übernommen</span>{% else %}<span class="badge PRUEFEN">geprüft</span>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="6"><div class="empty-state">Noch kein Abgleich. Herstellerliste einspielen und in Schritt 5 „Abgleich starten“.</div></td></tr>{% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

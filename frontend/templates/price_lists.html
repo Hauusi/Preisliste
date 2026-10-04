@@ -1,6 +1,10 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Preislisten{% endblock %}
 {% block content %}
-<h1>Preislisten</h1>
+<div class="page-head">
+  <div><h1>Preislisten</h1><p>Unsere EK/VK-Listen und die Listen der Hersteller. Die neueste „Unsere Liste“ je Hersteller ist die aktuelle.</p></div>
+  <a class="button" href="/import">{{ icon("upload", 16) }} Liste einspielen</a>
+</div>
 {% include "_list_table.html" %}
 {% endblock %}
