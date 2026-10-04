@@ -232,3 +232,84 @@ def ai_match(ctx: JobContext, p: dict) -> dict:
         with session_scope() as db:
             run_comparison(db, db.get(Comparison, cmp_id))
     return {"comparison_id": cmp_id, "anfragen": total, **counts}
+
+
+# ---------- KI: Jahresabgleich (fehlende / unklare Artikel) ----------
+
+def update_targets(db, upd_id: int) -> list[tuple[int, list[int]]]:
+    """(Position, Kandidaten aus der Herstellerliste) für fehlende und unklare, noch ungeprüfte Artikel."""
+    from backend.models.entities import MatchDecision, PriceUpdate, PriceUpdateItem
+
+    upd = db.get(PriceUpdate, upd_id)
+    items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd_id)).all()
+    used = {i.source_article_id for i in items if i.source_article_id}
+    no_match = {(d.manufacturer_id, d.old_number_normalized, d.new_number_normalized)
+                for d in db.scalars(select(MatchDecision).where(MatchDecision.decision == "NO_MATCH"))}
+    pool_by_mfr: dict = {}
+    for a in db.scalars(select(Article).where(Article.price_list_id == upd.source_price_list_id)):
+        if a.id not in used and a.article_number:
+            pool_by_mfr.setdefault(a.manufacturer_id, []).append(
+                Item(a.id, a.manufacturer_id, a.article_number, a.article_number_normalized, a.description))
+    targets = []
+    for i in items:
+        if i.reviewed_at or i.status not in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG"):
+            continue
+        if i.status == "NICHT_EINDEUTIG" and i.candidates:
+            targets.append((i.id, [c["new_id"] for c in i.candidates][:AI_CANDIDATES]))
+            continue
+        base = db.get(Article, i.base_article_id)
+        if not base or not base.article_number:
+            continue
+        pool = [p for p in pool_by_mfr.get(base.manufacturer_id, [])
+                if (base.manufacturer_id, base.article_number_normalized, p.normalized) not in no_match]
+        me = Item(base.id, base.manufacturer_id, base.article_number, base.article_number_normalized, base.description)
+        cands = fuzzy_candidates(me, pool, AI_NEW_THRESHOLD, combine="max")[:AI_CANDIDATES]
+        # fuzzy_candidates liefert die ID aus dem Pool im Feld old_id; ohne Kandidaten wird die KI nicht gefragt
+        targets.append((i.id, [c.old_id for c in cands]))
+    return targets
+
+
+@handler("AI_UPDATE_MATCH")
+def ai_update_match(ctx: JobContext, p: dict) -> dict:
+    from backend.models.entities import PriceUpdateItem
+
+    upd_id = p["update_id"]
+    provider = get_provider(ctx.settings)
+    status = provider.status()
+    if not status.active:
+        raise AIUnavailable(status.message)
+    with session_scope() as db:
+        targets = update_targets(db, upd_id)
+    total = len(targets)
+    counts = {"OK": 0, "UNKLAR": 0, "treffer": 0}
+    ctx.progress(0, total, f"{total} Artikel prüfen")
+    for done, (item_id, cand_ids) in enumerate(targets, start=1):
+        ctx.check_cancel()
+        if not cand_ids:
+            with session_scope() as db:
+                db.get(PriceUpdateItem, item_id).ai_hint = {
+                    "status": "KEIN_TREFFER", "reason": "Kein ähnlicher Artikel in der Herstellerliste gefunden.",
+                    "model": None}
+            ctx.progress(done, total, f"{done} von {total}")
+            continue
+        with session_scope() as db:
+            item = db.get(PriceUpdateItem, item_id)
+            base = db.get(Article, item.base_article_id)
+            cands = {db.get(Article, c).article_number: db.get(Article, c) for c in cand_ids}
+            payload = [_article_dict(a) for a in cands.values()]
+            ours = _article_dict(base)
+        try:
+            j = provider.judge_renamed(ours, payload)
+            hit = cands.get(j.old_article) if j.match else None
+            hint = {"status": "TREFFER" if hit else "KEIN_TREFFER", "new_id": hit.id if hit else None,
+                    "number": hit.article_number if hit else None, "description": hit.description if hit else None,
+                    "confidence": str(round(j.confidence * 100)), "reason": j.reason[:300], "model": status.model}
+            counts["OK"] += 1
+            counts["treffer"] += int(bool(hit))
+        except AIInvalidResponse as exc:
+            hint = {"status": "UNKLAR", "reason": str(exc)[:300], "model": status.model}
+            counts["UNKLAR"] += 1
+        with session_scope() as db:
+            db.get(PriceUpdateItem, item_id).ai_hint = hint
+        ctx.progress(done, total, f"{done} von {total}")
+    return {"update_id": upd_id, "anfragen": total, **counts}

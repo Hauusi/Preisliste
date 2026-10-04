@@ -347,15 +347,7 @@ def choose_candidate(db: Session, upd: PriceUpdate, item: PriceUpdateItem, new_i
         raise ValueError("Dieser Herstellerartikel ist bereits einem anderen Artikel zugeordnet")
     base = db.get(Article, item.base_article_id)
     for cid in ids:
-        cand = db.get(Article, cid)
-        key = dict(manufacturer_id=base.manufacturer_id, old_number_normalized=base.article_number_normalized,
-                   new_number_normalized=cand.article_number_normalized)
-        decision = "MATCH" if cid == new_id else "NO_MATCH"
-        existing = db.scalar(select(MatchDecision).filter_by(**key))
-        if existing:
-            existing.decision, existing.decided_by, existing.decided_at = decision, user_id, utcnow()
-        else:
-            db.add(MatchDecision(**key, decision=decision, decided_by=user_id))
+        _decide(db, base, db.get(Article, cid), "MATCH" if cid == new_id else "NO_MATCH", user_id)
     ctx = _Ctx(db, upd)
     source = db.get(Article, new_id) if new_id else None
     row = compute_item(ctx, base, source, "BESTAETIGT" if source else None)
@@ -365,6 +357,44 @@ def choose_candidate(db: Session, upd: PriceUpdate, item: PriceUpdateItem, new_i
     if item.needs_review and source is None:
         # 'kein Treffer' ist selbst die Prüfentscheidung: alter EK/VK bleibt
         item.reviewed_by, item.reviewed_at = user_id, utcnow()
+
+
+def _decide(db: Session, base: Article, cand: Article, decision: str, user_id: int) -> None:
+    """Zuordnungsentscheidung speichern; gilt auch in künftigen Abgleichen und Vergleichen."""
+    key = dict(manufacturer_id=base.manufacturer_id, old_number_normalized=base.article_number_normalized,
+               new_number_normalized=cand.article_number_normalized)
+    existing = db.scalar(select(MatchDecision).filter_by(**key))
+    if existing:
+        existing.decision, existing.decided_by, existing.decided_at = decision, user_id, utcnow()
+    else:
+        db.add(MatchDecision(**key, decision=decision, decided_by=user_id))
+
+
+def decide_ai_hint(db: Session, upd: PriceUpdate, item: PriceUpdateItem, accept_it: bool, user_id: int) -> None:
+    """KI-Einschätzung übernehmen (Artikel neu berechnen) oder ablehnen. Nie automatisch."""
+    hint = item.ai_hint or {}
+    if item.reviewed_at or item.status not in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG"):
+        raise ValueError("Für diese Position gibt es keine offene KI-Einschätzung")
+    if hint.get("status") != "TREFFER" or not hint.get("new_id"):
+        raise ValueError("Die KI hat hier keinen Treffer vorgeschlagen")
+    base = db.get(Article, item.base_article_id)
+    cand = db.get(Article, hint["new_id"])
+    if cand is None or cand.price_list_id != upd.source_price_list_id:
+        raise ValueError("Vorgeschlagener Artikel gehört nicht zur Herstellerliste")
+    if not accept_it:
+        _decide(db, base, cand, "NO_MATCH", user_id)
+        item.ai_hint = {**hint, "status": "ABGELEHNT"}
+        return
+    if db.scalar(select(PriceUpdateItem.id).where(PriceUpdateItem.update_id == upd.id,
+                                                  PriceUpdateItem.source_article_id == cand.id,
+                                                  PriceUpdateItem.id != item.id)):
+        raise ValueError("Dieser Herstellerartikel ist bereits einem anderen Artikel zugeordnet")
+    _decide(db, base, cand, "MATCH", user_id)
+    row = compute_item(_Ctx(db, upd), base, cand, "BESTAETIGT")
+    for k, v in row.items():
+        setattr(item, k, v)
+    item.ai_hint = {**hint, "status": "UEBERNOMMEN"}
+    item.reviewed_by = item.reviewed_at = None
 
 
 def bulk_accept(db: Session, upd: PriceUpdate, user_id: int, status: str | None, reason: str | None) -> int:

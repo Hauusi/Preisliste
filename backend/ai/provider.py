@@ -126,6 +126,27 @@ class AIProvider:
 
         return self.ask(prompt, MatchJudgement, check)
 
+    def judge_renamed(self, ours: dict, candidates: list[dict]) -> MatchJudgement:
+        """Unser Artikel fehlt in der neuen Herstellerliste: ist einer der Kandidaten derselbe Artikel?"""
+        prompt = (
+            "Unser Artikel fehlt in der neuen Preisliste des Herstellers. Prüfe, ob einer der Kandidaten aus der "
+            "Herstellerliste derselbe Artikel ist (z. B. leicht geänderte Artikelnummer, gleiches Produkt). "
+            "Sei streng: nur bei klarer Übereinstimmung match true. Wenn keiner passt: match false, "
+            "old_article null. new_article = unsere Artikelnummer, old_article = Artikelnummer des Kandidaten. "
+            "reason: kurze deutsche Begründung (ein Satz).\n"
+            "Unser Artikel: " + json.dumps(ours, ensure_ascii=False)
+            + "\nKandidaten aus der Herstellerliste: " + json.dumps(candidates, ensure_ascii=False)
+        )
+        numbers = {c["artikelnummer"] for c in candidates}
+
+        def check(m: MatchJudgement):
+            if m.new_article != ours["artikelnummer"]:
+                raise ValueError("new_article passt nicht zur Anfrage")
+            if m.match and m.old_article not in numbers:
+                raise ValueError("old_article ist kein Kandidat")
+
+        return self.ask(prompt, MatchJudgement, check)
+
     def suggest_rule(self, text: str) -> RuleSuggestion:
         prompt = (
             "Übersetze die Beschreibung einer Preiskalkulation in Schritte. Erlaubte Schritt-Objekte:\n"

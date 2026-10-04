@@ -439,3 +439,6 @@ class PriceUpdateItem(Base):
     rule_label: Mapped[str | None] = mapped_column(String(250))
     factor: Mapped[object | None] = mapped_column(DecimalText)  # VK neu / EK neu
     check_ok: Mapped[bool | None] = mapped_column(Boolean)  # unabhängige Gegenrechnung
+    # KI-Einschätzung bei fehlenden/unklaren Artikeln, nur Vorschlag:
+    # {status: TREFFER|KEIN_TREFFER|UNKLAR|ABGELEHNT, new_id, number, description, confidence, reason, model}
+    ai_hint: Mapped[dict | None] = mapped_column(JSON)

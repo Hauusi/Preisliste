@@ -16,7 +16,7 @@ from backend.api.render import render
 from backend.api.routes_lists import page_info
 from backend.comparison.update import (
     REASON_LABELS, SCOPES, STATUS_LABELS, STATUSES, accept, adopt_as_current, bulk_accept, choose_candidate,
-    manufacturer_settings, refresh_summary, rule_for_factor, run_update, set_article_rule, snapshot_exceptions,
+    decide_ai_hint, manufacturer_settings, refresh_summary, rule_for_factor, run_update, set_article_rule, snapshot_exceptions,
 )
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
@@ -175,6 +175,9 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
         "grund": grund if grund in REASON_LABELS else "", "q": q or "", "meldung": meldung,
         "statuses": STATUSES, "labels": STATUS_LABELS, "reasons": REASON_LABELS, "codes": code_map(db),
         "step": 6, "reviewers": reviewers,
+        "ai_targets": db.scalar(select(func.count(PriceUpdateItem.id)).where(
+            PriceUpdateItem.update_id == upd_id, PriceUpdateItem.reviewed_at.is_(None),
+            PriceUpdateItem.status.in_(("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG")))),
         "all_rules": db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all(),
         "rule": db.get(Rule, upd.rule_version.rule_id) if upd.rule_version else None,
     })
@@ -217,6 +220,8 @@ async def review_item(request: Request, upd_id: int, item_id: int, db: Session =
             if raw != "kein" and not raw.isdigit():
                 raise ValueError("Kandidat wählen")
             choose_candidate(db, upd, item, None if raw == "kein" else int(raw), user.id)
+        elif action in ("ki_uebernehmen", "ki_ablehnen"):
+            decide_ai_hint(db, upd, item, action == "ki_uebernehmen", user.id)
         elif action == "zuruecknehmen":
             item.reviewed_by = item.reviewed_at = None
             if item.decision == "MANUELL":
@@ -332,3 +337,19 @@ async def article_exceptions(request: Request, upd_id: int, db: Session = Depend
     what = f"Regel „{rule.name}“" if rule else "Standardregel"
     return _back(upd_id, form, f"{len(changed)} Artikel: ab jetzt {what} (gilt auch in künftigen Abgleichen). "
                                "Neu berechnete Positionen bitte prüfen.")
+
+
+@router.post("/aktualisierungen/{upd_id}/ki", dependencies=[Depends(check_csrf)])
+def ai_check(request: Request, upd_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Fehlende/unklare Artikel von der KI einschätzen lassen (Hintergrundjob, nur Vorschläge)."""
+    from backend.jobs.runner import enqueue
+    from backend.models.entities import Job
+
+    upd = _get(db, upd_id)
+    running = db.scalars(select(Job).where(Job.type == "AI_UPDATE_MATCH", Job.status.in_(("WARTEND", "LAEUFT")))).all()
+    for job in running:
+        if (job.params or {}).get("update_id") == upd.id:
+            return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+    job = enqueue(db, "AI_UPDATE_MATCH", {"update_id": upd.id}, user)
+    audit(db, user, "ki_pruefung_abgleich", "price_update", upd.id, {"job": job.id}, client_ip(request))
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)

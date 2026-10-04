@@ -48,6 +48,20 @@
   <p class="hint m0">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und werden ignoriert.</p>
 </section>
 
+{% if ai_targets %}
+<section class="card ai-card">
+  <span class="dot info">{{ icon("sparkle", 18) }}</span>
+  <div><b>{{ ai_targets }} Artikel fehlen beim Hersteller oder sind unklar</b>
+    <span class="hint">Die KI sucht nach leicht geänderten Artikelnummern und sagt dir, was sie denkt. Übernommen wird nur, was du bestätigst.</span></div>
+  {% if ai_status and ai_status.active %}
+  <form method="post" action="/aktualisierungen/{{ upd.id }}/ki">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="secondary">{{ icon("sparkle", 16) }} KI prüfen lassen</button>
+  </form>
+  {% else %}<span class="badge off" title="{{ ai_status.message if ai_status else '' }}">KI inaktiv</span>{% endif %}
+</section>
+{% endif %}
+
 <nav class="tabs" aria-label="Filter">
   <a href="?" class="{{ 'active' if not status }}">Alle <b>{{ s.artikel }}</b></a>
   <a href="?status=offen" class="{{ 'active' if status == 'offen' }}">Noch zu prüfen <b>{{ s.offen }}</b></a>
@@ -107,6 +121,25 @@
         {% if i.reasons %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
         {% if i.note %}<div class="small">{{ i.note }}</div>{% endif %}
         {% if i.decision == "ALT" %}<div class="small"><b>Alter EK/VK bleibt</b></div>{% endif %}
+        {% set h = i.ai_hint %}
+        {% if h and h.status in ("TREFFER", "KEIN_TREFFER", "UNKLAR") and not i.reviewed_at and i.status in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG") %}
+        <div class="ai-hint {{ h.status }}">
+          {{ icon("sparkle", 14) }}
+          {% if h.status == "TREFFER" %}
+            <span><b>KI meint:</b> entspricht <b>{{ h.number | artnr(codes.get(i.manufacturer_id)) }}</b>{% if h.description %} „{{ h.description }}“{% endif %} ({{ h.confidence }} %)<br><span class="small">{{ h.reason }}</span></span>
+            <form method="post" action="/aktualisierungen/{{ upd.id }}/positionen/{{ i.id }}" class="ai-actions">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+              <button type="submit" name="action" value="ki_uebernehmen">Übernehmen</button>
+              <button type="submit" name="action" value="ki_ablehnen" class="secondary">Passt nicht</button>
+            </form>
+          {% elif h.status == "KEIN_TREFFER" %}
+            <span><b>KI meint:</b> kein passender Artikel in der Herstellerliste.<br><span class="small">{{ h.reason }}</span></span>
+          {% else %}
+            <span><b>KI:</b> keine verwertbare Antwort – bitte selbst prüfen.</span>
+          {% endif %}
+        </div>
+        {% elif h and h.status == "UEBERNOMMEN" %}<div class="small">{{ icon("sparkle", 12) }} Zuordnung nach KI-Vorschlag übernommen</div>{% endif %}
         {% if i.ek_text or i.trace %}<details class="calc"><summary>Rechenweg</summary>
           {% if i.ek_text %}<div>EK: {{ i.ek_text }}</div>{% endif %}
           {% if i.rule_label %}<div>VK: {{ i.rule_label }}</div>{% endif %}

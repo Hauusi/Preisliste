@@ -43,6 +43,8 @@ def result_link(job: Job) -> tuple[str, str] | None:
         return f"/regeln/neu?ki_job={job.id}", "Vorschlag im Regel-Editor öffnen"
     if job.type == "AI_MATCH":
         return f"/vergleiche/{p.get('comparison_id')}?status=NICHT_EINDEUTIG", "Unklare Fälle prüfen"
+    if job.type == "AI_UPDATE_MATCH":
+        return f"/aktualisierungen/{p.get('update_id')}?status=offen", "KI-Einschätzungen ansehen"
     return None
 
 

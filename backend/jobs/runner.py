@@ -24,6 +24,7 @@ JOB_LABELS = {
     "IMPORT": "Import",
     "AI_COLUMNS": "KI-Spaltenvorschlag",
     "AI_MATCH": "KI-Zuordnung",
+    "AI_UPDATE_MATCH": "KI-Prüfung Jahresabgleich",
     "AI_RULE": "KI-Regelvorschlag",
 }
 
