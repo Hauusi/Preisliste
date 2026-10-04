@@ -207,14 +207,15 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
              else "EK direkt")
     if upd.list_currency and upd.list_currency != "EUR":
         basis += f", Währung {upd.list_currency} × Kurs {upd.exchange_rate} = EUR (auf Cent gerundet)"
-    exceptions = "; ".join(f"{'Serie' if ex['typ'] == 'SERIE' else 'Nr. beginnt mit'} {ex['wert']}: {ex['regel']}"
+    from backend.comparison.update import EXCEPTION_LABELS
+    exceptions = "; ".join(f"{EXCEPTION_LABELS.get(ex['typ'], ex['typ'])} {ex['wert']}: {ex['regel']}"
                            for ex in upd.exceptions or []) or "keine"
     for label, value in [
         ("Unsere Liste (EK/VK bisher)", f"{upd.base_list.name} ({upd.base_list.source_file})"),
         ("Herstellerliste (neu)", f"{upd.source_list.name} ({upd.source_list.source_file})"),
         ("Umfang", "Teilliste (nur einzelne Serien)" if upd.scope == "TEIL" else "Jahrespreisliste"),
         ("Herstellerliste liefert", basis), ("VK-Standardregel (aus neuem EK)", rule_label or "keine"),
-        ("Ausnahmen", exceptions),
+        ("Eigene Kalkulation (Ausnahmen)", exceptions),
         ("Gegenrechnung", "jeder VK unabhängig nachgerechnet; Abweichungen sind als Fehler markiert"),
         ("Prüfschwelle EK-Änderung %", upd.review_threshold), ("Artikel", s.get("artikel", 0)),
     ] + [(UL[k], s.get(k, 0)) for k in UL] + [

@@ -77,55 +77,50 @@ def test_manufacturer_currency_needs_rate(admin_client):
     assert r.status_code == 400 and "Umrechnungskurs fehlt" in r.text
 
 
-def test_series_exceptions(admin_client, tmp_path, app):
+def test_exceptions_on_manufacturer_page(admin_client, tmp_path, app):
     c = admin_client
     mid, rule_id = _setup(c, factor="2,6")
-    r27 = _rule(c, "RaphiLED Serie Nova", "2,7", mid)
+    r27 = _rule(c, "RaphiLED 2,7", "2,7", mid)
     r28 = _rule(c, "RaphiLED LED5", "2,8", mid)
-    ours = _import(c, app, tmp_path, "ours", [
-        ["Artikelnummer", "Bezeichnung", "EK", "VK", "Serie"],
-        ["LED1", "Standard", "10,00", "26,00", ""],
-        ["NV1", "Nova Leuchte", "10,00", "27,00", "Nova"],
-        ["LED51", "LED5-Modul", "10,00", "28,00", ""],
-        ["LED52", "LED5 Nova", "10,00", "28,00", "nova"],
-    ], mid, "UNSERE", ("supplier_price", "list_price", "category"))
+    ours = _ours(c, app, tmp_path, mid, [["LED1", "Standard", "10,00", "26,00"], ["NV1", "Nova", "10,00", "27,00"],
+                                         ["LED51", "a", "10,00", "28,00"], ["LED52", "b", "10,00", "27,00"],
+                                         ["X9", "c", "10,00", "26,00"]])
     new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "10,00"],
-                                          ["NV1", "b", "10,00"], ["LED51", "c", "10,00"], ["LED52", "d", "10,00"]],
-                  mid, "HERSTELLER")
+                                          ["NV1", "b", "10,00"], ["LED51", "c", "10,00"], ["LED52", "d", "10,00"],
+                                          ["X9", "e", "10,00"]], mid, "HERSTELLER")
     edit = f"/hersteller/{mid}"
-    r = c.post(edit + "/ausnahmen", data={"csrf_token": c.csrf, "match_type": "SERIE", "value": " NOVA ",
-                                          "rule_id": r27})
-    assert "Passt in den vorhandenen Listen auf 2 Artikelnummer(n), z. B. RALED52, RANV1" in r.text
-    r = c.post(edit + "/ausnahmen", data={"csrf_token": c.csrf, "match_type": "PREFIX", "value": "RALED5",
-                                          "rule_id": r28})
+    add = lambda t, v, rid: c.post(edit + "/ausnahmen", data={"csrf_token": c.csrf, "match_type": t, "value": v,
+                                                              "rule_id": rid})
+    assert "auf 1 Artikelnummer(n), z. B. RANV1" in add("ARTIKEL", "nv1", r27).text
+    r = add("PREFIX", "RALED5", r28)
     assert "ACHTUNG: passt bisher auf keinen Artikel" in r.text and "ohne Kürzel RA" in r.text
     with session_scope() as db:
         bad = db.scalar(select(RuleException).where(RuleException.value == "RALED5"))
     r = c.post(f"{edit}/ausnahmen/{bad.id}/loeschen", data={"csrf_token": c.csrf})
     assert r.status_code == 400 and "sicher" in r.text
     c.post(f"{edit}/ausnahmen/{bad.id}/loeschen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
-    r = c.post(edit + "/ausnahmen", data={"csrf_token": c.csrf, "match_type": "PREFIX", "value": "led5",
-                                          "rule_id": r28})
-    assert "auf 2 Artikelnummer(n)" in r.text
-    r = c.post(edit + "/ausnahmen", data={"csrf_token": c.csrf, "match_type": "PREFIX", "value": "LED-5",
-                                          "rule_id": r28})
+    assert "auf 2 Artikelnummer(n)" in add("PREFIX", "led5", r28).text
+    r = add("PREFIX", "LED-5", r28)
     assert r.status_code == 400 and "gibt es schon" in r.text
+    assert add("SERIE", "Nova", r27).status_code == 400  # Serien werden nicht benannt
+    add("ARTIKEL", "LED52", r27)   # einzelner Artikel geht vor Nummernanfang
+    add("PREFIX", "X", r27)
+    add("PREFIX", "X9", r28)       # X9 passt auf zwei Bereiche mit verschiedenen Regeln
 
     url = _start(c, ours, new, rule_id)
     upd, items = _items()
     assert items["LED1"].final_vk == D("26.00") and items["LED1"].rule_label.startswith("Standard: RaphiLED v1")
-    assert items["NV1"].final_vk == D("27.00") and "Serie „ NOVA “" not in items["NV1"].rule_label
-    assert "Ausnahme Serie" in items["NV1"].rule_label and "Nova v1" in items["NV1"].rule_label
+    assert items["NV1"].final_vk == D("27.00") and items["NV1"].rule_label == "Ausnahme Artikel „nv1“: RaphiLED 2,7 v1"
     assert items["LED51"].final_vk == D("28.00") and "Nummer beginnt mit „led5“" in items["LED51"].rule_label
-    # passt auf zwei Ausnahmen mit verschiedenen Regeln -> nicht raten
-    led52 = items["LED52"]
-    assert led52.status == "FEHLER" and "Mehrere Ausnahmen passen" in led52.note
-    assert (led52.final_ek, led52.final_vk, led52.decision) == (D("10.00"), D("28.00"), "ALT")
-    assert len(upd.exceptions) == 2
-    assert "Ausnahme" in c.get(url).text
+    assert items["LED52"].final_vk == D("27.00")
+    x9 = items["X9"]
+    assert x9.status == "FEHLER" and "Mehrere Ausnahmen passen" in x9.note
+    assert (x9.final_ek, x9.final_vk, x9.decision) == (D("10.00"), D("26.00"), "ALT")
+    assert len(upd.exceptions) == 5
+    assert "eigene Kalkulation" in c.get(url).text
 
-    # Regel löschen entfernt die Ausnahme (mit Hinweis auf der Bestätigungsseite)
-    assert "Serien-Ausnahme(n) mit dieser Regel werden entfernt" in c.get(f"/regeln/{r28}/loeschen").text
+    # Regel löschen entfernt ihre Ausnahmen (mit Hinweis auf der Bestätigungsseite)
+    assert "Ausnahme(n) (Artikel mit eigener Kalkulation) mit dieser Regel werden entfernt" in c.get(f"/regeln/{r28}/loeschen").text
     c.post(f"/regeln/{r28}/loeschen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
     with session_scope() as db:
         assert db.scalar(select(RuleException).where(RuleException.rule_id == int(r28))) is None
@@ -222,7 +217,7 @@ def test_manufacturer_pages_render(admin_client, user_client):
     r = c.post("/hersteller", data={"csrf_token": c.csrf, "name": "Redtronic", "code": "RT"}, follow_redirects=False)
     edit = r.headers["location"].split("?")[0]
     page = c.get(r.headers["location"]).text
-    assert "Angelegt" in page and "Ausnahmen für Serien" in page and 'name="exchange_rate"' in page
+    assert "Angelegt" in page and "Artikel mit eigener Kalkulation" in page and 'name="exchange_rate"' in page
     r = c.post("/hersteller", data={"csrf_token": c.csrf, "id": edit.rsplit("/", 1)[1], "name": "Redtronic",
                                     "code": "RT", "list_basis": "EK", "list_currency": "SEK",
                                     "exchange_rate": "0,095", "review_threshold": "10"})

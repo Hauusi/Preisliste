@@ -4,10 +4,10 @@
 {% block content %}
 <h1>Hersteller</h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<p class="hint">Pro Hersteller: Kürzel vor der Artikelnummer (RT + 12345 = RT12345), Standardregel für den VK, Ausnahmen für einzelne Serien, und was die Herstellerliste enthält (EK oder UVP, Währung).</p>
+<p class="hint">Pro Hersteller: Kürzel vor der Artikelnummer (RT + 12345 = RT12345), Standardregel für den VK, Artikel mit eigener Kalkulation, und was die Herstellerliste enthält (EK oder UVP, Währung).</p>
 <div class="scroll">
 <table>
-  <thead><tr><th>Name</th><th>Kürzel</th><th>Standardregel</th><th>Ausnahmen</th><th>Herstellerliste</th><th>Prüfschwelle</th><th>Aliase</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Kürzel</th><th>Standardregel</th><th>Artikel mit eigener Kalk.</th><th>Herstellerliste</th><th>Prüfschwelle</th><th>Aliase</th><th></th></tr></thead>
   <tbody>
   {% for m in manufacturers %}
     <tr>

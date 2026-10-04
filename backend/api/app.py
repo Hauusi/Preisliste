@@ -69,11 +69,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from backend.api import (
         routes_api, routes_auth, routes_compare, routes_delete, routes_imports, routes_jobs, routes_lists,
-        routes_manufacturers, routes_rules, routes_updates, routes_users,
+        routes_manufacturers, routes_new_articles, routes_rules, routes_updates, routes_users,
     )
 
     for module in (routes_delete, routes_auth, routes_imports, routes_lists, routes_users, routes_rules, routes_compare,
-                   routes_jobs, routes_updates, routes_manufacturers, routes_api):
+                   routes_jobs, routes_updates, routes_manufacturers, routes_new_articles, routes_api):
         app.include_router(module.router)
 
     if settings.start_worker:

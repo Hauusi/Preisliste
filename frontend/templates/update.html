@@ -8,7 +8,7 @@
 <p class="hint">{{ "Teilliste (Preiserhöhung einzelner Serien)" if upd.scope == "TEIL" else "Jahrespreisliste" }} „{{ upd.source_list.name }}“
   · liefert {{ "UVP/RRP, EK = UVP − " ~ (upd.dealer_discount | money) ~ " % Händlerrabatt" if upd.price_type == "UVP" else "den EK" }}
   {% if upd.list_currency and upd.list_currency != "EUR" %}· in {{ upd.list_currency }}, Kurs {{ upd.exchange_rate | num }}{% endif %}
-  · VK: {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "–" }}{% for ex in upd.exceptions or [] %}, Ausnahme {{ ex.wert }}: {{ ex.regel }}{% endfor %}
+  · VK: {{ (rule.name ~ " v" ~ upd.rule_version.version) if rule else "–" }}{% if upd.exceptions %}, {{ upd.exceptions | length }} Artikel/Bereiche mit eigener Kalkulation{% endif %}
   · Prüfschwelle ±{{ upd.review_threshold | money }} % · {{ upd.created_at | dt }}</p>
 {% if meldung %}<p class="msg UNKLAR">{{ meldung }}</p>{% endif %}
 
@@ -56,16 +56,30 @@
 </form>
 {% endif %}
 
+{% if user.role == "admin" %}
+<form method="post" action="/aktualisierungen/{{ upd.id }}/ausnahmen" id="ausnahme-form" class="card row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+  <b>Ausgewählte Artikel anders kalkulieren:</b>
+  <label>Faktor <input name="factor" size="6" placeholder="z. B. 2,8"></label>
+  <label>oder Regel <select name="rule_id"><option value="">–</option>{% for r in all_rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+  <button type="submit" name="action" value="setzen">übernehmen</button>
+  <button type="submit" name="action" value="entfernen" class="secondary">zurück auf Standardregel</button>
+  <span class="hint">Artikel mit dem Häkchen in der ersten Spalte auswählen. Gilt dauerhaft für diese Artikel, auch in den nächsten Jahren.</span>
+</form>
+{% endif %}
+
 {% set base_query = ({"status": status, "grund": grund, "q": q} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
 <div class="scroll">
 <table>
-  <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th>{% if foreign %}<th>Herstellerpreis</th>{% endif %}<th>EK alt</th><th>EK neu</th><th>EK Δ%</th><th>VK alt</th><th>VK neu</th><th>VK Δ%</th><th>Faktor VK/EK</th><th>Status</th><th>Prüfhinweise / Rechenweg</th><th>Prüfung</th></tr></thead>
+  <thead><tr>{% if user.role == "admin" %}<th title="für „anders kalkulieren“ auswählen">Ausw.</th>{% endif %}<th>Artikelnummer</th><th>Bezeichnung</th>{% if foreign %}<th>Herstellerpreis</th>{% endif %}<th>EK alt</th><th>EK neu</th><th>EK Δ%</th><th>VK alt</th><th>VK neu</th><th>VK Δ%</th><th>Faktor VK/EK</th><th>Status</th><th>Prüfhinweise / Rechenweg</th><th>Prüfung</th></tr></thead>
   <tbody>
   {% for i in rows %}
     {% set open = i.needs_review and not i.reviewed_at %}
     <tr class="{{ 'open' if open }}">
-      <td>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</td><td>{{ i.description or "" }}</td>
+      {% if user.role == "admin" %}<td><input type="checkbox" name="item" value="{{ i.id }}" form="ausnahme-form" aria-label="auswählen"></td>{% endif %}
+      <td>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}{% if i.rule_label and i.rule_label.startswith("Ausnahme") %} <span class="badge PRUEFEN" title="{{ i.rule_label }}">eigene Kalkulation</span>{% endif %}</td><td>{{ i.description or "" }}</td>
       {% if foreign %}<td class="num">{% if i.source_amount is not none %}{{ i.source_amount | money }} {{ i.source_currency or "" }}{% endif %}</td>{% endif %}
       <td class="num">{{ i.old_amount | money }}</td>
       <td class="num">{{ i.final_ek | money }}</td>
@@ -112,7 +126,7 @@
         {% endif %}
       </td>
     </tr>
-  {% else %}<tr><td colspan="14">Keine Einträge.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="15">Keine Einträge.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>

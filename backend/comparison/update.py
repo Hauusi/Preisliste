@@ -70,8 +70,11 @@ def normalize_series(value: str | None) -> str:
     return " ".join((value or "").split()).casefold()
 
 
+EXCEPTION_LABELS = {"ARTIKEL": "Artikel", "PREFIX": "Nummer beginnt mit", "SERIE": "Serie"}
+
+
 def normalize_exception(match_type: str, value: str) -> str:
-    return normalize_article_number(value) if match_type == "PREFIX" else normalize_series(value)
+    return normalize_article_number(value) if match_type in ("PREFIX", "ARTIKEL") else normalize_series(value)
 
 
 def _price(a: Article | None, price_type: str):
@@ -119,17 +122,20 @@ class _Ctx:
         self.exceptions = []
         for ex in upd.exceptions or []:
             erv = db.get(RuleVersion, ex["rule_version_id"])
-            typ = "Serie" if ex["typ"] == "SERIE" else "Nummer beginnt mit"
+            typ = EXCEPTION_LABELS.get(ex["typ"], ex["typ"])
             self.exceptions.append({**ex, "rule": RuleDefinition.model_validate(erv.definition),
                                     "label": f"Ausnahme {typ} „{ex['wert']}“: {ex['regel']}"})
 
-    def pick_rule(self, base: Article, source: Article):
+    def pick_rule(self, base: Article, source: Article | None):
         """(Regel, Bezeichnung, Fehler). Mehrere passende Ausnahmen mit verschiedenen Regeln = Fehler."""
-        series = {normalize_series(base.category), normalize_series(source.category)} - {""}
+        series = {normalize_series(base.category), normalize_series(source.category if source else None)} - {""}
         number = base.article_number_normalized or ""
-        hits = [ex for ex in self.exceptions
-                if (ex["typ"] == "SERIE" and ex["norm"] in series)
-                or (ex["typ"] == "PREFIX" and number.startswith(ex["norm"]))]
+        # Einzelne Artikel (von Hand ausgewählt) gehen vor Nummernanfang/Serie
+        hits = [ex for ex in self.exceptions if ex["typ"] == "ARTIKEL" and ex["norm"] == number]
+        if not hits:
+            hits = [ex for ex in self.exceptions
+                    if (ex["typ"] == "SERIE" and ex["norm"] in series)
+                    or (ex["typ"] == "PREFIX" and number.startswith(ex["norm"]))]
         if len({ex["rule_version_id"] for ex in hits}) > 1:
             return None, None, "Mehrere Ausnahmen passen: " + "; ".join(ex["label"] for ex in hits)
         if hits:
@@ -418,3 +424,72 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
     upd.adopted_list_id = pl.id
     db.flush()
     return pl
+
+
+
+# ---------- Ausnahmen für einzelne Artikel ----------
+
+def rule_for_factor(db: Session, m: Manufacturer, factor: Decimal, user) -> Rule:
+    """Regel 'EK × Faktor' für den Hersteller (gleiche Rundung wie die Standardregel), vorhandene wiederverwenden."""
+    from backend.services.rules import create_rule
+
+    name = f"{m.name} × {de(factor, 0)}"
+    existing = db.scalar(select(Rule).where(Rule.name == name, Rule.manufacturer_id == m.id,
+                                            Rule.deleted.is_(False)))
+    if existing:
+        rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == existing.id,
+                                                 RuleVersion.version == existing.current_version))
+        steps = rv.definition.get("steps", [])
+        if len(steps) == 1 and steps[0].get("type") == "multiply" and Decimal(str(steps[0]["factor"])) == factor:
+            return existing
+        raise ValueError(f"Regel „{name}“ existiert, rechnet aber nicht nur EK × {de(factor, 0)} – bitte Regel wählen")
+    rounding = {"mode": "HALF_UP", "places": 2, "timing": "STEP"}
+    std = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
+    if std and not std.deleted:
+        rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == std.id,
+                                                 RuleVersion.version == std.current_version))
+        rounding = rv.definition.get("rounding", rounding)
+    defn = RuleDefinition.model_validate({"start_price": "EK", "rounding": rounding,
+                                          "steps": [{"type": "multiply", "factor": str(factor)}]})
+    return create_rule(db, name, m.id, defn, user, "automatisch für Artikel-Ausnahmen angelegt")
+
+
+def set_article_rule(db: Session, upd: PriceUpdate, items: list[PriceUpdateItem], rule: Rule | None) -> list[str]:
+    """Artikel-Ausnahme setzen (rule) bzw. entfernen (None), dauerhaft beim Hersteller, und Positionen neu rechnen."""
+    changed = []
+    for item in items:
+        if not item.article_number or item.manufacturer_id is None:
+            continue
+        norm = normalize_article_number(item.article_number)
+        ex = db.scalar(select(RuleException).where(RuleException.manufacturer_id == item.manufacturer_id,
+                                                   RuleException.match_type == "ARTIKEL",
+                                                   RuleException.value_normalized == norm))
+        if rule is None:
+            if ex:
+                db.delete(ex)
+                changed.append(item.article_number)
+        elif ex:
+            ex.rule_id = rule.id
+            changed.append(item.article_number)
+        else:
+            db.add(RuleException(manufacturer_id=item.manufacturer_id, match_type="ARTIKEL",
+                                 value=item.article_number, value_normalized=norm, rule_id=rule.id,
+                                 note="im Jahresabgleich ausgewählt"))
+            changed.append(item.article_number)
+    db.flush()
+    # Momentaufnahme im Abgleich erneuern: Artikel-Ausnahmen aller Hersteller dieses Abgleichs neu einlesen
+    mids = set(db.scalars(select(PriceUpdateItem.manufacturer_id).distinct()
+                          .where(PriceUpdateItem.update_id == upd.id, PriceUpdateItem.manufacturer_id.is_not(None))))
+    upd.exceptions = [ex for ex in upd.exceptions or [] if ex["typ"] != "ARTIKEL"] + [
+        ex for mid in sorted(mids) for ex in snapshot_exceptions(db, mid) if ex["typ"] == "ARTIKEL"]
+    ctx = _Ctx(db, upd)
+    for item in items:
+        if item.source_article_id is None or item.status == "NICHT_EINDEUTIG":
+            continue  # ohne Herstellerpreis nichts neu zu rechnen; Ausnahme gilt ab dem nächsten Abgleich
+        base = db.get(Article, item.base_article_id)
+        source = db.get(Article, item.source_article_id)
+        row = compute_item(ctx, base, source, item.match_method)
+        for k, v in row.items():
+            setattr(item, k, v)
+        item.reviewed_by = item.reviewed_at = None
+    return changed

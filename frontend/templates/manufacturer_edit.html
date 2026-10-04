@@ -54,8 +54,8 @@
 </form>
 
 <section class="card">
-  <h2>4. Ausnahmen für Serien</h2>
-  <p class="hint">Für diese Artikel gilt statt der Standardregel eine andere Regel (z. B. EK × 2,7). Passen auf einen Artikel mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten: der Artikel landet als Fehler in der Prüfung.</p>
+  <h2>4. Artikel mit eigener Kalkulation</h2>
+  <p class="hint">Für diese Artikel gilt statt der Standardregel eine andere Regel (z. B. EK × 2,8, wenn die Marge sonst zu klein ist). Am einfachsten im Jahresabgleich: Artikel anhaken und Faktor eingeben. Einzelne Artikel gehen vor „beginnt mit“. Passen sonst mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten: der Artikel landet als Fehler in der Prüfung.</p>
   <table>
     <thead><tr><th>Gilt für</th><th>Wert</th><th>Regel</th><th>Notiz</th><th></th></tr></thead>
     <tbody>
@@ -65,19 +65,19 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label class="inline-label small"><input type="checkbox" name="bestaetigt" value="ja" required> sicher</label>
           <button type="submit" class="secondary" title="Ausnahme löschen">{{ trash() }}</button></form>{% endif %}</td></tr>
-    {% else %}<tr><td colspan="5">Keine Ausnahmen – für alle Artikel gilt die Standardregel.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="5">Keine – für alle Artikel gilt die Standardregel.</td></tr>{% endfor %}
     </tbody>
   </table>
   {% if admin %}
   <form method="post" action="/hersteller/{{ m.id }}/ausnahmen" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Gilt für <select name="match_type">{% for k, v in match_types.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
-    <label>Wert <input name="value" required maxlength="200" placeholder="z. B. Serie Nova oder LED5"></label>
+    <label>Gilt für <select name="match_type">{% for k in form_types %}<option value="{{ k }}">{{ match_types[k] }}</option>{% endfor %}</select></label>
+    <label>Wert <input name="value" required maxlength="200" placeholder="z. B. LED12 (ohne Kürzel)"></label>
     <label>Regel <select name="rule_id" required><option value="">– wählen –</option>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
     <label>Notiz <input name="note" maxlength="200"></label>
     <button type="submit">Ausnahme hinzufügen</button>
   </form>
-  <p class="hint">„Serie / Kategorie“ vergleicht mit der Spalte Kategorie bzw. Serie unserer Liste oder der Herstellerliste (Groß-/Kleinschreibung egal). „Artikelnummer beginnt mit“ vergleicht mit der Nummer ohne Kürzel{% if m.code %} {{ m.code }}{% endif %}.</p>
+  <p class="hint">Artikelnummern ohne Kürzel{% if m.code %} {{ m.code }}{% endif %} eingeben, Bindestriche/Leerzeichen sind egal.</p>
   {% endif %}
 </section>
 {% endblock %}

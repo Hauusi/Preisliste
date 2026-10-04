@@ -30,8 +30,7 @@
   <ul class="hint">
     <li>Herstellerliste enthält: <b>{{ "UVP / RRP" if st.basis == "UVP" else "EK" }}</b>{% if st.basis == "UVP" %} → EK = UVP − {{ st.discount | money if st.discount is not none else "?" }} % Händlerrabatt{% endif %}</li>
     {% if st.currency != "EUR" %}<li>Währung <b>{{ st.currency }}</b> → EUR mit Kurs <b>{{ st.rate | num if st.rate is not none else "?" }}</b>, EK in € auf Cent gerundet</li>{% endif %}
-    <li>VK = Regel angewendet auf den neuen EK{% if update_exceptions %}, Ausnahmen:
-      {% for ex in update_exceptions %}<b>{{ "Serie" if ex.match_type == "SERIE" else "Nr. beginnt mit" }} {{ ex.value }}</b> → {{ ex.rule.name }}{% if not loop.last %}; {% endif %}{% endfor %}{% endif %}</li>
+    <li>VK = Standardregel angewendet auf den neuen EK{% if update_exceptions %}, <b>{{ update_exceptions | length }} Artikel bzw. Nummernbereiche mit eigener Kalkulation</b>{% endif %} (im Ergebnis auswählbar)</li>
     <li>Jeder VK wird unabhängig nachgerechnet (Gegenrechnung)</li>
     <li>Prüfen ab ±{{ st.threshold | money }} % EK-Änderung, außerdem bei VK unter EK, Preis 0, unklarer Zuordnung, fehlenden Artikeln und wenn die VK-Änderung nicht zur EK-Änderung passt</li>
   </ul>

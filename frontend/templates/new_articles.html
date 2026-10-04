@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Neue Artikel{% endblock %}
+{% block content %}
+<h1>Neue Artikel aufnehmen</h1>
+<p class="hint">Für Artikel, die unterm Jahr dazukommen. Der Hersteller wird am Kürzel erkannt (z. B. ST12345 → Strand). EK kommt aus der neuesten Herstellerliste (mit Händlerrabatt und Währung), der VK aus der Standardregel bzw. der eigenen Kalkulation des Artikels. Aufgenommen wird erst nach Bestätigung in die aktuelle EK/VK-Liste des Herstellers.</p>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+{% if added is not none %}
+  <p class="msg OK">{{ added | length }} Artikel aufgenommen.</p>
+  {% if added %}
+  <table class="compact">
+    <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>EK</th><th>VK</th><th>in Liste</th></tr></thead>
+    <tbody>{% for r, a in added %}<tr><td>{{ r.manufacturer.code }}{{ r.number }}</td><td>{{ r.description or "" }}</td><td class="num">{{ r.ek | money }}</td><td class="num">{{ r.vk | money }}</td><td><a href="/listen/{{ r.target.id }}">{{ r.target.name }}</a></td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+{% endif %}
+
+<form method="post" action="/neue-artikel" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Artikel einfügen – eine Zeile pro Artikel, z. B. direkt aus Excel kopiert
+    <textarea name="text" rows="8" cols="80" placeholder="ST12345&#10;ST12346	Leuchte Nova&#10;RT999;Spezialteil;12,50">{{ text }}</textarea></label>
+  <p class="hint">Spalten: Artikelnummer mit Kürzel · optional Bezeichnung · optional EK in € (wenn der Artikel in keiner Herstellerliste steht). Getrennt durch Tab oder Semikolon. Höchstens {{ max_lines }} Zeilen.</p>
+  <div class="actions"><button type="submit">Prüfen →</button></div>
+</form>
+
+{% if rows is not none %}
+<form method="post" action="/neue-artikel/aufnehmen">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="text" value="{{ text }}">
+  <h2>Bitte prüfen: {{ ok_count }} von {{ rows | length }} Zeilen aufnehmbar</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Aufnehmen</th><th>Zeile</th><th>Artikelnummer</th><th>Hersteller</th><th>Bezeichnung</th><th>Herstellerpreis</th><th>EK</th><th>VK</th><th>Faktor</th><th>Kalkulation</th><th>in Liste</th><th>Hinweise</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{{ '' if r.ok else 'open' }}">
+        <td>{% if r.ok %}<input type="checkbox" name="line" value="{{ r.line }}" checked aria-label="aufnehmen">{% endif %}</td>
+        <td class="num">{{ r.line }}</td>
+        <td>{% if r.manufacturer %}<b>{{ r.manufacturer.code }}</b>{{ r.number }}{% else %}{{ r.raw }}{% endif %}</td>
+        <td>{{ r.manufacturer.name if r.manufacturer else "" }}</td>
+        <td>{{ r.description or "" }}</td>
+        <td class="num">{% if r.source_amount is not none %}{{ r.source_amount | money }} {{ r.source_currency }}{% endif %}</td>
+        <td class="num">{{ r.ek | money }}</td><td class="num"><b>{{ r.vk | money }}</b></td>
+        <td class="num">{{ r.factor | num if r.ek is not none else "" }}</td>
+        <td class="small">{{ r.rule_label or "" }}{% if r.ek_text %}<br>{{ r.ek_text }}{% endif %}{% if r.check_ok %}<br><span class="check-ok">Gegenrechnung stimmt</span>{% endif %}</td>
+        <td class="small">{{ r.target.name if r.target else "" }}{% if r.source_list %}<br>EK aus „{{ r.source_list.name }}“{% endif %}</td>
+        <td class="small">{% for e in r.errors %}<span class="FEHLER">{{ e }}</span><br>{% endfor %}{{ r.hints | join("; ") }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if ok_count %}
+  <div class="card row">
+    <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required> Ich habe die angehakten Artikel mit EK und VK geprüft – in die aktuelle Liste aufnehmen</label>
+    <button type="submit">Aufnehmen</button>
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}

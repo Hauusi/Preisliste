@@ -20,7 +20,8 @@ from backend.services.audit import audit
 from backend.services.manufacturers import normalize_code, validate_code, with_code
 
 router = APIRouter()
-MATCH_TYPES = {"SERIE": "Serie / Kategorie ist", "PREFIX": "Artikelnummer beginnt mit"}
+MATCH_TYPES = {"ARTIKEL": "Artikelnummer ist", "PREFIX": "Artikelnummer beginnt mit", "SERIE": "Serie / Kategorie ist"}
+FORM_TYPES = ("ARTIKEL", "PREFIX")
 
 
 def _rules(db: Session):
@@ -45,7 +46,7 @@ def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None
     exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == m.id)
                             .order_by(RuleException.match_type, RuleException.value)).all()
     return render(request, "manufacturer_edit.html", {
-        "m": m, "rules": _rules(db), "exceptions": exceptions, "match_types": MATCH_TYPES,
+        "m": m, "rules": _rules(db), "exceptions": exceptions, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
         "currencies": SUPPORTED_CURRENCIES, "error": error, "message": message}, status_code=status_code)
 
 
@@ -156,7 +157,7 @@ async def add_exception(request: Request, mid: int, db: Session = Depends(get_db
     rule_raw = str(form.get("rule_id") or "")
     rule = db.get(Rule, int(rule_raw)) if rule_raw.isdigit() else None
     errors = []
-    if match_type not in MATCH_TYPES:
+    if match_type not in FORM_TYPES:
         errors.append("Art der Ausnahme wählen")
     if not value:
         errors.append("Serie bzw. Nummernanfang eingeben")
@@ -185,6 +186,8 @@ def _hit_message(db: Session, m: Manufacturer, ex: RuleException) -> str:
     stmt = select(Article.article_number, Article.category).where(Article.manufacturer_id == m.id)
     if ex.match_type == "PREFIX":
         stmt = stmt.where(Article.article_number_normalized.like(f"{ex.value_normalized}%"))
+    elif ex.match_type == "ARTIKEL":
+        stmt = stmt.where(Article.article_number_normalized == ex.value_normalized)
     else:
         stmt = stmt.where(Article.category.is_not(None))
     rows = db.execute(stmt).all()
@@ -195,7 +198,7 @@ def _hit_message(db: Session, m: Manufacturer, ex: RuleException) -> str:
         sample = ", ".join(with_code(n, m.code) for n in numbers[:5])
         return f"Ausnahme gespeichert. Passt in den vorhandenen Listen auf {len(numbers)} Artikelnummer(n), z. B. {sample}."
     hint = (f" Artikelnummern werden ohne Kürzel {m.code} gespeichert – Nummernanfang ohne Kürzel eingeben."
-            if ex.match_type == "PREFIX" and m.code and ex.value_normalized.startswith(m.code) else "")
+            if ex.match_type in ("PREFIX", "ARTIKEL") and m.code and ex.value_normalized.startswith(m.code) else "")
     return f"Ausnahme gespeichert. ACHTUNG: passt bisher auf keinen Artikel in den vorhandenen Listen.{hint}"
 
 

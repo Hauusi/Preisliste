@@ -61,7 +61,7 @@ def delete_manufacturer(db: Session, m: e.Manufacturer) -> None:
 def rule_impact(db: Session, rule: e.Rule) -> list[str]:
     users = db.scalars(select(e.Manufacturer.name).where(e.Manufacturer.default_rule_id == rule.id)).all()
     exc = db.scalars(select(e.RuleException).where(e.RuleException.rule_id == rule.id)).all()
-    extra = [f"{len(exc)} Serien-Ausnahme(n) mit dieser Regel werden entfernt"] if exc else []
+    extra = [f"{len(exc)} Ausnahme(n) (Artikel mit eigener Kalkulation) mit dieser Regel werden entfernt"] if exc else []
     return extra + [f"alle {len(rule.versions)} Version(en) werden ausgeblendet; bisherige Kalkulationen bleiben nachvollziehbar",
             ("Standardregel von " + ", ".join(users) + " wird entfernt") if users else "ist bei keinem Hersteller Standardregel"]
 

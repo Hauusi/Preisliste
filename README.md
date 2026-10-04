@@ -20,8 +20,9 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 
 1. Hersteller anlegen (Seite Hersteller → Name/Kürzel → Bearbeiten):
    - Kürzel (RT + 12345 = RT12345), Standardregel für den VK (z. B. EK × 2,6)
-   - Ausnahmen für Serien: „Serie/Kategorie ist …“ oder „Artikelnummer beginnt mit …“ → andere Regel (z. B. × 2,7).
-     Passen mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten (Fehler, muss geprüft werden).
+   - Artikel mit eigener Kalkulation (z. B. × 2,8 bei zu wenig Marge): am einfachsten im Ergebnis des Abgleichs
+     Artikel anhaken und Faktor eingeben. Gilt dauerhaft, auch in den Folgejahren. Auf der Herstellerseite auch
+     „Artikelnummer beginnt mit …“. Einzelne Artikel gehen vor; sonst wird bei mehreren passenden Regeln nicht geraten.
    - Herstellerliste enthält EK oder UVP/RRP (dann EK = UVP − Händlerrabatt)
    - Währung der Liste und Kurs, z. B. SEK × 0,095 = EUR (EK in € kaufmännisch auf Cent gerundet)
    - Prüfschwelle (Standard ±10 % EK-Änderung)
@@ -37,6 +38,14 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
    nur einzeln. Endgültiger Export erst, wenn alles geprüft ist; vorher nur ENTWURF.
 6. „Als aktuelle Liste übernehmen“: das Ergebnis wird unsere neue EK/VK-Liste und ist beim nächsten Abgleich
    vorausgewählt. Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
+
+## Neue Artikel unterm Jahr
+
+Menü „Neue Artikel“: Artikelnummern mit Kürzel einfügen (z. B. aus Excel: ST12345, optional Bezeichnung und EK).
+Der Hersteller wird am Kürzel erkannt, der EK kommt aus der neuesten Herstellerliste (sonst aus der Zeile), der VK
+aus der Standardregel bzw. der eigenen Kalkulation, mit Gegenrechnung. Alles erscheint zuerst in einer
+Bestätigungsliste; erst nach Bestätigung kommen die Artikel in die aktuelle EK/VK-Liste des Herstellers.
+Mehrdeutige Kürzel, doppelte oder schon vorhandene Artikel werden nicht aufgenommen.
 
 ## Entwicklung
 

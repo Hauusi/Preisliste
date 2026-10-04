@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -10,12 +11,12 @@ from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user
+from backend.api.deps import check_csrf, client_ip, current_user, require_admin
 from backend.api.render import render
 from backend.api.routes_lists import page_info
 from backend.comparison.update import (
     REASON_LABELS, SCOPES, STATUS_LABELS, STATUSES, accept, adopt_as_current, bulk_accept, choose_candidate,
-    manufacturer_settings, refresh_summary, run_update, snapshot_exceptions,
+    manufacturer_settings, refresh_summary, rule_for_factor, run_update, set_article_rule, snapshot_exceptions,
 )
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
@@ -174,6 +175,7 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
         "grund": grund if grund in REASON_LABELS else "", "q": q or "", "meldung": meldung,
         "statuses": STATUSES, "labels": STATUS_LABELS, "reasons": REASON_LABELS, "codes": code_map(db),
         "step": 6, "reviewers": reviewers,
+        "all_rules": db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all(),
         "rule": db.get(Rule, upd.rule_version.rule_id) if upd.rule_version else None,
     })
 
@@ -282,3 +284,51 @@ async def adopt(request: Request, upd_id: int, db: Session = Depends(get_db), us
         return _back(upd_id, form, str(e))
     audit(db, user, "abgleich_uebernommen", "price_update", upd.id, {"neue_liste": pl.id}, client_ip(request))
     return _back(upd_id, form, f"Als aktuelle Liste „{pl.name}“ gespeichert. Sie ist beim nächsten Abgleich vorausgewählt.")
+
+
+@router.post("/aktualisierungen/{upd_id}/ausnahmen", dependencies=[Depends(check_csrf)])
+async def article_exceptions(request: Request, upd_id: int, db: Session = Depends(get_db),
+                             admin: User = Depends(require_admin)):
+    """Ausgewählte Artikel anders kalkulieren (Faktor oder Regel) bzw. zurück auf die Standardregel."""
+    upd = _get(db, upd_id)
+    form = await request.form()
+    ids = [int(v) for v in form.getlist("item") if str(v).isdigit()]
+    items = [i for i in db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id,
+                                                                PriceUpdateItem.id.in_(ids)))] if ids else []
+    if not items:
+        return _back(upd_id, form, "Keine Artikel ausgewählt (Häkchen in der ersten Spalte)")
+    action = str(form.get("action") or "")
+    rule = None
+    try:
+        if action == "setzen":
+            raw_factor = str(form.get("factor") or "").strip()
+            rule_raw = str(form.get("rule_id") or "")
+            if raw_factor and rule_raw:
+                raise ValueError("Entweder Faktor oder Regel angeben, nicht beides")
+            if raw_factor:
+                f = parse_amount(raw_factor, ",")
+                if not f.ok or not Decimal(0) < f.value <= Decimal(100):
+                    raise ValueError(f"Faktor „{raw_factor[:20]}“ ungültig")
+                mids = {i.manufacturer_id for i in items}
+                if len(mids) != 1 or None in mids:
+                    raise ValueError("Faktor geht nur für Artikel eines Herstellers")
+                rule = rule_for_factor(db, db.get(Manufacturer, mids.pop()), f.value, admin)
+            elif rule_raw.isdigit():
+                rule = db.get(Rule, int(rule_raw))
+                if rule is None or rule.deleted:
+                    raise ValueError("Regel nicht gefunden")
+            else:
+                raise ValueError("Faktor (z. B. 2,8) oder Regel angeben")
+        elif action != "entfernen":
+            raise ValueError("Unbekannte Aktion")
+    except ValueError as e:
+        db.rollback()
+        return _back(upd_id, form, str(e))
+    changed = set_article_rule(db, upd, items, rule)
+    db.flush()
+    refresh_summary(db, upd)
+    audit(db, admin, "artikel_ausnahme_" + action, "price_update", upd.id,
+          {"artikel": changed, "regel": rule.id if rule else None}, client_ip(request))
+    what = f"Regel „{rule.name}“" if rule else "Standardregel"
+    return _back(upd_id, form, f"{len(changed)} Artikel: ab jetzt {what} (gilt auch in künftigen Abgleichen). "
+                               "Neu berechnete Positionen bitte prüfen.")
