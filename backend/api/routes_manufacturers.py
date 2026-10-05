@@ -10,7 +10,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user, require_admin
+from backend.api.deps import check_csrf, client_ip, current_user
+from backend.services.access import get_visible, visible
 from backend.api.render import render
 from backend.comparison.update import normalize_exception, normalize_series
 from backend.database.engine import get_db
@@ -24,21 +25,24 @@ MATCH_TYPES = {"ARTIKEL": "Artikelnummer ist", "PREFIX": "Artikelnummer beginnt 
 FORM_TYPES = ("ARTIKEL", "PREFIX")
 
 
-def _rules(db: Session):
-    return db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all()
+def _rules(db: Session, owner_id: int | None = None, user: User | None = None):
+    stmt = select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)
+    stmt = stmt.where(Rule.owner_id == owner_id) if owner_id is not None else visible(stmt, Rule, user)
+    return db.scalars(stmt).all()
 
 
 def _jsonable(d: dict) -> dict:
     return {k: str(v) if isinstance(v, Decimal) else v for k, v in d.items()}
 
 
-def _list_page(request: Request, db: Session, error: str | None = None, status_code: int = 200):
+def _list_page(request: Request, db: Session, user: User, error: str | None = None, status_code: int = 200):
     counts = dict(db.execute(select(RuleException.manufacturer_id, func.count())
                              .group_by(RuleException.manufacturer_id)).all())
+    owners = {u.id: u.username for u in db.scalars(select(User))} if user.role == "admin" else {}
     return render(request, "manufacturers.html", {
-        "manufacturers": db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all(),
-        "rules": {r.id: r for r in _rules(db)}, "exception_counts": counts, "error": error},
-        status_code=status_code)
+        "manufacturers": db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all(),
+        "rules": {r.id: r for r in _rules(db, user=user)}, "exception_counts": counts, "error": error,
+        "owners": owners}, status_code=status_code)
 
 
 def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None = None, status_code: int = 200,
@@ -46,26 +50,23 @@ def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None
     exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == m.id)
                             .order_by(RuleException.match_type, RuleException.value)).all()
     return render(request, "manufacturer_edit.html", {
-        "m": m, "rules": _rules(db), "exceptions": exceptions, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
+        "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
         "currencies": SUPPORTED_CURRENCIES, "error": error, "message": message}, status_code=status_code)
 
 
-def _get(db: Session, mid: int) -> Manufacturer:
-    m = db.get(Manufacturer, mid)
-    if m is None:
-        raise HTTPException(404, "Hersteller nicht gefunden")
-    return m
+def _get(db: Session, mid: int, user: User) -> Manufacturer:
+    return get_visible(db, Manufacturer, mid, user)
 
 
 @router.get("/hersteller")
-def manufacturers(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    return _list_page(request, db)
+def manufacturers(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return _list_page(request, db, user)
 
 
 @router.get("/hersteller/{mid}")
 def manufacturer_edit(request: Request, mid: int, meldung: str | None = None, db: Session = Depends(get_db),
-                      _user: User = Depends(current_user)):
-    return _edit_page(request, db, _get(db, mid), message=meldung)
+                      user: User = Depends(current_user)):
+    return _edit_page(request, db, _get(db, mid, user), message=meldung)
 
 
 def _amount(form, key: str):
@@ -74,12 +75,11 @@ def _amount(form, key: str):
 
 
 @router.post("/hersteller", dependencies=[Depends(check_csrf)])
-async def save_manufacturer(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+async def save_manufacturer(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     form = await request.form()
     mid = str(form.get("id") or "")
-    current = db.get(Manufacturer, int(mid)) if mid.isdigit() else None
-    if mid.isdigit() and current is None:
-        raise HTTPException(404, "Hersteller nicht gefunden")
+    current = _get(db, int(mid), user) if mid.isdigit() else None
+    owner_id = current.owner_id if current else user.id
     name = str(form.get("name") or "").strip()[:200]
     aliases = [a.strip()[:200] for a in str(form.get("aliases") or "").split(";") if a.strip()][:50]
     code = normalize_code(str(form.get("code") or ""))
@@ -95,17 +95,17 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
     rate = _amount(form, "exchange_rate")
 
     errors = []
-    clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
+    clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name, Manufacturer.owner_id == owner_id))
     if not name:
         errors.append("Name fehlt")
     elif clash and (current is None or clash.id != current.id):
         errors.append("Name existiert bereits")
-    code_error = validate_code(db, code, current.id if current else None)
+    code_error = validate_code(db, code, current.id if current else None, owner_id)
     if code_error:
         errors.append(code_error)
     if rule_id is not None:
         rule = db.get(Rule, rule_id)
-        if rule is None or rule.deleted:
+        if rule is None or rule.deleted or rule.owner_id != owner_id:
             errors.append("Regel nicht gefunden")
     if list_basis not in ("EK", "UVP"):
         errors.append("Herstellerliste enthält: EK oder UVP wählen")
@@ -125,7 +125,7 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
     if errors:
         if current:
             return _edit_page(request, db, current, "; ".join(errors), 400)
-        return _list_page(request, db, "; ".join(errors), 400)
+        return _list_page(request, db, user, "; ".join(errors), 400)
 
     values = {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore, "code": code,
               "default_rule_id": rule_id, "list_basis": list_basis,
@@ -135,27 +135,29 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), adm
         before = {k: getattr(current, k) for k in values}
         for k, v in values.items():
             setattr(current, k, v)
-        audit(db, admin, "hersteller_geaendert", "manufacturer", current.id,
+        audit(db, user, "hersteller_geaendert", "manufacturer", current.id,
               {"vorher": _jsonable(before), "nachher": _jsonable(values)}, client_ip(request))
         return RedirectResponse(f"/hersteller/{current.id}?meldung=Gespeichert", status_code=303)
-    m = Manufacturer(**values)
+    m = Manufacturer(**values, owner_id=user.id)
     db.add(m)
     db.flush()
-    audit(db, admin, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
+    audit(db, user, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
     return RedirectResponse(f"/hersteller/{m.id}?meldung=Angelegt. Jetzt Kalkulation und Herstellerliste einstellen.",
                             status_code=303)
 
 
 @router.post("/hersteller/{mid}/ausnahmen", dependencies=[Depends(check_csrf)])
 async def add_exception(request: Request, mid: int, db: Session = Depends(get_db),
-                        admin: User = Depends(require_admin)):
-    m = _get(db, mid)
+                        user: User = Depends(current_user)):
+    m = _get(db, mid, user)
     form = await request.form()
     match_type = str(form.get("match_type") or "")
     value = str(form.get("value") or "").strip()[:200]
     note = str(form.get("note") or "").strip()[:200] or None
     rule_raw = str(form.get("rule_id") or "")
     rule = db.get(Rule, int(rule_raw)) if rule_raw.isdigit() else None
+    if rule is not None and rule.owner_id != m.owner_id:
+        rule = None
     errors = []
     if match_type not in FORM_TYPES:
         errors.append("Art der Ausnahme wählen")
@@ -176,7 +178,7 @@ async def add_exception(request: Request, mid: int, db: Session = Depends(get_db
                        rule_id=rule.id, note=note)
     db.add(ex)
     db.flush()
-    audit(db, admin, "ausnahme_angelegt", "rule_exception", ex.id,
+    audit(db, user, "ausnahme_angelegt", "rule_exception", ex.id,
           {"hersteller": m.id, "typ": match_type, "wert": value, "regel": rule.id}, client_ip(request))
     return RedirectResponse(f"/hersteller/{m.id}?{urlencode({'meldung': _hit_message(db, m, ex)})}", status_code=303)
 
@@ -204,15 +206,15 @@ def _hit_message(db: Session, m: Manufacturer, ex: RuleException) -> str:
 
 @router.post("/hersteller/{mid}/ausnahmen/{ex_id}/loeschen", dependencies=[Depends(check_csrf)])
 async def delete_exception(request: Request, mid: int, ex_id: int, db: Session = Depends(get_db),
-                           admin: User = Depends(require_admin)):
-    m = _get(db, mid)
+                           user: User = Depends(current_user)):
+    m = _get(db, mid, user)
     ex = db.get(RuleException, ex_id)
     if ex is None or ex.manufacturer_id != m.id:
         raise HTTPException(404, "Ausnahme nicht gefunden")
     form = await request.form()
     if form.get("bestaetigt") != "ja":
         return _edit_page(request, db, m, "Zum Löschen das Häkchen „sicher“ setzen", 400)
-    audit(db, admin, "ausnahme_geloescht", "rule_exception", ex.id,
+    audit(db, user, "ausnahme_geloescht", "rule_exception", ex.id,
           {"hersteller": m.id, "typ": ex.match_type, "wert": ex.value, "regel": ex.rule_id}, client_ip(request))
     db.delete(ex)
     return RedirectResponse(f"/hersteller/{m.id}?meldung=Ausnahme gelöscht", status_code=303)

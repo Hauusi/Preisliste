@@ -11,6 +11,7 @@ from backend.api.render import render
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import Article, ImportMessage, Job, Manufacturer, PriceList, User
+from backend.services.access import get_visible, visible
 from backend.services.manufacturers import code_map, search_conditions
 
 router = APIRouter()
@@ -47,7 +48,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
     from backend.services.dashboard import build
 
     jobs = db.scalars(select(Job).where(Job.status.in_(("WARTEND", "LAEUFT"))).order_by(Job.id)).all()
-    return render(request, "dashboard.html", {**build(db), "jobs": jobs, "memory_mb": process_memory_mb()})
+    return render(request, "dashboard.html", {**build(db, user), "jobs": jobs, "memory_mb": process_memory_mb()})
 
 
 def process_memory_mb() -> int | None:
@@ -63,20 +64,19 @@ def process_memory_mb() -> int | None:
 
 
 @router.get("/listen")
-def price_lists(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    lists = db.scalars(
-        select(PriceList).options(selectinload(PriceList.manufacturer)).order_by(PriceList.uploaded_at.desc())
-    ).all()
-    return render(request, "price_lists.html", {"lists": lists})
+def price_lists(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    lists = db.scalars(visible(
+        select(PriceList).options(selectinload(PriceList.manufacturer)).order_by(PriceList.uploaded_at.desc()),
+        PriceList, user)).all()
+    owners = {u.id: u.username for u in db.scalars(select(User))} if user.role == "admin" else {}
+    return render(request, "price_lists.html", {"lists": lists, "owners": owners})
 
 
 @router.get("/listen/{list_id}")
 def price_list(request: Request, list_id: int, status: str | None = None, q: str | None = None,
                page: int = 1, db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
-               _user: User = Depends(current_user)):
-    pl = db.get(PriceList, list_id)
-    if pl is None:
-        raise HTTPException(404, "Preisliste nicht gefunden")
+               user: User = Depends(current_user)):
+    pl = get_visible(db, PriceList, list_id, user)
     rows, info = query_articles(db, list_id, status, q, page, settings.page_size)
     manufacturers = {m.id: m.name for m in db.scalars(select(Manufacturer))}
     return render(request, "price_list.html", {
@@ -88,10 +88,8 @@ def price_list(request: Request, list_id: int, status: str | None = None, q: str
 @router.get("/listen/{list_id}/meldungen")
 def messages(request: Request, list_id: int, level: str | None = None, page: int = 1,
              db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
-             _user: User = Depends(current_user)):
-    pl = db.get(PriceList, list_id)
-    if pl is None:
-        raise HTTPException(404, "Preisliste nicht gefunden")
+             user: User = Depends(current_user)):
+    pl = get_visible(db, PriceList, list_id, user)
     stmt = select(ImportMessage).where(ImportMessage.price_list_id == list_id)
     if level in LEVELS:
         stmt = stmt.where(ImportMessage.level == level)

@@ -73,12 +73,12 @@
 
 {% if pl.kind != "HERSTELLER" and pl.kind != "UNSERE" %}{{ abgleich() }}{% endif %}
 
-{% if user.role == "admin" %}
+{% if true %}
 <p class="{{ 'msg UNKLAR' if not rules or not preselect else 'hint' }}">
   {% if not rules %}Es gibt noch keine Kalkulationsregel.{% elif not preselect and list_manufacturer %}{{ list_manufacturer.name }} hat noch keine Standardregel.{% endif %}
   <a href="/regeln/neu?zurueck=/listen/{{ pl.id }}/kalkulation{% if list_manufacturer %}&hersteller={{ list_manufacturer.id }}{% endif %}">Neue Regel{% if list_manufacturer %} für {{ list_manufacturer.name }}{% endif %} anlegen</a> – danach geht es hier weiter.
 </p>
-{% elif not rules %}<p class="msg UNKLAR">Es gibt noch keine Kalkulationsregel. Ein Administrator muss eine anlegen.</p>{% endif %}
+{% endif %}
 
 {% if runs %}
 <h2>Frühere Kalkulationen dieser Liste</h2>

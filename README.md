@@ -39,6 +39,13 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 6. „Als aktuelle Liste übernehmen“: das Ergebnis wird unsere neue EK/VK-Liste und ist beim nächsten Abgleich
    vorausgewählt. Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
 
+## Benutzer und Sichtbarkeit
+
+Jeder Benutzer sieht nur seine eigenen Hersteller, Regeln, Preislisten, Abgleiche und Vergleiche und pflegt sie
+selbst. Name und Kürzel eines Herstellers sind pro Benutzer eindeutig (zwei Benutzer dürfen je einen „Strand“
+haben). Administratoren sehen und bearbeiten alles, mit Benutzerspalte in den Übersichten. Fremde Inhalte
+werden wie nicht vorhanden behandelt (404). Benutzer anlegen: Seite „Benutzer“ (nur Administratoren).
+
 ## Neue Artikel unterm Jahr
 
 Menü „Neue Artikel“: Artikelnummern mit Kürzel einfügen (z. B. aus Excel: ST12345, optional Bezeichnung und EK).

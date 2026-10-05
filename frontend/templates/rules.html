@@ -2,17 +2,19 @@
 {% from "_icons.html" import delete_link, pencil %}
 {% block title %}Regeln{% endblock %}
 {% block content %}
-<h1>Kalkulationsregeln</h1>
-{% if user.role == "admin" %}<p><a class="button" href="/regeln/neu">Neue Regel</a></p>{% endif %}
+<div class="page-head"><div><h1>Kalkulationsregeln</h1><p>Wie aus dem EK der VK berechnet wird, z. B. EK × 2,6.</p></div>
+  <a class="button" href="/regeln/neu">Neue Regel</a></div>
+<div class="scroll">
 <table>
-  <thead><tr><th>Name</th><th>Hersteller</th><th>Version</th><th>Angelegt</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Hersteller</th>{% if owners %}<th>Benutzer</th>{% endif %}<th>Version</th><th>Angelegt</th><th></th></tr></thead>
   <tbody>
   {% for r in rules %}
-    <tr><td><a href="/regeln/{{ r.id }}">{{ r.name }}</a></td><td>{{ r.manufacturer.name if r.manufacturer else "alle" }}</td><td>v{{ r.current_version }}</td><td>{{ r.created_at | dt }}</td>
-      <td class="row-actions"><a class="icon-btn" href="/regeln/{{ r.id }}" title="Öffnen / bearbeiten" aria-label="Öffnen">{{ pencil() }}</a>{% if user.role == "admin" %}{{ delete_link("/regeln/" ~ r.id ~ "/loeschen", "Regel löschen") }}{% endif %}</td></tr>
+    <tr><td><a href="/regeln/{{ r.id }}">{{ r.name }}</a></td><td>{{ r.manufacturer.name if r.manufacturer else "alle" }}</td>{% if owners %}<td>{{ owners.get(r.owner_id, "–") }}</td>{% endif %}<td>v{{ r.current_version }}</td><td>{{ r.created_at | dt }}</td>
+      <td class="row-actions"><a class="icon-btn" href="/regeln/{{ r.id }}" title="Öffnen / bearbeiten" aria-label="Öffnen">{{ pencil() }}</a>{{ delete_link("/regeln/" ~ r.id ~ "/loeschen", "Regel löschen") }}</td></tr>
   {% else %}
-    <tr><td colspan="5">Noch keine Regeln.</td></tr>
+    <tr><td colspan="6"><div class="empty-state">Noch keine Regeln.</div></td></tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

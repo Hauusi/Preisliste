@@ -46,12 +46,15 @@ def _avg(values: list[Decimal]) -> Decimal | None:
     return (sum(values) / len(values)).quantize(Decimal("0.1")) if values else None
 
 
-def build(db: Session) -> dict:
-    lists = db.scalars(select(PriceList).order_by(PriceList.id.desc())).all()
+def build(db: Session, user) -> dict:
+    """Alles nur aus Sicht des Benutzers (Admin: alles)."""
+    from backend.services.access import is_admin, visible
+
+    lists = db.scalars(visible(select(PriceList).order_by(PriceList.id.desc()), PriceList, user)).all()
     list_mfr = _list_manufacturers(db)
-    updates = db.scalars(select(PriceUpdate).order_by(PriceUpdate.id.desc())).all()
-    manufacturers = db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all()
-    rules = {r.id: r for r in db.scalars(select(Rule).where(Rule.deleted.is_(False)))}
+    updates = db.scalars(visible(select(PriceUpdate).order_by(PriceUpdate.id.desc()), PriceUpdate, user)).all()
+    manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
+    rules = {r.id: r for r in db.scalars(visible(select(Rule).where(Rule.deleted.is_(False)), Rule, user))}
     counts = dict(db.execute(select(Article.price_list_id, func.count()).group_by(Article.price_list_id)).all())
     exc_counts = dict(db.execute(select(RuleException.manufacturer_id, func.count())
                                  .group_by(RuleException.manufacturer_id)).all())
@@ -96,6 +99,9 @@ def build(db: Session) -> dict:
         if pl.status == "ENTWURF":
             todo.append(("warn", "Import nicht abgeschlossen", pl.source_file, f"/import/{pl.id}", "Fortsetzen"))
 
+    def own(stmt):
+        return stmt if is_admin(user) else stmt.where(AuditLog.user_id == user.id)
+
     year_start = utcnow().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     current_ids = [c["current"].id for c in cards if c["current"]]
     kpis = {
@@ -105,12 +111,15 @@ def build(db: Session) -> dict:
         "updates_year": sum(1 for u in updates if u.created_at >= year_start),
         "adopted_year": sum(1 for u in updates if u.created_at >= year_start and u.adopted_list_id),
         "new_articles_30d": sum(len((a.details or {}).get("artikel", [])) for a in db.scalars(
-            select(AuditLog).where(AuditLog.action == "neue_artikel_aufgenommen",
-                                   AuditLog.timestamp >= utcnow() - timedelta(days=30)))),
+            own(select(AuditLog).where(AuditLog.action == "neue_artikel_aufgenommen",
+                                       AuditLog.timestamp >= utcnow() - timedelta(days=30))))),
     }
-    activity = db.scalars(select(AuditLog).where(AuditLog.action.in_(list(ACTION_LABELS)), AuditLog.action != "login")
+    activity = db.scalars(own(select(AuditLog).where(AuditLog.action.in_(list(ACTION_LABELS)), AuditLog.action != "login"))
                           .order_by(AuditLog.id.desc()).limit(8)).all()
     setup = {"manufacturer": bool(manufacturers), "rule": any(c["rule"] for c in cards),
              "ours": any(c["current"] for c in cards), "update": bool(updates)}
-    return {"cards": cards, "todo": todo, "kpis": kpis, "activity": activity, "labels": ACTION_LABELS,
+    from backend.models.entities import User
+
+    owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
+    return {"owners": owners, "cards": cards, "todo": todo, "kpis": kpis, "activity": activity, "labels": ACTION_LABELS,
             "setup": setup, "drafts": [pl for pl in lists if pl.status == "ENTWURF"]}

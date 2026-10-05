@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user, require_admin
+from backend.api.deps import check_csrf, client_ip, current_user
+from backend.services.access import get_visible, visible, visible_or_none
 from backend.api.render import render
 from backend.calculations.engine import MODE_LABELS, PRICE_TYPES, PriceInput, RuleDefinition, calculate
 from backend.database.engine import get_db
@@ -116,37 +117,41 @@ VALUE_LABELS = {"discount": "Prozent", "surcharge": "Prozent", "multiply": "Fakt
 DIRECTIONS = {"UP": "aufrunden", "DOWN": "abrunden", "NEAREST": "zur nächsten Endung"}
 
 
-def _ctx(db: Session, **kw) -> dict:
+def _ctx(db: Session, user: User, rule: Rule | None = None, **kw) -> dict:
+    # Herstellerauswahl: bei bestehender Regel nur Hersteller ihres Besitzers, sonst alle sichtbaren
+    stmt = select(Manufacturer).order_by(Manufacturer.name)
+    stmt = stmt.where(Manufacturer.owner_id == rule.owner_id) if rule else visible(stmt, Manufacturer, user)
     return {"step_help": STEP_HELP, "value_labels": VALUE_LABELS, "directions": DIRECTIONS,
             "step_types": STEP_TYPES, "price_types": PRICE_TYPES, "modes": MODE_LABELS, "max_steps": MAX_STEPS,
-            "manufacturers": list(db.scalars(select(Manufacturer).order_by(Manufacturer.name))), **kw}
+            "manufacturers": list(db.scalars(stmt)), "rule": rule, **kw}
 
 
-def _rule(db: Session, rule_id: int) -> Rule:
-    rule = db.get(Rule, rule_id)
-    if rule is None or rule.deleted:
+def _rule(db: Session, rule_id: int, user: User) -> Rule:
+    rule = get_visible(db, Rule, rule_id, user)
+    if rule.deleted:
         raise HTTPException(404, "Regel nicht gefunden")
     return rule
 
 
 @router.get("/regeln")
-def rules(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    items = db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all()
-    return render(request, "rules.html", {"rules": items})
+def rules(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    items = db.scalars(visible(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name), Rule, user)).all()
+    owners = {u.id: u.username for u in db.scalars(select(User))} if user.role == "admin" else {}
+    return render(request, "rules.html", {"rules": items, "owners": owners})
 
 
 @router.get("/regeln/neu")
 def new_rule_form(request: Request, ki_job: int | None = None, hersteller: int | None = None,
-                  zurueck: str | None = None, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                  zurueck: str | None = None, db: Session = Depends(get_db), user: User = Depends(current_user)):
     definition: dict = {"start_price": "LISTE", "rounding": {}}
     ai = None
     job = db.get(Job, ki_job) if ki_job else None
-    if job and job.type == "AI_RULE" and job.status == "FERTIG" and job.created_by == admin.id:
+    if job and job.type == "AI_RULE" and job.status == "FERTIG" and job.created_by == user.id:
         ai = job.result or {}
         if ai.get("definition"):
             definition = {**ai["definition"], "rounding": {}}
-    m = db.get(Manufacturer, hersteller) if hersteller else None
-    return render(request, "rule_edit.html", _ctx(db, rule=None, definition=definition, rows=form_rows(definition),
+    m = visible_or_none(db, Manufacturer, hersteller, user)
+    return render(request, "rule_edit.html", _ctx(db, user, rule=None, definition=definition, rows=form_rows(definition),
                                                   errors=[], name=m.name if m else "",
                                                   manufacturer_id=m.id if m else None, ai=ai,
                                                   zurueck=_safe_return(zurueck)))
@@ -158,16 +163,16 @@ def _safe_return(url: str | None) -> str | None:
 
 
 @router.post("/regeln/ki", dependencies=[Depends(check_csrf)])
-async def ai_rule(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+async def ai_rule(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     form = await request.form()
     text = str(form.get("text") or "").strip()
     if not text:
         raise HTTPException(400, "Beschreibung fehlt")
-    job = enqueue(db, "AI_RULE", {"text": text[:1000]}, admin)
+    job = enqueue(db, "AI_RULE", {"text": text[:1000]}, user)
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
-async def _save(request: Request, db: Session, admin: User, rule: Rule | None):
+async def _save(request: Request, db: Session, user: User, rule: Rule | None):
     form = await request.form()
     data, errors = parse_rule_form(form)
     name = str(form.get("name") or "").strip()
@@ -176,6 +181,9 @@ async def _save(request: Request, db: Session, admin: User, rule: Rule | None):
     mid = form.get("manufacturer_id")
     manufacturer_id = int(mid) if mid and str(mid).isdigit() else None
     comment = str(form.get("comment") or "").strip()[:500] or None
+    m = visible_or_none(db, Manufacturer, manufacturer_id, user)
+    if manufacturer_id is not None and (m is None or (rule is not None and m.owner_id != rule.owner_id)):
+        errors.append("Hersteller nicht gefunden")
     defn = None
     if not errors:
         try:
@@ -185,52 +193,52 @@ async def _save(request: Request, db: Session, admin: User, rule: Rule | None):
     zurueck = _safe_return(str(form.get("zurueck") or ""))
     if errors:
         return render(request, "rule_edit.html", _ctx(
-            db, rule=rule, definition=data, rows=form_rows(data), errors=errors, name=name,
+            db, user, rule=rule, definition=data, rows=form_rows(data), errors=errors, name=name,
             manufacturer_id=manufacturer_id, zurueck=zurueck), status_code=400)
     if rule is None:
-        rule = create_rule(db, name, manufacturer_id, defn, admin, comment)
-        audit(db, admin, "regel_angelegt", "rule", rule.id, {"version": 1, "definition": data}, client_ip(request))
-        m = db.get(Manufacturer, manufacturer_id) if manufacturer_id else None
+        # Regel gehört dem Besitzer des Herstellers (Admin legt für andere an), sonst dem Anleger
+        rule = create_rule(db, name, manufacturer_id, defn, user, comment, owner_id=m.owner_id if m else user.id)
+        audit(db, user, "regel_angelegt", "rule", rule.id, {"version": 1, "definition": data}, client_ip(request))
         if m is not None and m.default_rule_id is None:
             # Erste Regel eines Herstellers wird seine Standardregel (Vorauswahl bei der Kalkulation)
             m.default_rule_id = rule.id
-            audit(db, admin, "hersteller_standardregel", "manufacturer", m.id, {"regel": rule.id}, client_ip(request))
+            audit(db, user, "hersteller_standardregel", "manufacturer", m.id, {"regel": rule.id}, client_ip(request))
         if zurueck:
             return RedirectResponse(zurueck, status_code=303)
     else:
-        rv = new_version(db, rule, name, manufacturer_id, defn, admin, comment)
-        audit(db, admin, "regel_geaendert", "rule", rule.id, {"version": rv.version, "definition": data},
+        rv = new_version(db, rule, name, manufacturer_id, defn, user, comment)
+        audit(db, user, "regel_geaendert", "rule", rule.id, {"version": rv.version, "definition": data},
               client_ip(request))
     return RedirectResponse(f"/regeln/{rule.id}", status_code=303)
 
 
 @router.post("/regeln/neu", dependencies=[Depends(check_csrf)])
-async def create(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    return await _save(request, db, admin, None)
+async def create(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return await _save(request, db, user, None)
 
 
 @router.get("/regeln/{rule_id}")
 def rule_detail(request: Request, rule_id: int, version: int | None = None, db: Session = Depends(get_db),
                 user: User = Depends(current_user)):
-    rule = _rule(db, rule_id)
+    rule = _rule(db, rule_id, user)
     versions = db.scalars(select(RuleVersion).where(RuleVersion.rule_id == rule.id)
                           .order_by(RuleVersion.version.desc())).all()
     shown = next((v for v in versions if v.version == version), None) or current_version(db, rule)
     creators = {u.id: u.username for u in db.scalars(select(User))}
     return render(request, "rule_detail.html", _ctx(
-        db, rule=rule, versions=versions, shown=shown, creators=creators,
+        db, user, rule=rule, versions=versions, shown=shown, creators=creators,
         rows=form_rows(shown.definition), definition=shown.definition, test=None, errors=[],
         name=rule.name, manufacturer_id=rule.manufacturer_id))
 
 
 @router.post("/regeln/{rule_id}", dependencies=[Depends(check_csrf)])
-async def update(request: Request, rule_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    return await _save(request, db, admin, _rule(db, rule_id))
+async def update(request: Request, rule_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return await _save(request, db, user, _rule(db, rule_id, user))
 
 
 @router.post("/regeln/{rule_id}/test", dependencies=[Depends(check_csrf)])
 async def test_rule(request: Request, rule_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    rule = _rule(db, rule_id)
+    rule = _rule(db, rule_id, user)
     rv = current_version(db, rule)
     form = await request.form()
     errors = []
@@ -250,6 +258,6 @@ async def test_rule(request: Request, rule_id: int, db: Session = Depends(get_db
                           .order_by(RuleVersion.version.desc())).all()
     creators = {u.id: u.username for u in db.scalars(select(User))}
     return render(request, "rule_detail.html", _ctx(
-        db, rule=rule, versions=versions, shown=rv, creators=creators, rows=form_rows(rv.definition),
+        db, user, rule=rule, versions=versions, shown=rv, creators=creators, rows=form_rows(rv.definition),
         definition=rv.definition, test=result, errors=errors, name=rule.name, manufacturer_id=rule.manufacturer_id,
         test_input={"amount": form.get("amount"), "quantity": form.get("quantity"), "transport": form.get("transport")}))

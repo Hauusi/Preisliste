@@ -17,8 +17,9 @@ def _definition_json(defn: RuleDefinition) -> dict:
 
 
 def create_rule(db: Session, name: str, manufacturer_id: int | None, defn: RuleDefinition, user: User,
-                comment: str | None = None) -> Rule:
-    rule = Rule(name=name.strip()[:200], manufacturer_id=manufacturer_id, current_version=1)
+                comment: str | None = None, owner_id: int | None = None) -> Rule:
+    rule = Rule(name=name.strip()[:200], manufacturer_id=manufacturer_id, current_version=1,
+                owner_id=owner_id if owner_id is not None else user.id)
     db.add(rule)
     db.flush()
     db.add(RuleVersion(rule_id=rule.id, version=1, definition=_definition_json(defn), comment=comment,

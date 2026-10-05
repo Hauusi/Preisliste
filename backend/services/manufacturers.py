@@ -17,20 +17,25 @@ def normalize_code(raw: str | None) -> str | None:
     return code or None
 
 
-def validate_code(db: Session, code: str | None, exclude_id: int | None = None) -> str | None:
-    """Fehlertext oder None. Kürzel: 1-10 Zeichen, nur A-Z und 0-9, eindeutig."""
+def validate_code(db: Session, code: str | None, exclude_id: int | None = None,
+                  owner_id: int | None = None) -> str | None:
+    """Fehlertext oder None. Kürzel: 1-10 Zeichen, nur A-Z und 0-9, eindeutig pro Benutzer."""
     if code is None:
         return None
     if not CODE_RE.fullmatch(code):
         return "Kürzel: 1 bis 10 Zeichen, nur Buchstaben A-Z und Ziffern"
-    other = db.scalar(select(Manufacturer).where(Manufacturer.code == code))
+    other = db.scalar(select(Manufacturer).where(Manufacturer.code == code, Manufacturer.owner_id == owner_id))
     if other and other.id != exclude_id:
         return f"Kürzel {code} ist schon an {other.name} vergeben"
     return None
 
 
-def code_map(db: Session) -> dict[int, str]:
-    return {m.id: m.code for m in db.scalars(select(Manufacturer).where(Manufacturer.code.is_not(None)))}
+def code_map(db: Session, owner_id: int | None = None) -> dict[int, str]:
+    """Kürzel je Hersteller-ID (Anzeige: alle; mit owner_id nur die Hersteller dieses Benutzers)."""
+    stmt = select(Manufacturer).where(Manufacturer.code.is_not(None))
+    if owner_id is not None:
+        stmt = stmt.where(Manufacturer.owner_id == owner_id)
+    return {m.id: m.code for m in db.scalars(stmt)}
 
 
 def with_code(number: str | None, code: str | None) -> str | None:
@@ -38,13 +43,13 @@ def with_code(number: str | None, code: str | None) -> str | None:
     return f"{code}{number}" if number and code else number
 
 
-def suggest_by_code(db: Session, numbers: list) -> int | None:
+def suggest_by_code(db: Session, numbers: list, owner_id: int | None = None) -> int | None:
     """Hersteller, wenn mindestens 80 % der Artikelnummern mit seinem Kürzel beginnen (eindeutig)."""
     values = [str(n).strip().upper() for n in numbers if n not in (None, "")]
     if not values:
         return None
     hits = []
-    for mid, code in code_map(db).items():
+    for mid, code in code_map(db, owner_id).items():
         share = sum(1 for v in values if v.startswith(code)) / len(values)
         if share >= 0.8:
             hits.append((len(code), mid))

@@ -61,10 +61,19 @@ def test_rule_validation_errors(admin_client):
     assert "Schritt 1" in r.text and "Schritt 3" in r.text
 
 
-def test_user_cannot_edit_rules(user_client):
-    assert user_client.get("/regeln/neu").status_code == 403
-    r = user_client.post("/regeln/neu", data={**RULE_FORM, "csrf_token": user_client.csrf})
-    assert r.status_code == 403
+def test_users_manage_own_rules_only(admin_client, user_client):
+    # jeder Benutzer legt eigene Regeln an; fremde Regeln sind nicht sichtbar und nicht änderbar
+    r = user_client.post("/regeln/neu", data={**RULE_FORM, "csrf_token": user_client.csrf}, follow_redirects=False)
+    assert r.status_code == 303
+    own = r.headers["location"]
+    r = admin_client.post("/regeln/neu", data={**RULE_FORM, "name": "Admin-Regel", "csrf_token": admin_client.csrf},
+                          follow_redirects=False)
+    foreign = r.headers["location"]
+    assert user_client.get(own).status_code == 200
+    assert user_client.get(foreign).status_code == 404
+    assert user_client.post(foreign, data={**RULE_FORM, "csrf_token": user_client.csrf}).status_code == 404
+    assert "Admin-Regel" not in user_client.get("/regeln").text
+    assert admin_client.get(own).status_code == 200  # Admin sieht alles
 
 
 def test_calculation_and_comparison_flow(admin_client, tmp_path):
@@ -142,4 +151,4 @@ def test_manufacturer_settings(admin_client, user_client):
     assert 'name="ignore_leading_zeros" value="1" checked' in admin_client.get(f"/hersteller/{mid}").text
     admin_client.post("/hersteller", data={"csrf_token": admin_client.csrf, "id": mid, "name": "Bosch", "aliases": ""})
     assert 'name="ignore_leading_zeros" value="1" checked' not in admin_client.get(f"/hersteller/{mid}").text
-    assert user_client.post("/hersteller", data={"csrf_token": user_client.csrf, "name": "X"}).status_code == 403
+    assert user_client.post(f"/hersteller", data={"csrf_token": user_client.csrf, "id": mid, "name": "X"}).status_code == 404

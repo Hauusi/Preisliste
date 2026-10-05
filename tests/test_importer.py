@@ -22,7 +22,7 @@ def new_list(db) -> PriceList:
     admin = db.scalar(select(User).where(User.username == "admin"))
     m = db.scalar(select(Manufacturer).where(Manufacturer.name == "ACME"))
     if m is None:
-        m = Manufacturer(name="ACME", aliases=[])
+        m = Manufacturer(name="ACME", aliases=[], owner_id=admin.id)
         db.add(m)
     pl = PriceList(name="t", source_file="t.xlsx", stored_file="t.xlsx", file_sha256="0" * 64, uploaded_by=admin.id)
     db.add(pl)

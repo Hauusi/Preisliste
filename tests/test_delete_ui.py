@@ -53,7 +53,8 @@ def test_rule_delete_and_permissions(admin_client, user_client, tmp_path):
     r = c.post("/regeln/neu", data={**RULE_FORM, "csrf_token": c.csrf}, follow_redirects=False)
     rid = int(r.headers["location"].rsplit("/", 1)[1])
     assert f'href="/regeln/{rid}/loeschen"' in c.get("/regeln").text
-    assert user_client.get(f"/regeln/{rid}/loeschen").status_code == 403
+    # fremde Regel: für andere Benutzer nicht vorhanden
+    assert user_client.get(f"/regeln/{rid}/loeschen").status_code == 404
     assert f'href="/regeln/{rid}/loeschen"' not in user_client.get("/regeln").text
     c.post(f"/regeln/{rid}/loeschen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
     with session_scope() as db:
@@ -62,6 +63,6 @@ def test_rule_delete_and_permissions(admin_client, user_client, tmp_path):
 
 def test_user_cannot_delete_foreign_list(admin_client, user_client, tmp_path):
     old, _ = _two_lists(admin_client, tmp_path)
-    assert user_client.get(f"/listen/{old}/loeschen").status_code == 403
+    assert user_client.get(f"/listen/{old}/loeschen").status_code == 404
     assert user_client.post(f"/listen/{old}/loeschen",
-                            data={"csrf_token": user_client.csrf, "bestaetigt": "ja"}).status_code == 403
+                            data={"csrf_token": user_client.csrf, "bestaetigt": "ja"}).status_code == 404

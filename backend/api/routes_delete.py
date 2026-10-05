@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user, require_admin
+from backend.api.deps import check_csrf, client_ip, current_user
+from backend.services.access import get_visible
 from backend.api.render import render
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
@@ -28,11 +29,7 @@ async def _confirmed(request: Request) -> bool:
 
 
 def _list_for(db: Session, list_id: int, user: User) -> PriceList:
-    pl = db.get(PriceList, list_id)
-    if pl is None:
-        raise HTTPException(404, "Preisliste nicht gefunden")
-    if user.role != "admin" and pl.uploaded_by != user.id:
-        raise HTTPException(403, "Nur der Ersteller oder ein Administrator darf diese Liste löschen")
+    pl = get_visible(db, PriceList, list_id, user)
     if pl.status == "WARTESCHLANGE":
         raise HTTPException(409, "Der Import dieser Liste läuft noch")
     return pl
@@ -59,17 +56,14 @@ async def do_delete_list(request: Request, list_id: int, db: Session = Depends(g
     return RedirectResponse("/listen?geloescht=1", status_code=303)
 
 
-def _manufacturer(db: Session, mid: int) -> Manufacturer:
-    m = db.get(Manufacturer, mid)
-    if m is None:
-        raise HTTPException(404, "Hersteller nicht gefunden")
-    return m
+def _manufacturer(db: Session, mid: int, user: User) -> Manufacturer:
+    return get_visible(db, Manufacturer, mid, user)
 
 
 @router.get("/hersteller/{mid}/loeschen")
 def confirm_manufacturer(request: Request, mid: int, db: Session = Depends(get_db),
-                         _admin: User = Depends(require_admin)):
-    m = _manufacturer(db, mid)
+                         user: User = Depends(current_user)):
+    m = _manufacturer(db, mid, user)
     impact, blocked = deletion.manufacturer_impact(db, m)
     return _confirm_page(request, title="Hersteller löschen", name=f"{m.name}" + (f" ({m.code})" if m.code else ""),
                          action=f"/hersteller/{m.id}/loeschen", back="/hersteller", impact=impact, blocked=blocked)
@@ -77,8 +71,8 @@ def confirm_manufacturer(request: Request, mid: int, db: Session = Depends(get_d
 
 @router.post("/hersteller/{mid}/loeschen", dependencies=[Depends(check_csrf)])
 async def do_delete_manufacturer(request: Request, mid: int, db: Session = Depends(get_db),
-                                 admin: User = Depends(require_admin)):
-    m = _manufacturer(db, mid)
+                                 user: User = Depends(current_user)):
+    m = _manufacturer(db, mid, user)
     impact, blocked = deletion.manufacturer_impact(db, m)
     if blocked or not await _confirmed(request):
         return _confirm_page(request, title="Hersteller löschen", name=m.name, action=f"/hersteller/{m.id}/loeschen",
@@ -86,32 +80,32 @@ async def do_delete_manufacturer(request: Request, mid: int, db: Session = Depen
                              error=None if blocked else "Bitte das Häkchen zur Bestätigung setzen.", status_code=400)
     info = {"name": m.name, "kuerzel": m.code}
     deletion.delete_manufacturer(db, m)
-    audit(db, admin, "hersteller_geloescht", "manufacturer", mid, info, client_ip(request))
+    audit(db, user, "hersteller_geloescht", "manufacturer", mid, info, client_ip(request))
     return RedirectResponse("/hersteller", status_code=303)
 
 
-def _rule(db: Session, rule_id: int) -> Rule:
-    rule = db.get(Rule, rule_id)
-    if rule is None or rule.deleted:
+def _rule(db: Session, rule_id: int, user: User) -> Rule:
+    rule = get_visible(db, Rule, rule_id, user)
+    if rule.deleted:
         raise HTTPException(404, "Regel nicht gefunden")
     return rule
 
 
 @router.get("/regeln/{rule_id}/loeschen")
-def confirm_rule(request: Request, rule_id: int, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    rule = _rule(db, rule_id)
+def confirm_rule(request: Request, rule_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rule = _rule(db, rule_id, user)
     return _confirm_page(request, title="Regel löschen", name=rule.name, action=f"/regeln/{rule.id}/loeschen",
                          back="/regeln", impact=deletion.rule_impact(db, rule))
 
 
 @router.post("/regeln/{rule_id}/loeschen", dependencies=[Depends(check_csrf)])
 async def do_delete_rule(request: Request, rule_id: int, db: Session = Depends(get_db),
-                         admin: User = Depends(require_admin)):
-    rule = _rule(db, rule_id)
+                         user: User = Depends(current_user)):
+    rule = _rule(db, rule_id, user)
     if not await _confirmed(request):
         return _confirm_page(request, title="Regel löschen", name=rule.name, action=f"/regeln/{rule.id}/loeschen",
                              back="/regeln", impact=deletion.rule_impact(db, rule),
                              error="Bitte das Häkchen zur Bestätigung setzen.", status_code=400)
     deletion.delete_rule(db, rule)
-    audit(db, admin, "regel_geloescht", "rule", rule_id, {"name": rule.name}, client_ip(request))
+    audit(db, user, "regel_geloescht", "rule", rule_id, {"name": rule.name}, client_ip(request))
     return RedirectResponse("/regeln", status_code=303)

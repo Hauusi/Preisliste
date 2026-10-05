@@ -2,7 +2,7 @@
 {% from "_icons.html" import trash %}
 {% block title %}{{ m.name }}{% endblock %}
 {% block content %}
-{% set admin = user.role == "admin" %}
+{% set admin = true %}{# sichtbar = eigener Hersteller oder Admin #}
 <p><a href="/hersteller">← alle Hersteller</a></p>
 <h1>{{ m.name }}{% if m.code %} <small class="hint">Kürzel {{ m.code }}</small>{% endif %}</h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}

@@ -483,7 +483,7 @@ def rule_for_factor(db: Session, m: Manufacturer, factor: Decimal, user) -> Rule
         rounding = rv.definition.get("rounding", rounding)
     defn = RuleDefinition.model_validate({"start_price": "EK", "rounding": rounding,
                                           "steps": [{"type": "multiply", "factor": str(factor)}]})
-    return create_rule(db, name, m.id, defn, user, "automatisch für Artikel-Ausnahmen angelegt")
+    return create_rule(db, name, m.id, defn, user, "automatisch für Artikel-Ausnahmen angelegt", owner_id=m.owner_id)
 
 
 def set_article_rule(db: Session, upd: PriceUpdate, items: list[PriceUpdateItem], rule: Rule | None) -> list[str]:

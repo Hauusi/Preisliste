@@ -33,6 +33,7 @@ from backend.excel.export import export_calculation, export_comparison
 from backend.jobs.runner import enqueue
 from backend.services.audit import audit
 from backend.services.manufacturers import code_map, search_conditions
+from backend.services.access import get_visible, visible, visible_or_none
 from backend.services.rules import current_version, run_calculation
 
 router = APIRouter()
@@ -45,20 +46,31 @@ def _positive(text, default=Decimal(1)) -> Decimal | None:
     return p.value if p.ok and p.value > 0 else None
 
 
-def _imported(db: Session):
-    return db.scalars(select(PriceList).where(PriceList.status == "IMPORTIERT").order_by(PriceList.id.desc())).all()
+def _imported(db: Session, owner_id: int | None = None, user: User | None = None):
+    """Importierte Listen eines Besitzers (owner_id) bzw. alle für den Benutzer sichtbaren (user)."""
+    stmt = select(PriceList).where(PriceList.status == "IMPORTIERT").order_by(PriceList.id.desc())
+    if owner_id is not None:
+        stmt = stmt.where(PriceList.uploaded_by == owner_id)
+    elif user is not None:
+        stmt = visible(stmt, PriceList, user)
+    return db.scalars(stmt).all()
 
 
-def _rules(db: Session):
-    return db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all()
+def _rules(db: Session, owner_id: int | None = None, user: User | None = None):
+    stmt = select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)
+    if owner_id is not None:
+        stmt = stmt.where(Rule.owner_id == owner_id)
+    elif user is not None:
+        stmt = visible(stmt, Rule, user)
+    return db.scalars(stmt).all()
 
 
 # ---------- Kalkulation ----------
 
 @router.get("/listen/{list_id}/kalkulation")
-def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    pl = db.get(PriceList, list_id)
-    if pl is None or pl.status != "IMPORTIERT":
+def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    pl = get_visible(db, PriceList, list_id, user)
+    if pl.status != "IMPORTIERT":
         raise HTTPException(404, "Preisliste nicht gefunden")
     runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == list_id)
                       .options(selectinload(CalculationRun.rule_version)).order_by(CalculationRun.id.desc())).all()
@@ -66,7 +78,7 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), _us
     preselect, hint = default_rule_for_list(db, pl)
     mid = list_manufacturer(db, pl)
     return render(request, "calc_form.html", {
-        "pl": pl, "rules": _rules(db), "runs": runs, "rule_names": rule_names, "error": None,
+        "pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": rule_names, "error": None,
         "preselect": preselect, "preselect_hint": hint, "step": 5, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
         "article_count": db.scalar(select(func.count(Article.id)).where(Article.price_list_id == pl.id)),
         **_update_defaults(db, pl, mid),
@@ -77,7 +89,7 @@ def _update_defaults(db: Session, pl: PriceList, mid: int | None) -> dict:
     """Vorauswahl für den Jahresabgleich: unsere Liste (Vorjahr) desselben Herstellers."""
     from backend.comparison.update import manufacturer_settings
 
-    others = [o for o in _imported(db) if o.id != pl.id and o.kind != "HERSTELLER"]
+    others = [o for o in _imported(db, pl.uploaded_by) if o.id != pl.id and o.kind != "HERSTELLER"]
     same = [o for o in others if mid and list_manufacturer(db, o) == mid]
     ours = [o for o in same if o.kind == "UNSERE"] or [o for o in same if o.id < pl.id]
     m = db.get(Manufacturer, mid) if mid else None
@@ -116,19 +128,22 @@ def default_rule_for_list(db: Session, pl: PriceList) -> tuple[int | None, str |
 
 @router.post("/listen/{list_id}/kalkulation", dependencies=[Depends(check_csrf)])
 async def calc_run(request: Request, list_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    pl = db.get(PriceList, list_id)
-    if pl is None or pl.status != "IMPORTIERT":
+    pl = get_visible(db, PriceList, list_id, user)
+    if pl.status != "IMPORTIERT":
         raise HTTPException(404, "Preisliste nicht gefunden")
     form = await request.form()
     rule_id = form.get("rule_id")
     rule = db.get(Rule, int(rule_id)) if rule_id and str(rule_id).isdigit() else None
+    if rule is not None and rule.owner_id != pl.uploaded_by:
+        rule = None  # nur Regeln des Listen-Besitzers
     qty = _positive(form.get("quantity"))
     if rule is None or rule.deleted or qty is None:
         runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == list_id)).all()
-        return render(request, "calc_form.html", {"pl": pl, "rules": _rules(db), "runs": runs, "rule_names": {},
+        return render(request, "calc_form.html", {"pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": {},
                                                   "error": "Regel wählen und Menge > 0 angeben"}, status_code=400)
     rv = current_version(db, rule)
     run = run_calculation(db, pl.id, rv, qty, user)
+    run.created_by = pl.uploaded_by  # gehört dem Besitzer der Liste
     audit(db, user, "kalkulation", "calculation_run", run.id,
           {"liste": pl.id, "regel": rule.id, "version": rv.version, "menge": str(qty)}, client_ip(request))
     return RedirectResponse(f"/kalkulationen/{run.id}", status_code=303)
@@ -137,10 +152,8 @@ async def calc_run(request: Request, list_id: int, db: Session = Depends(get_db)
 @router.get("/kalkulationen/{run_id}")
 def calc_results(request: Request, run_id: int, status: str | None = None, page: int = 1,
                  db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
-                 _user: User = Depends(current_user)):
-    run = db.get(CalculationRun, run_id)
-    if run is None:
-        raise HTTPException(404, "Kalkulation nicht gefunden")
+                 user: User = Depends(current_user)):
+    run = get_visible(db, CalculationRun, run_id, user)
     stmt = select(CalculationResult).where(CalculationResult.run_id == run_id)
     if status in ("OK", "FEHLER"):
         stmt = stmt.where(CalculationResult.status == status)
@@ -151,10 +164,10 @@ def calc_results(request: Request, run_id: int, status: str | None = None, page:
     rule = db.get(Rule, run.rule_version.rule_id)
     pl = db.get(PriceList, run.price_list_id)
     mid = list_manufacturer(db, pl)
-    others = [o for o in _imported(db) if o.id != pl.id]
+    others = [o for o in _imported(db, pl.uploaded_by) if o.id != pl.id]
     same = [o for o in others if mid and list_manufacturer(db, o) == mid and o.id < pl.id]
-    existing = db.scalars(select(Comparison).where(Comparison.new_price_list_id == pl.id)
-                          .order_by(Comparison.id.desc())).all()
+    existing = db.scalars(visible(select(Comparison).where(Comparison.new_price_list_id == pl.id)
+                                  .order_by(Comparison.id.desc()), Comparison, user)).all()
     return render(request, "calc_results.html", {
         "run": run, "rule": rule, "rows": rows, "info": info, "status": status, "pl": pl, "codes": code_map(db),
         "step": 6, "others": others, "compare_default": same[0].id if same else None, "comparisons": existing,
@@ -163,20 +176,21 @@ def calc_results(request: Request, run_id: int, status: str | None = None, page:
 
 # ---------- Vergleiche ----------
 
-def _list_ctx(db: Session, error: str | None = None) -> dict:
-    items = db.scalars(select(Comparison).options(selectinload(Comparison.old_list), selectinload(Comparison.new_list),
-                                                  selectinload(Comparison.manufacturer))
-                       .order_by(Comparison.id.desc())).all()
+def _list_ctx(db: Session, user: User, error: str | None = None) -> dict:
+    items = db.scalars(visible(select(Comparison).options(
+        selectinload(Comparison.old_list), selectinload(Comparison.new_list), selectinload(Comparison.manufacturer))
+        .order_by(Comparison.id.desc()), Comparison, user)).all()
     return {
-        "comparisons": items, "lists": _imported(db), "rules": _rules(db), "types": COMPARE_TYPES,
-        "manufacturers": db.scalars(select(Manufacturer).order_by(Manufacturer.name)).all(), "error": error,
+        "comparisons": items, "lists": _imported(db, user=user), "rules": _rules(db, user=user),
+        "types": COMPARE_TYPES, "error": error,
+        "manufacturers": db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all(),
         "labels": STATUS_LABELS, "statuses": STATUSES,
     }
 
 
 @router.get("/vergleiche")
-def comparisons(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    return render(request, "comparisons.html", _list_ctx(db))
+def comparisons(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return render(request, "comparisons.html", _list_ctx(db, user))
 
 
 @router.post("/vergleiche", dependencies=[Depends(check_csrf)])
@@ -191,26 +205,31 @@ async def create_comparison(request: Request, db: Session = Depends(get_db), use
     old_id, new_id, mfr_id = as_int("old_id"), as_int("new_id"), as_int("manufacturer_id")
     price_type = form.get("price_type") or "LISTE"
     qty = _positive(form.get("quantity"))
-    old, new = (db.get(PriceList, old_id) if old_id else None), (db.get(PriceList, new_id) if new_id else None)
+    old, new = visible_or_none(db, PriceList, old_id, user), visible_or_none(db, PriceList, new_id, user)
     if not old or not new or old.status != "IMPORTIERT" or new.status != "IMPORTIERT":
         errors.append("Alte und neue Liste wählen")
     elif old.id == new.id:
         errors.append("Alte und neue Liste müssen verschieden sein")
+    elif old.uploaded_by != new.uploaded_by:
+        errors.append("Beide Listen müssen demselben Benutzer gehören")
+    if mfr_id is not None and visible_or_none(db, Manufacturer, mfr_id, user) is None:
+        errors.append("Hersteller nicht gefunden")
     if price_type not in COMPARE_TYPES:
         errors.append("Ungültiger Preistyp")
     if qty is None:
         errors.append("Menge muss größer 0 sein")
     rule_version_id = None
     if price_type == "KALKULIERT":
-        rule = db.get(Rule, as_int("rule_id")) if as_int("rule_id") else None
+        rule = visible_or_none(db, Rule, as_int("rule_id"), user)
         if rule is None or rule.deleted:
             errors.append("Für kalkulierte Preise eine Regel wählen")
         else:
             rule_version_id = current_version(db, rule).id
     if errors:
-        return render(request, "comparisons.html", _list_ctx(db, "; ".join(errors)), status_code=400)
+        return render(request, "comparisons.html", _list_ctx(db, user, "; ".join(errors)), status_code=400)
     cmp = Comparison(old_price_list_id=old.id, new_price_list_id=new.id, manufacturer_id=mfr_id,
-                     price_type=price_type, rule_version_id=rule_version_id, quantity=qty, created_by=user.id)
+                     price_type=price_type, rule_version_id=rule_version_id, quantity=qty,
+                     created_by=old.uploaded_by)
     db.add(cmp)
     db.flush()
     summary = run_comparison(db, cmp)
@@ -258,10 +277,8 @@ def _price_filter(rows, pmin: Decimal | None, pmax: Decimal | None):
 def comparison_detail(request: Request, cmp_id: int, status: str | None = None, manufacturer: str | None = None,
                       category: str | None = None, pmin: str | None = None, pmax: str | None = None,
                       q: str | None = None, page: int = 1, db: Session = Depends(get_db),
-                      settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
-    cmp = db.get(Comparison, cmp_id)
-    if cmp is None:
-        raise HTTPException(404, "Vergleich nicht gefunden")
+                      settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
+    cmp = get_visible(db, Comparison, cmp_id, user)
     stmt = _filtered(db, cmp_id, status, manufacturer, category, q)
     lo = parse_amount(pmin, ",").value if pmin else None
     hi = parse_amount(pmax, ",").value if pmax else None
@@ -289,9 +306,9 @@ def comparison_detail(request: Request, cmp_id: int, status: str | None = None, 
 @router.post("/vergleiche/{cmp_id}/eintrag/{item_id}", dependencies=[Depends(check_csrf)])
 async def decide_item(request: Request, cmp_id: int, item_id: int, db: Session = Depends(get_db),
                       user: User = Depends(current_user)):
-    cmp = db.get(Comparison, cmp_id)
+    cmp = get_visible(db, Comparison, cmp_id, user)
     item = db.get(ComparisonItem, item_id)
-    if cmp is None or item is None or item.comparison_id != cmp_id:
+    if item is None or item.comparison_id != cmp_id:
         raise HTTPException(404, "Eintrag nicht gefunden")
     form = await request.form()
     choice = str(form.get("old_id") or "")
@@ -317,9 +334,7 @@ def _xlsx(data: bytes, name: str) -> Response:
 
 @router.get("/vergleiche/{cmp_id}/export")
 def export_cmp(request: Request, cmp_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    cmp = db.get(Comparison, cmp_id)
-    if cmp is None:
-        raise HTTPException(404, "Vergleich nicht gefunden")
+    cmp = get_visible(db, Comparison, cmp_id, user)
     data = export_comparison(db, cmp)
     audit(db, user, "export", "comparison", cmp_id, ip=client_ip(request))
     return _xlsx(data, f"Vergleich_{cmp.old_list.name}_{cmp.new_list.name}_{cmp_id}")
@@ -327,9 +342,7 @@ def export_cmp(request: Request, cmp_id: int, db: Session = Depends(get_db), use
 
 @router.get("/kalkulationen/{run_id}/export")
 def export_calc(request: Request, run_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    run = db.get(CalculationRun, run_id)
-    if run is None:
-        raise HTTPException(404, "Kalkulation nicht gefunden")
+    run = get_visible(db, CalculationRun, run_id, user)
     data = export_calculation(db, run)
     audit(db, user, "export", "calculation_run", run_id, ip=client_ip(request))
     return _xlsx(data, f"Kalkulation_{run_id}")
@@ -337,9 +350,7 @@ def export_calc(request: Request, run_id: int, db: Session = Depends(get_db), us
 
 @router.post("/vergleiche/{cmp_id}/ki", dependencies=[Depends(check_csrf)])
 def ai_match(request: Request, cmp_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    cmp = db.get(Comparison, cmp_id)
-    if cmp is None:
-        raise HTTPException(404, "Vergleich nicht gefunden")
+    cmp = get_visible(db, Comparison, cmp_id, user)
     running = db.scalar(select(Job).where(Job.type == "AI_MATCH", Job.status.in_(("WARTEND", "LAEUFT"))))
     if running and (running.params or {}).get("comparison_id") == cmp_id:
         return RedirectResponse(f"/jobs/{running.id}", status_code=303)
@@ -350,9 +361,7 @@ def ai_match(request: Request, cmp_id: int, db: Session = Depends(get_db), user:
 
 @router.post("/vergleiche/{cmp_id}/neu-berechnen", dependencies=[Depends(check_csrf)])
 def recompute(request: Request, cmp_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    cmp = db.get(Comparison, cmp_id)
-    if cmp is None:
-        raise HTTPException(404, "Vergleich nicht gefunden")
+    cmp = get_visible(db, Comparison, cmp_id, user)
     run_comparison(db, cmp)
     audit(db, user, "vergleich_neu_berechnet", "comparison", cmp_id, ip=client_ip(request))
     return RedirectResponse(f"/vergleiche/{cmp_id}", status_code=303)

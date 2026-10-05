@@ -11,7 +11,7 @@ from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user, require_admin
+from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
 from backend.api.routes_lists import page_info
 from backend.comparison.update import (
@@ -23,6 +23,7 @@ from backend.database.engine import get_db
 from backend.excel.export import export_price_update
 from backend.excel.numbers import parse_amount
 from backend.api.routes_compare import list_manufacturer
+from backend.services.access import get_visible, visible, visible_or_none
 from backend.models.entities import Article, ArticlePrice, Manufacturer, PriceList, PriceUpdate, PriceUpdateItem, Rule, User
 from backend.services.audit import audit
 from backend.services.manufacturers import code_map, search_conditions
@@ -32,13 +33,14 @@ router = APIRouter()
 BASIS_TYPES = ("EK", "UVP")
 
 
-def _imported(db: Session):
-    return db.scalars(select(PriceList).where(PriceList.status == "IMPORTIERT").order_by(PriceList.id.desc())).all()
+def _imported(db: Session, user: User):
+    return db.scalars(visible(select(PriceList).where(PriceList.status == "IMPORTIERT")
+                              .order_by(PriceList.id.desc()), PriceList, user)).all()
 
 
 @router.get("/aktualisierungen")
-def updates(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
-    return _list_page(request, db, None)
+def updates(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return _list_page(request, db, user, None)
 
 
 @router.post("/aktualisierungen", dependencies=[Depends(check_csrf)])
@@ -50,13 +52,15 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
         return int(v) if v.isdigit() else None
 
     errors = []
-    base = db.get(PriceList, as_int("base_id")) if as_int("base_id") else None
-    source = db.get(PriceList, as_int("source_id")) if as_int("source_id") else None
+    base = visible_or_none(db, PriceList, as_int("base_id"), user)
+    source = visible_or_none(db, PriceList, as_int("source_id"), user)
     mfr = None
     if not base or not source or base.status != "IMPORTIERT" or source.status != "IMPORTIERT":
         errors.append("Unsere Liste und Herstellerliste wählen")
     elif base.id == source.id:
         errors.append("Unsere Liste und Herstellerliste müssen verschieden sein")
+    elif base.uploaded_by != source.uploaded_by:
+        errors.append("Unsere Liste und Herstellerliste müssen demselben Benutzer gehören")
     else:
         if base.kind == "HERSTELLER":
             errors.append(f"„{base.name}“ ist als Herstellerliste importiert, nicht als unsere Liste")
@@ -79,7 +83,9 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
     if not qty.ok or qty.value <= 0:
         errors.append("Menge muss größer 0 sein")
     rule_version_id = None
-    rule = db.get(Rule, as_int("rule_id")) if as_int("rule_id") else None
+    rule = visible_or_none(db, Rule, as_int("rule_id"), user)
+    if rule is not None and base is not None and rule.owner_id != base.uploaded_by:
+        rule = None  # nur Regeln des Listen-Besitzers
     if rule is None or rule.deleted:
         errors.append("Kalkulationsregel für den VK wählen")
     else:
@@ -87,9 +93,9 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
     if not errors:
         errors += currency_problems(db, base, source, settings)
     if errors:
-        return _list_page(request, db, "; ".join(errors), 400)
+        return _list_page(request, db, user, "; ".join(errors), 400)
     upd = PriceUpdate(base_price_list_id=base.id, source_price_list_id=source.id, price_type=price_type,
-                      rule_version_id=rule_version_id, quantity=qty.value, created_by=user.id,
+                      rule_version_id=rule_version_id, quantity=qty.value, created_by=base.uploaded_by,
                       dealer_discount=settings["discount"] if price_type == "UVP" else None,
                       review_threshold=settings["threshold"], scope=scope,
                       list_currency=settings["currency"],
@@ -130,18 +136,15 @@ def currency_problems(db: Session, base: PriceList, source: PriceList, settings:
     return errors
 
 
-def _list_page(request, db, error, status_code=200):
-    items = db.scalars(select(PriceUpdate).order_by(PriceUpdate.id.desc())).all()
-    rules = db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all()
-    return render(request, "updates.html", {"updates": items, "lists": _imported(db), "rules": rules,
+def _list_page(request, db, user, error, status_code=200):
+    items = db.scalars(visible(select(PriceUpdate).order_by(PriceUpdate.id.desc()), PriceUpdate, user)).all()
+    rules = db.scalars(visible(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name), Rule, user)).all()
+    return render(request, "updates.html", {"updates": items, "lists": _imported(db, user), "rules": rules,
                                             "labels": STATUS_LABELS, "error": error}, status_code=status_code)
 
 
-def _get(db: Session, upd_id: int) -> PriceUpdate:
-    upd = db.get(PriceUpdate, upd_id)
-    if upd is None:
-        raise HTTPException(404, "Abgleich nicht gefunden")
-    return upd
+def _get(db: Session, upd_id: int, user: User) -> PriceUpdate:
+    return get_visible(db, PriceUpdate, upd_id, user)
 
 
 FILTERS = ("offen",) + STATUSES
@@ -151,8 +154,8 @@ FILTERS = ("offen",) + STATUSES
 def update_detail(request: Request, upd_id: int, status: str | None = None, grund: str | None = None,
                   q: str | None = None, page: int = 1, meldung: str | None = None,
                   db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
-                  _user: User = Depends(current_user)):
-    upd = _get(db, upd_id)
+                  user: User = Depends(current_user)):
+    upd = _get(db, upd_id, user)
     stmt = select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd_id)
     if status == "offen":
         stmt = stmt.where(PriceUpdateItem.needs_review.is_(True), PriceUpdateItem.reviewed_at.is_(None))
@@ -178,7 +181,8 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
         "ai_targets": db.scalar(select(func.count(PriceUpdateItem.id)).where(
             PriceUpdateItem.update_id == upd_id, PriceUpdateItem.reviewed_at.is_(None),
             PriceUpdateItem.status.in_(("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG")))),
-        "all_rules": db.scalars(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name)).all(),
+        "all_rules": db.scalars(select(Rule).where(Rule.deleted.is_(False), Rule.owner_id == upd.created_by)
+                                .order_by(Rule.name)).all(),
         "rule": db.get(Rule, upd.rule_version.rule_id) if upd.rule_version else None,
     })
 
@@ -193,7 +197,7 @@ def _back(upd_id: int, form, msg: str | None = None) -> RedirectResponse:
 @router.post("/aktualisierungen/{upd_id}/positionen/{item_id}", dependencies=[Depends(check_csrf)])
 async def review_item(request: Request, upd_id: int, item_id: int, db: Session = Depends(get_db),
                       user: User = Depends(current_user)):
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     item = db.get(PriceUpdateItem, item_id)
     if item is None or item.update_id != upd.id:
         raise HTTPException(404, "Position nicht gefunden")
@@ -244,7 +248,7 @@ async def review_item(request: Request, upd_id: int, item_id: int, db: Session =
 @router.post("/aktualisierungen/{upd_id}/alle-bestaetigen", dependencies=[Depends(check_csrf)])
 async def review_bulk(request: Request, upd_id: int, db: Session = Depends(get_db),
                       user: User = Depends(current_user)):
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     form = await request.form()
     if form.get("bestaetigt") != "ja":
         return _back(upd_id, form, "Bitte das Häkchen zur Bestätigung setzen")
@@ -262,7 +266,7 @@ async def review_bulk(request: Request, upd_id: int, db: Session = Depends(get_d
 @router.get("/aktualisierungen/{upd_id}/export")
 def export(request: Request, upd_id: int, entwurf: int = 0, db: Session = Depends(get_db),
            user: User = Depends(current_user)):
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     refresh_summary(db, upd)
     open_ = (upd.summary or {}).get("offen", 0)
     if not entwurf and open_:
@@ -279,7 +283,7 @@ def export(request: Request, upd_id: int, entwurf: int = 0, db: Session = Depend
 
 @router.post("/aktualisierungen/{upd_id}/uebernehmen", dependencies=[Depends(check_csrf)])
 async def adopt(request: Request, upd_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     form = await request.form()
     if form.get("bestaetigt") != "ja":
         return _back(upd_id, form, "Bitte das Häkchen zur Bestätigung setzen")
@@ -293,9 +297,9 @@ async def adopt(request: Request, upd_id: int, db: Session = Depends(get_db), us
 
 @router.post("/aktualisierungen/{upd_id}/ausnahmen", dependencies=[Depends(check_csrf)])
 async def article_exceptions(request: Request, upd_id: int, db: Session = Depends(get_db),
-                             admin: User = Depends(require_admin)):
+                             user: User = Depends(current_user)):
     """Ausgewählte Artikel anders kalkulieren (Faktor oder Regel) bzw. zurück auf die Standardregel."""
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     form = await request.form()
     ids = [int(v) for v in form.getlist("item") if str(v).isdigit()]
     items = [i for i in db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id,
@@ -317,10 +321,10 @@ async def article_exceptions(request: Request, upd_id: int, db: Session = Depend
                 mids = {i.manufacturer_id for i in items}
                 if len(mids) != 1 or None in mids:
                     raise ValueError("Faktor geht nur für Artikel eines Herstellers")
-                rule = rule_for_factor(db, db.get(Manufacturer, mids.pop()), f.value, admin)
+                rule = rule_for_factor(db, db.get(Manufacturer, mids.pop()), f.value, user)
             elif rule_raw.isdigit():
                 rule = db.get(Rule, int(rule_raw))
-                if rule is None or rule.deleted:
+                if rule is None or rule.deleted or rule.owner_id != upd.created_by:
                     raise ValueError("Regel nicht gefunden")
             else:
                 raise ValueError("Faktor (z. B. 2,8) oder Regel angeben")
@@ -332,7 +336,7 @@ async def article_exceptions(request: Request, upd_id: int, db: Session = Depend
     changed = set_article_rule(db, upd, items, rule)
     db.flush()
     refresh_summary(db, upd)
-    audit(db, admin, "artikel_ausnahme_" + action, "price_update", upd.id,
+    audit(db, user, "artikel_ausnahme_" + action, "price_update", upd.id,
           {"artikel": changed, "regel": rule.id if rule else None}, client_ip(request))
     what = f"Regel „{rule.name}“" if rule else "Standardregel"
     return _back(upd_id, form, f"{len(changed)} Artikel: ab jetzt {what} (gilt auch in künftigen Abgleichen). "
@@ -345,7 +349,7 @@ def ai_check(request: Request, upd_id: int, db: Session = Depends(get_db), user:
     from backend.jobs.runner import enqueue
     from backend.models.entities import Job
 
-    upd = _get(db, upd_id)
+    upd = _get(db, upd_id, user)
     running = db.scalars(select(Job).where(Job.type == "AI_UPDATE_MATCH", Job.status.in_(("WARTEND", "LAEUFT")))).all()
     for job in running:
         if (job.params or {}).get("update_id") == upd.id:

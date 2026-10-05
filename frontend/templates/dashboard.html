@@ -61,7 +61,7 @@
 
 <div class="page-head mt-lg">
   <div><h2 class="m0">Hersteller</h2><p>Aktuelle EK/VK-Liste, letzter Abgleich und Kalkulation auf einen Blick.</p></div>
-  {% if user.role == "admin" %}<a class="button ghost" href="/hersteller">Alle verwalten {{ icon("arrow", 16) }}</a>{% endif %}
+  <a class="button ghost" href="/hersteller">Alle verwalten {{ icon("arrow", 16) }}</a>
 </div>
 {% if cards %}
 <div class="grid grid-3">
@@ -70,7 +70,7 @@
     <div class="mfr-head">
       <span class="mfr-code">{{ m.code or "–" }}</span>
       <div><h3><a href="/hersteller/{{ m.id }}">{{ m.name }}</a></h3>
-        <p class="hint">{{ c.rule.name if c.rule else "keine Standardregel" }}{% if c.exceptions %} · {{ c.exceptions }} eigene Kalk.{% endif %}{% if m.list_currency and m.list_currency != "EUR" %} · {{ m.list_currency }} × {{ m.exchange_rate | num }}{% endif %}</p></div>
+        <p class="hint">{% if owners %}<b>{{ owners.get(m.owner_id, "–") }}</b> · {% endif %}{{ c.rule.name if c.rule else "keine Standardregel" }}{% if c.exceptions %} · {{ c.exceptions }} eigene Kalk.{% endif %}{% if m.list_currency and m.list_currency != "EUR" %} · {{ m.list_currency }} × {{ m.exchange_rate | num }}{% endif %}</p></div>
     </div>
     <dl class="mfr-facts">
       <div><dt>Aktuelle Liste</dt><dd>{% if c.current %}<a href="/listen/{{ c.current.id }}" title="{{ c.current.name }}">{{ "{:,}".format(c.articles).replace(",", ".") }} Artikel</a>{% else %}<span class="WARNUNG">fehlt</span>{% endif %}</dd></div>
@@ -84,7 +84,7 @@
       {% if c.pending_source %}<a class="button" href="/listen/{{ c.pending_source.id }}/kalkulation">{{ icon("sync", 16) }} Abgleich starten</a>
       {% elif u and s.offen %}<a class="button" href="/aktualisierungen/{{ u.id }}?status=offen">Prüfen</a>
       {% else %}<a class="button secondary" href="/import">{{ icon("upload", 16) }} Neue Liste</a>{% endif %}
-      {% if user.role == "admin" %}<a class="button ghost" href="/hersteller/{{ m.id }}">Einstellungen</a>{% endif %}
+      <a class="button ghost" href="/hersteller/{{ m.id }}">Einstellungen</a>
     </div>
   </section>
   {% endfor %}

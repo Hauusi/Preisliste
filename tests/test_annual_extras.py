@@ -223,5 +223,6 @@ def test_manufacturer_pages_render(admin_client, user_client):
                                     "exchange_rate": "0,095", "review_threshold": "10"})
     assert "Gespeichert" in r.text
     assert "in SEK (× 0,095)" in c.get("/hersteller").text
-    page = user_client.get(edit).text
-    assert "<fieldset disabled>" in page and "Ausnahme hinzufügen" not in page
+    # fremder Hersteller ist für andere Benutzer nicht sichtbar
+    assert user_client.get(edit).status_code == 404
+    assert 'href="/hersteller/' not in user_client.get("/hersteller").text

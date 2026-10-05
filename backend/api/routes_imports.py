@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
+from backend.services.access import get_visible
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.excel.columns import FIELDS, PRICE_FIELDS
@@ -24,10 +25,8 @@ from backend.services.manufacturers import normalize_code, validate_code
 router = APIRouter()
 
 
-def _draft(db: Session, list_id: int) -> PriceList:
-    pl = db.get(PriceList, list_id)
-    if pl is None:
-        raise HTTPException(404, "Preisliste nicht gefunden")
+def _draft(db: Session, list_id: int, user: User) -> PriceList:
+    pl = get_visible(db, PriceList, list_id, user)
     if pl.status != "ENTWURF":
         raise HTTPException(409, "Diese Liste wurde bereits importiert")
     return pl
@@ -96,7 +95,7 @@ def _ai_columns(db: Session, ki_job: str | None, pl: PriceList, user: User, pv) 
 def preview(request: Request, list_id: int, sheet: str | None = None, header_row: str | None = None,
             header_rows: str | None = None, ki_job: str | None = None, db: Session = Depends(get_db),
             settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
-    pl = _draft(db, list_id)
+    pl = _draft(db, list_id, user)
     try:
         pv = build_preview(db, pl, settings, sheet, _int(header_row), _int(header_rows))
     except ExcelRejected as exc:
@@ -110,7 +109,7 @@ def preview(request: Request, list_id: int, sheet: str | None = None, header_row
 @router.post("/import/{list_id}/ki-spalten", dependencies=[Depends(check_csrf)])
 async def ai_columns(request: Request, list_id: int, db: Session = Depends(get_db),
                      user: User = Depends(current_user)):
-    pl = _draft(db, list_id)
+    pl = _draft(db, list_id, user)
     form = await request.form()
     header_row = _int(form.get("header_row"))
     if header_row is None or header_row < 1:
@@ -162,8 +161,8 @@ def _parse_columns(form) -> dict:
             "separators": separators, "split": split, "errors": errors}
 
 
-def _parse_details(db: Session, form, mapping: dict) -> dict:
-    """Schritt 3: Hersteller, Währung, Gültigkeit."""
+def _parse_details(db: Session, form, mapping: dict, owner_id: int) -> dict:
+    """Schritt 3: Hersteller, Währung, Gültigkeit. Hersteller nur aus denen des Listen-Besitzers."""
     errors = []
     manufacturer_id = _int(form.get("manufacturer_id"))
     new_manufacturer = str(form.get("new_manufacturer") or "").strip()[:200] or None
@@ -171,15 +170,17 @@ def _parse_details(db: Session, form, mapping: dict) -> dict:
     if new_code and not new_manufacturer:
         errors.append("Kürzel nur zusammen mit einem neuen Hersteller angeben (sonst auf der Seite Hersteller)")
     elif new_manufacturer:
-        existing = db.scalar(select(Manufacturer).where(Manufacturer.name == new_manufacturer))
-        code_error = validate_code(db, new_code, existing.id if existing else None)
+        existing = db.scalar(select(Manufacturer).where(Manufacturer.name == new_manufacturer,
+                                                        Manufacturer.owner_id == owner_id))
+        code_error = validate_code(db, new_code, existing.id if existing else None, owner_id)
         if code_error:
             errors.append(code_error)
         elif existing and new_code and existing.code and existing.code != new_code:
             errors.append(f"Hersteller {existing.name} hat bereits das Kürzel {existing.code}")
     if "manufacturer" not in mapping and manufacturer_id is None and not new_manufacturer:
         errors.append("Hersteller wählen oder neu anlegen (oder Herstellerspalte zuordnen)")
-    if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
+    chosen = db.get(Manufacturer, manufacturer_id) if manufacturer_id is not None else None
+    if manufacturer_id is not None and (chosen is None or chosen.owner_id != owner_id):
         errors.append("Hersteller nicht gefunden")
     currency = str(form.get("currency") or "") or None
     if currency is not None and currency not in SUPPORTED_CURRENCIES:
@@ -229,7 +230,8 @@ def _details_context(db: Session, pl: PriceList, settings: Settings, cols: dict)
     return {"pl": pl, "pv": pv, "cols": cols, "summary": summary, "fields": FIELDS, "samples": samples,
             "prefixed": pv.manufacturer_suggestion is not None and pv.prefix_suggestion,
             "currencies": SUPPORTED_CURRENCIES, "step": 3,
-            "manufacturers": list(db.scalars(select(Manufacturer).order_by(Manufacturer.name)))}
+            "manufacturers": list(db.scalars(select(Manufacturer).where(Manufacturer.owner_id == pl.uploaded_by)
+                                             .order_by(Manufacturer.name)))}
 
 
 def _stored_columns(pl: PriceList) -> dict | None:
@@ -242,9 +244,9 @@ def _stored_columns(pl: PriceList) -> dict | None:
 
 @router.post("/import/{list_id}/spalten", dependencies=[Depends(check_csrf)])
 async def save_columns(request: Request, list_id: int, db: Session = Depends(get_db),
-                       settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
+                       settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
     """Schritt 2 -> 3: Zuordnung prüfen und im Entwurf merken."""
-    pl = _draft(db, list_id)
+    pl = _draft(db, list_id, user)
     cols = _parse_columns(await request.form())
     if cols["errors"]:
         return _columns_page(request, db, pl, settings, cols, cols["errors"])
@@ -255,8 +257,8 @@ async def save_columns(request: Request, list_id: int, db: Session = Depends(get
 
 @router.get("/import/{list_id}/hersteller")
 def details_form(request: Request, list_id: int, db: Session = Depends(get_db),
-                 settings: Settings = Depends(get_settings), _user: User = Depends(current_user)):
-    pl = _draft(db, list_id)
+                 settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
+    pl = _draft(db, list_id, user)
     cols = _stored_columns(pl)
     if cols is None:
         return RedirectResponse(f"/import/{pl.id}", status_code=303)
@@ -267,12 +269,12 @@ def details_form(request: Request, list_id: int, db: Session = Depends(get_db),
 async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
                   settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
     """Schritt 3 -> 4: Import als Hintergrundjob starten."""
-    pl = _draft(db, list_id)
+    pl = _draft(db, list_id, user)
     form = await request.form()
     cols = _parse_columns(form)
     if cols["errors"]:
         return _columns_page(request, db, pl, settings, cols, cols["errors"])
-    details = _parse_details(db, form, cols["mapping"])
+    details = _parse_details(db, form, cols["mapping"], pl.uploaded_by)
     if details["errors"]:
         ctx = _details_context(db, pl, settings, cols)
         return render(request, "import_details.html", {**ctx, "error": "; ".join(details["errors"])},
@@ -302,7 +304,7 @@ async def confirm(request: Request, list_id: int, db: Session = Depends(get_db),
 @router.post("/import/{list_id}/verwerfen", dependencies=[Depends(check_csrf)])
 def discard(request: Request, list_id: int, db: Session = Depends(get_db),
             settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
-    pl = _draft(db, list_id)
+    pl = _draft(db, list_id, user)
     stored_path(pl, settings).unlink(missing_ok=True)
     audit(db, user, "entwurf_verworfen", "price_list", pl.id, {"datei": pl.source_file}, client_ip(request))
     db.delete(pl)

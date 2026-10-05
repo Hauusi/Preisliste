@@ -90,12 +90,13 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
     detection = col.detect_columns(sheet, synonyms, header_row, header_rows)
     start = detection.header_row
     sample = sheet.rows[start: start + PREVIEW_ROWS]
-    known = [(m.id, m.name, m.aliases or []) for m in db.scalars(select(Manufacturer))]
+    known = [(m.id, m.name, m.aliases or [])
+             for m in db.scalars(select(Manufacturer).where(Manufacturer.owner_id == pl.uploaded_by))]
     suggestion = col.suggest_manufacturer(known, pl.source_file, sheet, detection.header_row)
     nr_col = detection.mapping().get("article_number")
     prefix_suggestion = False
     if nr_col is not None:
-        by_code = suggest_by_code(db, [r[nr_col] for r in sheet.rows[start:] if nr_col < len(r)])
+        by_code = suggest_by_code(db, [r[nr_col] for r in sheet.rows[start:] if nr_col < len(r)], pl.uploaded_by)
         if by_code is not None:
             prefix_suggestion = suggestion in (None, by_code)
             suggestion = suggestion or by_code
@@ -104,6 +105,7 @@ def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: st
             PriceList.file_sha256 == pl.file_sha256,
             PriceList.status == "IMPORTIERT",
             PriceList.id != pl.id,
+            PriceList.uploaded_by == pl.uploaded_by,
         )
     )
     return Preview(sheets=sheets, sheet=sheet, detection=detection, sample_rows=sample,
@@ -120,13 +122,15 @@ def confirm_import(db: Session, pl: PriceList, settings: Settings, *, sheet_name
         raise ValueError("Diese Liste wurde bereits verarbeitet")
     if new_manufacturer:
         name = new_manufacturer.strip()
-        existing = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
+        existing = db.scalar(select(Manufacturer).where(Manufacturer.name == name,
+                                                        Manufacturer.owner_id == pl.uploaded_by))
         if existing is None:
-            existing = Manufacturer(name=name, aliases=[])
+            existing = Manufacturer(name=name, aliases=[], owner_id=pl.uploaded_by)
             db.add(existing)
             db.flush()
         manufacturer_id = existing.id
-    if manufacturer_id is not None and db.get(Manufacturer, manufacturer_id) is None:
+    m = db.get(Manufacturer, manufacturer_id) if manufacturer_id is not None else None
+    if manufacturer_id is not None and (m is None or m.owner_id != pl.uploaded_by):
         raise ValueError("Hersteller nicht gefunden")
 
     path = stored_path(pl, settings)

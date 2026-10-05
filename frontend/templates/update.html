@@ -85,7 +85,6 @@
     <span class="hint">Unklare Zuordnungen und Fehler müssen einzeln entschieden werden.</span>
   </form>
   {% endif %}
-  {% if user.role == "admin" %}
   <form method="post" action="/aktualisierungen/{{ upd.id }}/ausnahmen" id="ausnahme-form" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
@@ -95,20 +94,19 @@
     <button type="submit" name="action" value="setzen">Übernehmen</button>
     <button type="submit" name="action" value="entfernen" class="secondary">Zurück auf Standard</button>
   </form>
-  {% endif %}
 </div>
 
 {% set base_query = ({"status": status, "grund": grund, "q": q} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
 <div class="scroll">
 <table class="review-table">
-  <thead><tr>{% if user.role == "admin" %}<th class="sel" title="für „anders kalkulieren“ auswählen"><span class="sr">Auswahl</span></th>{% endif %}<th>Artikel</th><th class="num">EK alt → neu</th><th class="num">VK alt → neu</th><th class="num">Faktor</th><th>Status &amp; Hinweise</th><th>Prüfung</th></tr></thead>
+  <thead><tr><th class="sel" title="für „anders kalkulieren“ auswählen"><span class="sr">Auswahl</span></th><th>Artikel</th><th class="num">EK alt → neu</th><th class="num">VK alt → neu</th><th class="num">Faktor</th><th>Status &amp; Hinweise</th><th>Prüfung</th></tr></thead>
   <tbody>
   {% for i in rows %}
     {% set open = i.needs_review and not i.reviewed_at %}
     {% set new = i.decision != "ALT" %}
     <tr class="{{ 'open' if open }}">
-      {% if user.role == "admin" %}<td class="sel"><input type="checkbox" name="item" value="{{ i.id }}" form="ausnahme-form" aria-label="auswählen"></td>{% endif %}
+      <td class="sel"><input type="checkbox" name="item" value="{{ i.id }}" form="ausnahme-form" aria-label="auswählen"></td>
       <td class="art"><b>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</b>{% if i.rule_label and i.rule_label.startswith("Ausnahme") %} <span class="badge NEUER_ARTIKEL" title="{{ i.rule_label }}">eigene Kalkulation</span>{% endif %}
         <div class="desc">{{ i.description or "" }}</div></td>
       <td class="num"><span class="old">{{ i.old_amount | money }}</span> → <b>{{ i.final_ek | money }}</b>

@@ -10,6 +10,7 @@ from backend.api.routes_lists import query_articles
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import PriceList, User
+from backend.services.access import get_visible, visible
 from backend.services.manufacturers import code_map, with_code
 
 router = APIRouter(prefix="/api")
@@ -23,20 +24,19 @@ def status(settings: Settings = Depends(get_settings), _user: User = Depends(cur
 
 
 @router.get("/price-lists")
-def price_lists(db: Session = Depends(get_db), _user: User = Depends(current_user)):
+def price_lists(db: Session = Depends(get_db), user: User = Depends(current_user)):
     return [
         {"id": pl.id, "name": pl.name, "status": pl.status, "datei": pl.source_file,
          "hochgeladen": pl.uploaded_at.isoformat(), "zusammenfassung": pl.summary}
-        for pl in db.scalars(select(PriceList).order_by(PriceList.id.desc()))
+        for pl in db.scalars(visible(select(PriceList).order_by(PriceList.id.desc()), PriceList, user))
     ]
 
 
 @router.get("/price-lists/{list_id}/articles")
 def articles(list_id: int, status: str | None = None, q: str | None = None, page: int = 1,
              db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
-             _user: User = Depends(current_user)):
-    if db.get(PriceList, list_id) is None:
-        raise HTTPException(404, "Preisliste nicht gefunden")
+             user: User = Depends(current_user)):
+    get_visible(db, PriceList, list_id, user)
     rows, info = query_articles(db, list_id, status, q, page, settings.page_size)
     codes = code_map(db)
     return {

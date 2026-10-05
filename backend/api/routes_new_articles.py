@@ -27,13 +27,13 @@ def form(request: Request, _user: User = Depends(current_user)):
 
 
 @router.post("/neue-artikel", dependencies=[Depends(check_csrf)])
-async def check(request: Request, db: Session = Depends(get_db), _user: User = Depends(current_user)):
+async def check(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     data = await request.form()
     text = str(data.get("text") or "")[:200_000]
     if not text.strip():
         return _page(request, text, error="Bitte Artikelnummern einfügen", status_code=400)
     try:
-        rows = analyze(db, text)
+        rows = analyze(db, text, user)
     except ValueError as e:
         return _page(request, text, error=str(e), status_code=400)
     return _page(request, text, rows)
@@ -45,7 +45,7 @@ async def add(request: Request, db: Session = Depends(get_db), user: User = Depe
     text = str(data.get("text") or "")[:200_000]
     selected = {int(v) for v in data.getlist("line") if str(v).isdigit()}
     try:
-        rows = analyze(db, text)  # alles neu prüfen, nichts aus dem Formular übernehmen
+        rows = analyze(db, text, user)  # alles neu prüfen, nichts aus dem Formular übernehmen
     except ValueError as e:
         return _page(request, text, error=str(e), status_code=400)
     if data.get("bestaetigt") != "ja":

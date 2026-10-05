@@ -58,7 +58,8 @@ class Row:
 
 
 def _lists(db: Session, m: Manufacturer, kind: str) -> list[PriceList]:
-    lists = db.scalars(select(PriceList).where(PriceList.status == "IMPORTIERT", PriceList.kind == kind)
+    lists = db.scalars(select(PriceList).where(PriceList.status == "IMPORTIERT", PriceList.kind == kind,
+                                               PriceList.uploaded_by == m.owner_id)
                        .order_by(PriceList.id.desc())).all()
     out = []
     for pl in lists:
@@ -88,11 +89,19 @@ def parse_lines(text: str) -> list[tuple[int, str, list[str]]]:
     return out
 
 
-def analyze(db: Session, text: str) -> list[Row]:
+def analyze(db: Session, text: str, user) -> list[Row]:
     lines = parse_lines(text)
     if len(lines) > MAX_LINES:
         raise ValueError(f"Höchstens {MAX_LINES} Zeilen auf einmal")
-    codes = {m.code: m for m in db.scalars(select(Manufacturer).where(Manufacturer.code.is_not(None)))}
+    from backend.services.access import visible
+
+    # nur eigene Hersteller (Admin: alle; gleiches Kürzel bei zwei Benutzern = mehrdeutig, wird nicht geraten)
+    mfrs = db.scalars(visible(select(Manufacturer).where(Manufacturer.code.is_not(None)), Manufacturer, user)).all()
+    by_code: dict[str, list[Manufacturer]] = {}
+    for m in mfrs:
+        by_code.setdefault(m.code, []).append(m)
+    codes = {c: ms[0] for c, ms in by_code.items() if len(ms) == 1}
+    shared = {c for c, ms in by_code.items() if len(ms) > 1}
     seen: dict[tuple[int, str], int] = {}
     cache: dict = {}
     rows = []
@@ -103,12 +112,16 @@ def analyze(db: Session, text: str) -> list[Row]:
         row.description = (parts[1] if len(parts) > 1 else "")[:500] or None
         ek_raw = parts[2] if len(parts) > 2 else ""
         upper = number.upper()
-        hits = [c for c in codes if upper.startswith(c) and len(normalize_article_number(number)) > len(c)]
+        hits = [c for c in list(codes) + sorted(shared)
+                if upper.startswith(c) and len(normalize_article_number(number)) > len(c)]
         if not number:
             row.errors.append("Artikelnummer fehlt")
             continue
         if not hits:
             row.errors.append("Kein Hersteller-Kürzel erkannt (Kürzel beim Hersteller hinterlegen)")
+            continue
+        if len(hits) == 1 and hits[0] in shared:
+            row.errors.append(f"Kürzel {hits[0]} gibt es bei mehreren Benutzern – wird nicht geraten")
             continue
         if len(hits) > 1:
             row.errors.append(f"Kürzel mehrdeutig ({', '.join(sorted(hits))}) – wird nicht geraten")

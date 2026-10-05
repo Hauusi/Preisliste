@@ -100,11 +100,13 @@ class RowResult:
 class _Manufacturers:
     """Herstellerzuordnung über Name/Alias; unbekannte Namen aus der Herstellerspalte werden angelegt."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, owner_id: int | None):
         self.db = db
+        self.owner_id = owner_id
         self.by_key: dict[str, int] = {}
         self.created: list[str] = []
-        for m in db.scalars(select(Manufacturer)):
+        # nur Hersteller des Listen-Besitzers (jeder Benutzer hat eigene Hersteller)
+        for m in db.scalars(select(Manufacturer).where(Manufacturer.owner_id == owner_id)):
             for n in [m.name, *(m.aliases or [])]:
                 self.by_key[self.key(n)] = m.id
 
@@ -115,7 +117,7 @@ class _Manufacturers:
     def resolve(self, raw: str) -> int:
         k = self.key(raw)
         if k not in self.by_key:
-            m = Manufacturer(name=raw.strip(), aliases=[])
+            m = Manufacturer(name=raw.strip(), aliases=[], owner_id=self.owner_id)
             self.db.add(m)
             self.db.flush()
             self.by_key[k] = m.id
@@ -278,7 +280,9 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
     if cfg.default_currency is not None and cfg.default_currency not in SUPPORTED_CURRENCIES:
         raise ValueError(f"Nicht unterstützte Währung: {cfg.default_currency}")
 
-    manufacturers = _Manufacturers(db)
+    from backend.models.entities import PriceList
+
+    manufacturers = _Manufacturers(db, db.get(PriceList, price_list_id).uploaded_by)
     results: list[RowResult] = []
     list_messages: list[dict] = []
     empty_rows = 0

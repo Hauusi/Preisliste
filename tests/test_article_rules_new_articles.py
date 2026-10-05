@@ -23,7 +23,7 @@ def test_selected_articles_get_own_factor_and_keep_it(admin_client, user_client,
     assert items["LED2"].final_vk == D("26.00")
     page = c.get(url).text
     assert 'form="ausnahme-form"' in page
-    assert 'form="ausnahme-form"' not in user_client.get(url).text
+    assert user_client.get(url).status_code == 404
 
     r = c.post(url + "/ausnahmen", data={"csrf_token": c.csrf, "action": "setzen", "factor": "2,8"})
     assert "Keine Artikel ausgewählt" in r.text
@@ -47,7 +47,7 @@ def test_selected_articles_get_own_factor_and_keep_it(admin_client, user_client,
     with session_scope() as db:
         assert len(db.scalars(select(Rule).where(Rule.name == "RaphiLED × 2,8")).all()) == 1  # wiederverwendet
     assert user_client.post(url + "/ausnahmen", data={"csrf_token": user_client.csrf, "action": "entfernen",
-                                                      "item": str(led2.id)}).status_code == 403
+                                                      "item": str(led2.id)}).status_code == 404  # fremder Abgleich
 
     # nächstes Jahr: Ausnahme greift automatisch
     new2 = _import(c, app, tmp_path, "h2", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "10,00"],

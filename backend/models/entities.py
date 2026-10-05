@@ -57,10 +57,13 @@ class UserSession(Base):
 
 class Manufacturer(Base):
     __tablename__ = "manufacturers"
-    __table_args__ = (UniqueConstraint("code", name="uq_manufacturers_code"),)
+    # Jeder Benutzer hat eigene Hersteller: Name und Kürzel sind pro Besitzer eindeutig
+    __table_args__ = (UniqueConstraint("owner_id", "code", name="uq_manufacturers_owner_code"),
+                      UniqueConstraint("owner_id", "name", name="uq_manufacturers_owner_name"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), unique=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_manufacturers_owner"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     # F2: führende Nullen bei rein numerischen Nummern ignorieren ("00123" == "123")
     ignore_leading_zeros: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
@@ -207,6 +210,7 @@ class Rule(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_rules_owner"), index=True)
     manufacturer_id: Mapped[int | None] = mapped_column(ForeignKey("manufacturers.id"))
     current_version: Mapped[int] = mapped_column(Integer, default=1)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)

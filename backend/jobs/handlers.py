@@ -35,11 +35,12 @@ def import_job(ctx: JobContext, p: dict) -> dict:
     if p.get("new_manufacturer"):
         # Eigene kurze Transaktion, damit die Schreibsperre nicht während des Einlesens gehalten wird
         with session_scope() as db:
+            owner_id = db.get(PriceList, p["price_list_id"]).uploaded_by
             name = p["new_manufacturer"].strip()
-            m = db.scalar(select(Manufacturer).where(Manufacturer.name == name))
+            m = db.scalar(select(Manufacturer).where(Manufacturer.name == name, Manufacturer.owner_id == owner_id))
             code = p.get("new_manufacturer_code")
             if m is None:
-                m = Manufacturer(name=name, aliases=[], code=code)
+                m = Manufacturer(name=name, aliases=[], code=code, owner_id=owner_id)
                 db.add(m)
                 db.flush()
             elif code and not m.code:
