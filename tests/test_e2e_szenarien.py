@@ -300,3 +300,59 @@ def test_sales_features_rounding_margin_customer_list(admin_client, app):
     assert len(rows) == len(changed) > 0 and all(r[0].startswith("RA") and r[5] == "01.01.2027" for r in rows)
     assert "Marge %" in [h.value for h in openpyxl.load_workbook(io.BytesIO(c.get(f"{target}/export").content))
                          ["Neue Preisliste"][1]]
+
+
+def _strands_file(path: Path) -> Path:
+    """Wie eine echte Strands-Liste: EK in SEK und in Euro nebeneinander, VK in Euro, Nummern mit ST-Kürzel."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Serie", "Nettoeinkauf 2025 SEK", "Kurs",
+               "Nettoeinkauf 2025 Euro", "Verkauf 2025 Euro"])
+    for n in range(1, 21):
+        sek = D(100 + n * 7)
+        ek = money(sek * D("0.095"))
+        ws.append([f"ST27{n:04d}", f"Montagewinkel {n}", "Basic", float(sek), 0.095, float(ek), float(money(ek * 2))])
+    wb.save(path)
+    return path
+
+
+def test_our_list_with_ek_in_two_currencies(admin_client, app, tmp_path):
+    c = admin_client
+    new_manufacturer(c, "Strands", "ST", "2")
+    r = upload(c, _strands_file(tmp_path / "Strands EK VK 2025_final.xlsx"))
+    url = r.headers["location"]
+    page = c.get(url).text
+    # EK in Euro wird genommen, die SEK-Spalte bewusst nicht; Währung EUR, startbar
+    assert "Unsere Liste braucht eine EK-Spalte" not in page
+    assert '<option value="UNSERE" selected>' in page and '<option value="EUR" selected>' in page
+    assert "Nettoeinkauf 2025 SEK" in page and "wird nicht verwendet" in page
+    assert "disabled" not in page.split("sticky-actions")[1].split("</button>")[0]
+    # SEK gewählt: EK-Spalte wechselt auf SEK, VK bleibt Euro -> gemischte Währung blockiert
+    page_sek = c.get(url + "?currency=SEK").text
+    assert "verschiedene Währungen" in page_sek
+    start(c, app, page)
+    with session_scope() as db:
+        arts = db.scalars(select(Article).join(PriceList).where(PriceList.kind == "UNSERE")).all()
+        assert len(arts) == 20
+        a = next(x for x in arts if x.article_number.endswith("270001"))
+        prices = {pr.price_type: (pr.amount, pr.currency) for pr in a.prices}
+        ek = money(D(107) * D("0.095"))
+        assert prices == {"EK": (ek, "EUR"), "LISTE": (money(ek * 2), "EUR")}
+
+
+def test_manufacturer_list_in_two_currencies_follows_setting(admin_client, app, tmp_path):
+    c = admin_client
+    mid = new_manufacturer(c, "Strands", "ST", "2", list_currency="SEK", exchange_rate="0,095")
+    start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands EK VK 2025.xlsx")).headers["location"]).text)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Art.-Nr.", "Bezeichnung", "Nettoeinkauf 2026 SEK", "Nettoeinkauf 2026 Euro"])
+    for n in range(1, 21):
+        ws.append([f"27{n:04d}", f"Montagewinkel {n}", 110 + n * 7, 99.0])
+    wb.save(tmp_path / "Strands Preisliste 2026.xlsx")
+    page = c.get(upload(c, tmp_path / "Strands Preisliste 2026.xlsx").headers["location"]).text
+    assert f'<option value="{mid}" selected>' in page and '<option value="HERSTELLER" selected>' in page
+    assert '<option value="SEK" selected>' in page and "Nettoeinkauf 2026 Euro" in page
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    i = items["270001"]
+    assert (i.final_ek, i.source_currency) == (money(D(117) * D("0.095")), "SEK")

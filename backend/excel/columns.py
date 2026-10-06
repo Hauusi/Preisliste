@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-from backend.excel.numbers import detect_column_separator, is_empty, parse_amount
+from backend.excel.numbers import _CURRENCY_TOKENS, detect_column_separator, is_empty, parse_amount
 from backend.excel.reader import SheetData
 
 FIELDS: dict[str, str] = {
@@ -45,6 +45,16 @@ def normalize_label(text: str) -> str:
 
 def _tokens(text: str) -> tuple[str, ...]:
     return tuple(t for t in re.split(r"[^a-z0-9]+", normalize_label(text)) if t)
+
+
+def label_currency(label) -> str | None:
+    """Währung aus einer Überschrift ("Nettoeinkauf 2025 SEK" -> SEK), nur wenn eindeutig."""
+    if is_empty(label):
+        return None
+    text = str(label).upper()
+    found = {cur for tok, cur in _CURRENCY_TOKENS.items() if not tok[0].isalpha() and tok in text}
+    found |= {_CURRENCY_TOKENS[t] for t in re.split(r"[^A-Z$£€.]+", text) if t in _CURRENCY_TOKENS}
+    return found.pop() if len(found) == 1 else None
 
 
 def _compact(text: str) -> str:
@@ -92,6 +102,8 @@ class ColumnGuess:
     score: float
     source: str  # synonym | heuristik | keine
     note: str | None = None
+    currency: str | None = None  # Währung laut Überschrift
+    alt_field: str | None = None  # gleiche Preisart wie eine andere Spalte, aber andere Währung
 
 
 @dataclass
@@ -202,7 +214,8 @@ def _price_ratio(values: list) -> float:
 
 
 def detect_columns(
-    sheet: SheetData, synonyms, header_row: int | None = None, header_rows: int | None = None
+    sheet: SheetData, synonyms, header_row: int | None = None, header_rows: int | None = None,
+    prefer_currency: str = "EUR",
 ) -> Detection:
     notes: list[str] = []
     if header_row is None:
@@ -223,7 +236,8 @@ def detect_columns(
             lower = sheet.rows[header_row - 1]
             lo = lower[i] if i < len(lower) else None
             candidates = match_label(lo, synonyms) if not is_empty(lo) else []
-        guess = ColumnGuess(index=i, label=label, field=None, score=0.0, source="keine")
+        guess = ColumnGuess(index=i, label=label, field=None, score=0.0, source="keine",
+                            currency=label_currency(label))
         if candidates:
             top_field, top_score = candidates[0]
             ties = [f for f, s in candidates if s == top_score]
@@ -242,6 +256,17 @@ def detect_columns(
     for fld, group in by_field.items():
         top = max(g.score for g in group)
         winners = [g for g in group if g.score == top]
+        currencies = [g.currency for g in winners]
+        if fld in PRICE_FIELDS and len(winners) > 1 and None not in currencies \
+                and len(set(currencies)) == len(currencies) and prefer_currency in currencies:
+            # gleiche Preisart in mehreren Währungen ("EK SEK", "EK Euro"): Wunschwährung nehmen, Rest merken
+            keep = winners[currencies.index(prefer_currency)]
+            for g in group:
+                if g is not keep:
+                    g.field, g.source, g.alt_field = None, "keine", fld
+                    g.note = f"{FIELDS[fld]} in {g.currency} – nicht verwendet ({keep.currency}-Spalte {keep.index + 1})"
+            claimed[fld] = keep
+            continue
         if len(winners) == 1:
             claimed[fld] = winners[0]
         for g in group:

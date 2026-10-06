@@ -26,6 +26,7 @@ from backend.services.calc_setup import describe, factor_of, rounding_of
 from backend.services.imports import build_preview, stored_path
 from backend.services.updates import current_list
 
+PRICE_KEYS = ("supplier_price", "list_price", "rrp")
 PARTIAL_SHARE = 0.5  # weniger als die Hälfte unserer Artikel in der Liste -> Teilliste vorschlagen
 _CURRENCY_RE = re.compile(r"\b(" + "|".join(SUPPORTED_CURRENCIES) + r")\b")
 
@@ -74,8 +75,17 @@ def columns_from_detection(pv) -> dict:
     return _parse_columns(FormData(items))
 
 
-def _currency_in_file(pv) -> str | None:
-    texts = [c.label or "" for c in pv.detection.columns]
+def _currency_in_file(pv, mapping: dict | None = None) -> str | None:
+    """Währung der verwendeten Preisspalten; sonst aus allen Überschriften und Titelzeilen, wenn eindeutig."""
+    if mapping:
+        by_index = {c.index: c for c in pv.detection.columns}
+        used = {by_index[i].currency for f, i in mapping.items() if f in PRICE_KEYS and i in by_index}
+        used.discard(None)
+        if len(used) == 1:
+            return used.pop()
+        if len(used) > 1:
+            return None
+    texts = [c.label or "" for c in pv.detection.columns if not c.alt_field]
     texts += [str(v) for row in pv.sheet.rows[:max(pv.detection.header_row - 1, 0)] for v in row if v]
     found = {m.group(1) for t in texts for m in _CURRENCY_RE.finditer(str(t).upper())}
     return found.pop() if len(found) == 1 else None
@@ -111,6 +121,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
 
     # Herstellerliste mit nur einer allgemeinen „Preis“-Spalte: Bedeutung kommt aus der Hersteller-Einstellung
     remapped = None
+    pending_hints: list[str] = []
     prices_mapped = [f for f in ("supplier_price", "list_price", "rrp") if f in mapping]
     if kind == "HERSTELLER" and m and stored_cols is None and prices_mapped == ["list_price"]:
         target = "rrp" if st["basis"] == "UVP" else "supplier_price"
@@ -120,7 +131,28 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         remapped = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
         remapped = (remapped, "UVP" if target == "rrp" else "EK")
 
-    file_cur = _currency_in_file(pv)
+    # Gleiche Preisart in mehreren Währungen (z. B. „Nettoeinkauf SEK“ und „Nettoeinkauf Euro“):
+    # gewählte Währung > Hersteller-Einstellung (Herstellerliste) > Euro bestimmt, welche Spalte gilt.
+    by_index = {c.index: c for c in pv.detection.columns}
+    alternates = [c for c in pv.detection.columns if c.alt_field and c.currency]
+    if alternates and stored_cols is None:
+        wanted = o.get("currency") if o.get("currency") in SUPPORTED_CURRENCIES else (
+            st["currency"] if kind == "HERSTELLER" and m else "EUR")
+        candidates = {alt.alt_field: {mapping[alt.alt_field]} for alt in alternates if alt.alt_field in mapping}
+        for alt in alternates:
+            candidates.setdefault(alt.alt_field, set()).add(alt.index)
+            cur_idx = mapping.get(alt.alt_field)
+            if alt.currency == wanted and cur_idx is not None and by_index[cur_idx].currency != wanted:
+                mapping[alt.alt_field] = alt.index
+                cols["assigned"][alt.alt_field] = [alt.index]
+        for fld, idxs in candidates.items():
+            used = by_index[mapping[fld]]
+            for i in sorted(idxs - {mapping[fld]}):
+                pending_hints.append(f"Spalte „{by_index[i].label}“ ({by_index[i].currency}) wird nicht verwendet – "
+                                     f"es gilt „{used.label}“ ({used.currency}). Andere Spalte: Währung oben umstellen.")
+    used_cur = {by_index[i].currency for f, i in mapping.items() if f in PRICE_KEYS and by_index.get(i)}
+
+    file_cur = _currency_in_file(pv, mapping)
     if o.get("currency") in SUPPORTED_CURRENCIES:
         currency, source = o["currency"], "gewählt"
     elif file_cur:
@@ -178,6 +210,13 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     if o.get("manufacturer_id") == "neu" and kind == "HERSTELLER":
         p.issues.append("Ein neuer Hersteller hat noch keine eigene EK/VK-Liste – diese Datei als „Unsere Liste“ "
                         "importieren oder zuerst unsere Liste einspielen")
+    used_cur.discard(None)
+    if len(used_cur) > 1:
+        p.issues.append("Die verwendeten Preisspalten haben verschiedene Währungen ("
+                        + ", ".join(sorted(used_cur)) + ") – bitte unter „Spalten anpassen“ korrigieren")
+    elif used_cur and currency not in used_cur:
+        p.issues.append(f"Die Preisspalten sind in {used_cur.pop()}, gewählt ist {currency}")
+    has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     if kind == "UNSERE":
         if not has_ek:
             p.issues.append("Unsere Liste braucht eine EK-Spalte")
@@ -225,6 +264,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     if remapped:
         p.hints.append(f"Die Spalte „{remapped[0]}“ wird als {remapped[1]} gelesen "
                        f"(laut Einstellung schickt {m.name} {remapped[1]}-Preise).")
+    p.hints.extend(pending_hints)
     if cols.get("split"):
         p.hints.append("Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch "
                        "verglichen (älteres Jahr bzw. linke Spalte = alt).")

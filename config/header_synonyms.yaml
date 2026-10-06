@@ -58,6 +58,11 @@ supplier_price:
   - EK Preis
   - EK-Preis netto
   - Einkauf
+  - Nettoeinkauf
+  - Netto-Einkauf
+  - Einkauf netto
+  - Nettoeinkaufspreis
+  - NEK
   - Ihr Preis
   - Ihr EK
   - Händler-EK
@@ -82,6 +87,11 @@ list_price:
   - Verkaufspreis
   - VK
   - VK netto
+  - Verkauf
+  - Nettoverkauf
+  - Netto-Verkauf
+  - Verkauf netto
+  - Nettoverkaufspreis
   - List Price
   - Price
 rrp:
