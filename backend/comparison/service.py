@@ -122,14 +122,18 @@ def _single_amount(a: Article, cmp: Comparison, rule) -> tuple:
     return am[key]
 
 
-def match_articles(db: Session, olds: dict, news: dict):
-    """Matching-Kaskade mit Hersteller-Einstellungen (führende Nullen) und bestätigten Zuordnungen."""
-    to_item = lambda a: Item(a.id, a.manufacturer_id, a.article_number, a.article_number_normalized, a.description)
+def match_articles(db: Session, olds: dict, news: dict, manufacturer_id: int | None = None, prefix: str | None = None):
+    """Matching-Kaskade mit Hersteller-Einstellungen (führende Nullen) und bestätigten Zuordnungen.
+
+    manufacturer_id: beide Listen gehören zu genau diesem Hersteller (Jahresabgleich) – eine Hersteller-/Markenspalte
+    in der Datei spielt dann keine Rolle. prefix: unser Kürzel, das vor der Herstellernummer stehen kann."""
+    to_item = lambda a: Item(a.id, manufacturer_id if manufacturer_id is not None else a.manufacturer_id,
+                             a.article_number, a.article_number_normalized, a.description)
     ignore = {m.id for m in db.scalars(select(Manufacturer).where(Manufacturer.ignore_leading_zeros.is_(True)))}
     decisions = {(d.manufacturer_id, d.old_number_normalized, d.new_number_normalized): d.decision
                  for d in db.scalars(select(MatchDecision))}
     return match([to_item(a) for a in olds.values() if a.article_number],
-                 [to_item(a) for a in news.values() if a.article_number], ignore, decisions)
+                 [to_item(a) for a in news.values() if a.article_number], ignore, decisions, prefix=prefix)
 
 
 def run_comparison(db: Session, cmp: Comparison) -> dict:

@@ -92,7 +92,11 @@ def _currency_in_file(pv, mapping: dict | None = None) -> str | None:
 
 
 def _norm(number: str, m: Manufacturer | None) -> str:
+    """Wie der Abgleich vergleicht: normalisiert, ohne unser Kürzel, ggf. ohne führende Nullen."""
     n = normalize_article_number(number)
+    code = normalize_article_number(m.code) if m and m.code else ""
+    if code and n.startswith(code) and len(n) > len(code):
+        n = n[len(code):]
     return strip_zeros(n) if m and m.ignore_leading_zeros else n
 
 
@@ -103,6 +107,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
                        (stored_cols or {}).get("header_row"), (stored_cols or {}).get("header_rows"))
     cols = stored_cols or columns_from_detection(pv)
     mapping = cols["mapping"]
+    pending_hints: list[str] = []
     mfrs = db.scalars(select(Manufacturer).where(Manufacturer.owner_id == pl.uploaded_by)
                       .order_by(Manufacturer.name)).all()
 
@@ -115,13 +120,20 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     elif pv.manufacturer_suggestion:
         m = next((x for x in mfrs if x.id == pv.manufacturer_suggestion), None)
 
+    # Ein gewählter Hersteller gilt für die ganze Datei; eine Hersteller-/Markenspalte wird dann nicht gelesen
+    # (sonst landen die Artikel z. B. unter „Strands Lighting AB“ statt beim gewählten Hersteller).
+    if (m is not None or o.get("manufacturer_id") == "neu") and "manufacturer" in mapping:
+        idx = mapping.pop("manufacturer")
+        cols["assigned"].pop("manufacturer", None)
+        label = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
+        pending_hints.append(f"Die Spalte „{label}“ wird ignoriert – alle Artikel gehören zum gewählten Hersteller.")
+
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     kind = o.get("kind") if o.get("kind") in ("UNSERE", "HERSTELLER") else ("UNSERE" if has_ek and has_vk else "HERSTELLER")
     st = manufacturer_settings(m)
 
     # Herstellerliste mit nur einer allgemeinen „Preis“-Spalte: Bedeutung kommt aus der Hersteller-Einstellung
     remapped = None
-    pending_hints: list[str] = []
     prices_mapped = [f for f in ("supplier_price", "list_price", "rrp") if f in mapping]
     if kind == "HERSTELLER" and m and stored_cols is None and prices_mapped == ["list_price"]:
         target = "rrp" if st["basis"] == "UVP" else "supplier_price"

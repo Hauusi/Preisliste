@@ -356,3 +356,38 @@ def test_manufacturer_list_in_two_currencies_follows_setting(admin_client, app, 
     items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
     i = items["270001"]
     assert (i.final_ek, i.source_currency) == (money(D(117) * D("0.095")), "SEK")
+
+
+def _strands_mfr_list(path: Path, extra_col: str | None = None) -> Path:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Art.-Nr.", "Bezeichnung"] + ([extra_col] if extra_col else []) + ["Nettoeinkauf 2026 Euro"])
+    for n in range(1, 21):
+        ws.append([f"27{n:04d}", f"Montagewinkel {n}"] + (["Strands Lighting AB"] if extra_col else []) + [12.5])
+    wb.save(path)
+    return path
+
+
+def test_strands_our_numbers_with_code_not_stripped(admin_client, app, tmp_path):
+    """Unsere Liste ohne „Kürzel abschneiden“ importiert (ST270001 gespeichert): Herstellerliste ohne ST trifft trotzdem."""
+    c = admin_client
+    new_manufacturer(c, "Strands", "ST", "2")
+    url = upload(c, _strands_file(tmp_path / "Strands EK VK 2025.xlsx")).headers["location"]
+    start(c, app, c.get(url + "?strip_code=0&strip_set=1").text)
+    page = c.get(upload(c, _strands_mfr_list(tmp_path / "Strands 2026.xlsx")).headers["location"]).text
+    assert "20 von 20" in page
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    assert len(items) == 20 and "NICHT_IN_HERSTELLERLISTE" not in {i.status for i in items.values()}
+    assert all(i.final_ek == D("12.50") for i in items.values())
+
+
+def test_strands_manufacturer_column_does_not_break_matching(admin_client, app, tmp_path):
+    """Herstellerliste mit eigener Hersteller-/Markenspalte: der gewählte Hersteller gilt für die ganze Datei."""
+    c = admin_client
+    new_manufacturer(c, "Strands", "ST", "2")
+    start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands EK VK 2025.xlsx")).headers["location"]).text)
+    page = c.get(upload(c, _strands_mfr_list(tmp_path / "Strands 2026.xlsx", "Hersteller")).headers["location"]).text
+    assert "20 von 20" in page
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    assert len(items) == 20 and "NICHT_IN_HERSTELLERLISTE" not in {i.status for i in items.values()}
+    assert all(i.final_ek == D("12.50") for i in items.values())

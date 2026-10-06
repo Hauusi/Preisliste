@@ -294,7 +294,10 @@ def run_update(db: Session, upd: PriceUpdate) -> dict:
 
     base, source = load(upd.base_price_list_id), load(upd.source_price_list_id)
     source = _drop_identical_duplicates(source, ctx.basis)
-    result = match_articles(db, base, source)
+    mids = {a.manufacturer_id for a in base.values()}
+    mid = upd.base_list.manufacturer_id or (mids.pop() if len(mids) == 1 else None)
+    mfr = db.get(Manufacturer, mid) if mid else None
+    result = match_articles(db, base, source, manufacturer_id=mid, prefix=mfr.code if mfr else None)
     pairs = {old: (new, method) for old, new, method, _ in result.pairs}
     cand_for_old = defaultdict(list)
     for new_id, cands in result.unclear.items():

@@ -52,6 +52,7 @@ def match(
     ignore_zeros: set[int | None] = frozenset(),
     decisions: dict[tuple[int | None, str, str], str] | None = None,
     threshold: int = FUZZY_THRESHOLD,
+    prefix: str | None = None,
 ) -> MatchResult:
     decisions = decisions or {}
     res = MatchResult()
@@ -91,6 +92,15 @@ def match(
     stage("NORMALISIERT", lambda a: (a.manufacturer_id, a.normalized))
     stage("NULLEN", lambda a: (a.manufacturer_id, strip_zeros(a.normalized))
           if a.manufacturer_id in ignore_zeros else None)
+    if prefix:
+        # Unser Kürzel vor der Herstellernummer (ST + 270350 = ST270350): ohne Kürzel vergleichen
+        p = prefix.upper()
+
+        def without_prefix(a):
+            n = a.normalized[len(p):] if a.normalized.startswith(p) and len(a.normalized) > len(p) else a.normalized
+            return (a.manufacturer_id, strip_zeros(n) if a.manufacturer_id in ignore_zeros else n)
+
+        stage("KUERZEL", without_prefix)
 
     # Bestätigte Zuordnungen aus früheren Vergleichen
     confirmed = {(m, o, n) for (m, o, n), d in decisions.items() if d == "MATCH"}
