@@ -117,7 +117,7 @@ def test_exceptions_on_manufacturer_page(admin_client, tmp_path, app):
     assert x9.status == "FEHLER" and "Mehrere Ausnahmen passen" in x9.note
     assert (x9.final_ek, x9.final_vk, x9.decision) == (D("10.00"), D("26.00"), "ALT")
     assert len(upd.exceptions) == 5
-    assert "eigene Kalkulation" in c.get(url).text
+    assert "eigene Kalkulation" in c.get(url + "?status=alle").text
 
     # Regel löschen entfernt ihre Ausnahmen (mit Hinweis auf der Bestätigungsseite)
     assert "Ausnahme(n) (Artikel mit eigener Kalkulation) mit dieser Regel werden entfernt" in c.get(f"/regeln/{r28}/loeschen").text

@@ -124,7 +124,7 @@ def test_ollama_unreachable_status():
 def test_ai_buttons_hidden_without_ai(admin_client, tmp_path):
     p = make_xlsx(tmp_path / "l.xlsx", [["Code", "Text"], ["A", "x"]])
     list_id = int(upload(admin_client, p).headers["location"].rsplit("/", 1)[1])
-    page = admin_client.get(f"/import/{list_id}").text
+    page = admin_client.get(f"/import/{list_id}/spalten").text
     assert "KI-Vorschlag" not in page and "KI inaktiv" in page
 
 
@@ -133,7 +133,7 @@ def test_ai_columns_job(admin_client, tmp_path, app):
                                   '{"index": 1, "field": "supplier_price"}], "manufacturer": "ACME", "confidence": 0.6}']))
     p = make_xlsx(tmp_path / "l.xlsx", [["Code", "Wert", "Text"], ["AB-1", "1,00", "x"], ["CD-2", "2,00", "y"]])
     list_id = int(upload(admin_client, p).headers["location"].rsplit("/", 1)[1])
-    page = admin_client.get(f"/import/{list_id}").text
+    page = admin_client.get(f"/import/{list_id}/spalten").text
     assert "KI-Vorschlag für Spalten holen" in page and "KI aktiv" in page
     r = admin_client.post(f"/import/{list_id}/ki-spalten", data={"csrf_token": admin_client.csrf, "sheet": "Preise",
                                                                  "header_row": "1", "header_rows": "1"},

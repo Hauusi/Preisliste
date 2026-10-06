@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Liste prüfen{% endblock %}
+{% block content %}
+{% include "_steps.html" %}
+{% set m = p.manufacturer %}
+{% set neu = o.get("manufacturer_id") == "neu" %}
+<div class="page-head">
+  <div><h1>Alles erkannt – bitte kurz prüfen</h1><p>{{ pl.source_file }} · {{ p.total_rows }} Artikel in der Datei</p></div>
+</div>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+
+<form method="get" action="/import/{{ pl.id }}" id="adjust" class="card check-card">
+  <div class="check-grid">
+    <div class="check-item">
+      <span class="check-label">{{ icon("factory", 16) }} Hersteller</span>
+      <select name="manufacturer_id" data-autosubmit aria-label="Hersteller">
+        <option value="">– wählen –</option>
+        {% for x in p.manufacturers %}<option value="{{ x.id }}" {% if m and x.id == m.id %}selected{% endif %}>{{ x.name }}{% if x.code %} ({{ x.code }}){% endif %}</option>{% endfor %}
+        <option value="neu" {% if neu %}selected{% endif %}>+ Neuer Hersteller …</option>
+      </select>
+      {% if m and not o.get("manufacturer_id") %}<span class="check-src">automatisch erkannt</span>{% endif %}
+    </div>
+    <div class="check-item">
+      <span class="check-label">{{ icon("list", 16) }} Was ist das?</span>
+      <select name="kind" data-autosubmit aria-label="Art der Liste">
+        <option value="HERSTELLER" {% if p.kind == "HERSTELLER" %}selected{% endif %}>Herstellerliste (neu)</option>
+        <option value="UNSERE" {% if p.kind == "UNSERE" %}selected{% endif %}>Unsere EK/VK-Liste</option>
+      </select>
+      <span class="check-src">{{ "hat EK- und VK-Spalte" if p.kind == "UNSERE" else "eine Preisspalte" }}</span>
+    </div>
+    <div class="check-item">
+      <span class="check-label">{{ icon("tag", 16) }} Währung</span>
+      <select name="currency" data-autosubmit aria-label="Währung">{% for c in currencies %}<option value="{{ c }}" {% if c == p.currency %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+      <span class="check-src">{{ p.currency_source }}</span>
+    </div>
+    {% if p.kind == "HERSTELLER" and m %}
+    <div class="check-item">
+      <span class="check-label">{{ icon("sync", 16) }} Umfang</span>
+      <select name="scope" data-autosubmit aria-label="Umfang">
+        <option value="VOLL" {% if p.scope == "VOLL" %}selected{% endif %}>Komplette Jahresliste</option>
+        <option value="TEIL" {% if p.scope == "TEIL" %}selected{% endif %}>Teilliste (einzelne Serien)</option>
+      </select>
+      <span class="check-src">{% if p.scope_suggested == "TEIL" %}vorgeschlagen: nur {{ p.stats.found }} von {{ p.stats.ours }} Artikeln enthalten{% else %}fehlende Artikel werden zur Prüfung markiert{% endif %}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% if m and m.code and (p.strip_code or p.prefix_share > 0.5) %}
+  <label class="inline-label strip"><input type="checkbox" name="strip_code" value="1" {% if p.strip_code %}checked{% endif %} data-autosubmit>
+    <span>Die Nummern in der Datei beginnen schon mit <b>{{ m.code }}</b> – Kürzel beim Import abschneiden, damit es nicht doppelt wird</span></label>
+  <input type="hidden" name="strip_set" value="1">
+  {% endif %}
+  <noscript><button type="submit" class="secondary">Aktualisieren</button></noscript>
+</form>
+
+{% if p.kind == "HERSTELLER" and m and p.base %}
+<section class="card flow-card">
+  <div class="flow-step"><span class="flow-num">1</span><div><b>{{ p.stats.found }} von {{ p.stats.ours }}</b> unserer Artikel gefunden
+    <span class="hint">in „{{ p.base.name }}“{% if p.stats.missing %} · {{ p.stats.missing }} fehlen in der Liste{% endif %}{% if p.stats.new %} · {{ p.stats.new }} neue des Herstellers werden ignoriert{% endif %}</span></div></div>
+  <div class="flow-step"><span class="flow-num">2</span><div><b>EK neu</b> {{ "= UVP − " ~ (p.settings.discount | money) ~ " % Händlerrabatt" if p.settings.basis == "UVP" else "aus der Liste" }}{% if p.currency != "EUR" %}, × Kurs {{ p.settings.rate | num }} in €{% endif %}</div></div>
+  <div class="flow-step"><span class="flow-num">3</span><div><b>VK neu = {% if p.factor is not none %}EK × {{ p.factor | num }}{% else %}{{ p.rule.name if p.rule else "–" }}{% endif %}</b>
+    <span class="hint">jeder Wert wird unabhängig nachgerechnet · Prüfung ab ±{{ p.settings.threshold | money }} % EK-Änderung</span></div></div>
+  <div class="flow-step"><span class="flow-num">4</span><div><b>Du prüfst nur die Auffälligkeiten</b> <span class="hint">und übernimmst das Ergebnis mit einem Klick</span></div></div>
+</section>
+{% elif p.kind == "UNSERE" and (m or neu) %}
+<section class="card flow-card">
+  <div class="flow-step"><span class="flow-num">{{ icon("check", 16) }}</span><div><b>Wird die aktuelle EK/VK-Liste{% if m %} von {{ m.name }}{% endif %}</b>
+    <span class="hint">Grundlage für den nächsten Abgleich, wenn der Hersteller eine neue Liste schickt</span></div></div>
+</section>
+{% endif %}
+
+{% for i in p.issues %}<p class="msg FEHLER">{{ i }}{% if m and ("eingestellt" in i or "Kurs" in i or "Rabatt" in i or "Kalkulation" in i) %} – <a href="/hersteller/{{ m.id }}">Hersteller-Einstellungen</a>{% endif %}</p>{% endfor %}
+{% for h in p.hints %}<p class="msg UNKLAR">{{ h }}</p>{% endfor %}
+
+<form method="post" action="/import/{{ pl.id }}/start">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% for k in ("kind", "currency", "scope") %}<input type="hidden" name="{{ k }}" value="{{ p[k] }}">{% endfor %}
+  <input type="hidden" name="strip_code" value="{{ '1' if p.strip_code else '0' }}">
+  <input type="hidden" name="manufacturer_id" value="{{ 'neu' if neu else (m.id if m else '') }}">
+  {% if neu %}
+  <section class="card">
+    <h2>Neuer Hersteller</h2>
+    <div class="row">
+      <label class="grow">Name <input name="new_name" value="{{ o.get('new_name', '') }}" required maxlength="200" placeholder="z. B. Raphi LED"></label>
+      <label>Kürzel <input name="new_code" value="{{ o.get('new_code', '') }}" maxlength="10" size="6" class="code" placeholder="RA"></label>
+      <label>Faktor <small class="hint">VK = EK ×</small><input name="new_factor" value="{{ o.get('new_factor', '') }}" size="6" placeholder="2,6" required></label>
+    </div>
+    <p class="hint">UVP/Händlerrabatt, Währung und Prüfschwelle kannst du später beim Hersteller einstellen.</p>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head"><h2>So wird importiert</h2><a class="button ghost" href="/import/{{ pl.id }}/spalten">Spalten anpassen</a></div>
+    <div class="scroll"><table class="compact-table">
+      <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th>{% if "supplier_price" in p.cols.mapping %}<th class="num">EK</th>{% endif %}{% if "list_price" in p.cols.mapping %}<th class="num">VK</th>{% endif %}{% if "rrp" in p.cols.mapping %}<th class="num">UVP</th>{% endif %}</tr></thead>
+      <tbody>{% for r in p.sample %}<tr><td><b>{{ r.display }}</b>{% if p.strip_code and r.display != r.raw %} <span class="hint">(in der Datei: {{ r.raw }})</span>{% endif %}</td><td>{{ r.description or "" }}</td>
+        {% if "supplier_price" in p.cols.mapping %}<td class="num">{{ r.ek | price }}</td>{% endif %}{% if "list_price" in p.cols.mapping %}<td class="num">{{ r.vk | price }}</td>{% endif %}{% if "rrp" in p.cols.mapping %}<td class="num">{{ r.uvp | price }}</td>{% endif %}</tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="hint m0">Erkannte Spalten: {% for f, i in p.cols.mapping.items() %}{{ fields[f] }}{% if not loop.last %} · {% endif %}{% endfor %} · Kopfzeile in Excel-Zeile {{ p.cols.header_row }}</p>
+  </section>
+
+  <div class="actions sticky-actions">
+    <button type="submit" class="button big" {% if not p.ready and not neu %}disabled{% endif %}>
+      {% if p.kind == "HERSTELLER" %}{{ icon("sync", 18) }} Import &amp; Abgleich starten{% else %}{{ icon("upload", 18) }} Als unsere Liste importieren{% endif %}</button>
+    <span class="hint">{% if p.ready %}Danach geht es automatisch weiter zum Ergebnis.{% elif not neu %}Erst die rot markierten Punkte klären.{% endif %}</span>
+  </div>
+</form>
+<form method="post" action="/import/{{ pl.id }}/verwerfen" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="link">Entwurf verwerfen</button>
+</form>
+<script src="/static/app.js"></script>
+{% endblock %}

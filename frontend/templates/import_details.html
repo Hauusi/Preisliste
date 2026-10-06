@@ -2,7 +2,7 @@
 {% block title %}Hersteller & Währung{% endblock %}
 {% block content %}
 {% include "_steps.html" %}
-<h1>Schritt 3: Hersteller & Währung <small class="hint">{{ pl.source_file }}</small></h1>
+<h1>Hersteller & Währung <small class="hint">{{ pl.source_file }}</small></h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 
 <form method="post" action="/import/{{ pl.id }}/confirm">

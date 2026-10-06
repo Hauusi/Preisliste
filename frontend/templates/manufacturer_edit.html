@@ -14,47 +14,57 @@
   <fieldset {% if not admin %}disabled{% endif %}>
   <div class="two-col">
     <section class="card">
-      <h2>1. Stammdaten</h2>
-      <label>Name <input name="name" value="{{ m.name }}" required maxlength="200"></label>
-      <label>Kürzel <input name="code" value="{{ m.code or '' }}" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
-      <p class="hint">Steht in Anzeige und Export direkt vor der Artikelnummer: {{ m.code or "RT" }} + 12345 = {{ m.code or "RT" }}12345.</p>
-      <label>Aliase (mit ; getrennt) <input name="aliases" value="{{ (m.aliases or []) | join('; ') }}"></label>
+      <h2>Stammdaten</h2>
+      <div class="row">
+        <label class="grow">Name <input name="name" value="{{ m.name }}" required maxlength="200"></label>
+        <label>Kürzel <input name="code" value="{{ m.code or '' }}" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
+      </div>
+      <p class="hint">Das Kürzel steht in Anzeige und Export vor der Artikelnummer: {{ m.code or "RT" }} + 12345 = {{ m.code or "RT" }}12345.</p>
+      <label>Aliase (mit ; getrennt) <input name="aliases" value="{{ (m.aliases or []) | join('; ') }}" placeholder="z. B. {{ m.name }} GmbH"></label>
       <label class="inline-label"><input type="checkbox" name="ignore_leading_zeros" value="1" {% if m.ignore_leading_zeros %}checked{% endif %}> Führende Nullen ignorieren (00123 = 123)</label>
     </section>
 
     <section class="card">
-      <h2>2. Herstellerliste</h2>
-      <label>Die Liste des Herstellers enthält
-        <select name="list_basis"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>unseren EK</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP</option></select>
-      </label>
-      <label>Händlerrabatt % <small class="hint">nur bei UVP: EK = UVP − Rabatt</small>
-        <input name="dealer_discount" value="{{ m.dealer_discount | money if m.dealer_discount is not none else '' }}" size="6"></label>
-      <div class="row">
-        <label>Währung der Liste
-          <select name="list_currency">{% for c in currencies %}<option value="{{ c }}" {% if c == (m.list_currency or "EUR") %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-        </label>
-        <label>Umrechnungskurs <small class="hint">1 Einheit = ? EUR</small>
-          <input name="exchange_rate" value="{{ m.exchange_rate | num }}" size="8" placeholder="z. B. 0,095"></label>
+      <h2>Kalkulation</h2>
+      <div class="factor-field">
+        <span>VK = EK ×</span>
+        <input name="factor" value="{{ factor | num if factor is not none else '' }}" size="6" placeholder="2,6" aria-label="Kalkulationsfaktor">
       </div>
-      <p class="hint">Beispiel SEK mit Kurs 0,095: EK 100,00 SEK × 0,095 = 9,50 €. Der umgerechnete EK wird kaufmännisch auf Cent gerundet und dann kalkuliert.</p>
-      <label>Prüfschwelle % <small class="hint">ab dieser EK-Änderung muss bestätigt werden</small>
-        <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="6"></label>
+      <p class="hint">Kaufmännisch auf Cent gerundet. Einzelne Artikel mit anderem Faktor wählst du direkt im Jahresabgleich aus.</p>
+      <details {% if factor is none and m.default_rule_id %}open{% endif %}>
+        <summary>Stattdessen eine eigene Regel verwenden (z. B. mit Rundung auf ,90)</summary>
+        <label>Eigene Regel <small class="hint">nur wenn das Faktorfeld leer ist</small>
+          <select name="default_rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}" {% if r.id == m.default_rule_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select>
+        </label>
+        <p class="hint"><a href="/regeln/neu?zurueck=/hersteller/{{ m.id }}&hersteller={{ m.id }}">Neue Regel anlegen</a></p>
+      </details>
     </section>
   </div>
 
   <section class="card">
-    <h2>3. Kalkulation (VK aus EK)</h2>
-    <label>Standardregel
-      <select name="default_rule_id"><option value="">– keine –</option>{% for r in rules %}<option value="{{ r.id }}" {% if r.id == m.default_rule_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select>
-    </label>
-    {% if admin %}<p class="hint"><a href="/regeln/neu?zurueck=/hersteller/{{ m.id }}&hersteller={{ m.id }}">Neue Regel anlegen</a> (z. B. EK × 2,6) – danach hier auswählen.</p>{% endif %}
+    <h2>Was schickt der Hersteller?</h2>
+    <div class="row">
+      <label>Die Liste enthält
+        <select name="list_basis"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>unseren EK</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP</option></select>
+      </label>
+      <label>Händlerrabatt % <small class="hint">nur bei UVP</small>
+        <input name="dealer_discount" value="{{ m.dealer_discount | money if m.dealer_discount is not none else '' }}" size="6"></label>
+      <label>Währung
+        <select name="list_currency">{% for c in currencies %}<option value="{{ c }}" {% if c == (m.list_currency or "EUR") %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+      </label>
+      <label>Kurs <small class="hint">1 Einheit = ? EUR</small>
+        <input name="exchange_rate" value="{{ m.exchange_rate | num }}" size="8" placeholder="z. B. 0,095"></label>
+      <label>Prüfschwelle % <small class="hint">EK-Änderung</small>
+        <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="6"></label>
+    </div>
+    <p class="hint">UVP-Liste: EK = UVP − Händlerrabatt. Fremdwährung: EK × Kurs = EK in €, auf Cent gerundet (z. B. 100,00 SEK × 0,095 = 9,50 €). Ab der Prüfschwelle muss eine Preisänderung bestätigt werden.</p>
   </section>
   {% if admin %}<div class="actions"><button type="submit">Speichern</button></div>{% endif %}
   </fieldset>
 </form>
 
 <section class="card">
-  <h2>4. Artikel mit eigener Kalkulation</h2>
+  <h2>Artikel mit eigener Kalkulation</h2>
   <p class="hint">Für diese Artikel gilt statt der Standardregel eine andere Regel (z. B. EK × 2,8, wenn die Marge sonst zu klein ist). Am einfachsten im Jahresabgleich: Artikel anhaken und Faktor eingeben. Einzelne Artikel gehen vor „beginnt mit“. Passen sonst mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten: der Artikel landet als Fehler in der Prüfung.</p>
   <table>
     <thead><tr><th>Gilt für</th><th>Wert</th><th>Regel</th><th>Notiz</th><th></th></tr></thead>

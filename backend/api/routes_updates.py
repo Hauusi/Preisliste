@@ -24,6 +24,7 @@ from backend.excel.export import export_price_update
 from backend.excel.numbers import parse_amount
 from backend.api.routes_compare import list_manufacturer
 from backend.services.access import get_visible, visible, visible_or_none
+from backend.services.updates import start_update
 from backend.models.entities import Article, ArticlePrice, Manufacturer, PriceList, PriceUpdate, PriceUpdateItem, Rule, User
 from backend.services.audit import audit
 from backend.services.manufacturers import code_map, search_conditions
@@ -51,89 +52,20 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
         v = str(form.get(key) or "")
         return int(v) if v.isdigit() else None
 
-    errors = []
     base = visible_or_none(db, PriceList, as_int("base_id"), user)
     source = visible_or_none(db, PriceList, as_int("source_id"), user)
-    mfr = None
-    if not base or not source or base.status != "IMPORTIERT" or source.status != "IMPORTIERT":
-        errors.append("Unsere Liste und Herstellerliste wählen")
-    elif base.id == source.id:
-        errors.append("Unsere Liste und Herstellerliste müssen verschieden sein")
-    elif base.uploaded_by != source.uploaded_by:
-        errors.append("Unsere Liste und Herstellerliste müssen demselben Benutzer gehören")
-    else:
-        if base.kind == "HERSTELLER":
-            errors.append(f"„{base.name}“ ist als Herstellerliste importiert, nicht als unsere Liste")
-        if source.kind == "UNSERE":
-            errors.append(f"„{source.name}“ ist als unsere Liste importiert, nicht als Herstellerliste")
-        mb, ms = list_manufacturer(db, base), list_manufacturer(db, source)
-        if mb and ms and mb != ms:
-            errors.append("Unsere Liste und Herstellerliste gehören zu verschiedenen Herstellern")
-        mfr = db.get(Manufacturer, ms or mb) if (ms or mb) else None
-    settings = manufacturer_settings(mfr)
-    price_type = str(form.get("price_type") or settings["basis"])
-    if price_type not in BASIS_TYPES:
-        errors.append("Herstellerliste enthält: EK oder UVP")
-    elif price_type == "UVP" and settings["discount"] is None:
-        errors.append("Händlerrabatt beim Hersteller hinterlegen (EK = UVP - Händlerrabatt)")
-    scope = str(form.get("scope") or "VOLL")
-    if scope not in SCOPES:
-        errors.append("Umfang wählen: Jahrespreisliste oder Teilliste")
-    qty = parse_amount(str(form.get("quantity") or "1"), ",")
-    if not qty.ok or qty.value <= 0:
-        errors.append("Menge muss größer 0 sein")
-    rule_version_id = None
     rule = visible_or_none(db, Rule, as_int("rule_id"), user)
-    if rule is not None and base is not None and rule.owner_id != base.uploaded_by:
-        rule = None  # nur Regeln des Listen-Besitzers
-    if rule is None or rule.deleted:
-        errors.append("Kalkulationsregel für den VK wählen")
-    else:
-        rule_version_id = current_version(db, rule).id
-    if not errors:
-        errors += currency_problems(db, base, source, settings)
+    qty = parse_amount(str(form.get("quantity") or "1"), ",")
+    upd, errors = start_update(db, base, source, rule, str(form.get("scope") or "VOLL"),
+                               str(form.get("price_type") or "") or None, qty.value if qty.ok else None)
     if errors:
         return _list_page(request, db, user, "; ".join(errors), 400)
-    upd = PriceUpdate(base_price_list_id=base.id, source_price_list_id=source.id, price_type=price_type,
-                      rule_version_id=rule_version_id, quantity=qty.value, created_by=base.uploaded_by,
-                      dealer_discount=settings["discount"] if price_type == "UVP" else None,
-                      review_threshold=settings["threshold"], scope=scope,
-                      list_currency=settings["currency"],
-                      exchange_rate=settings["rate"] if settings["currency"] != "EUR" else None,
-                      exceptions=snapshot_exceptions(db, mfr.id if mfr else None))
-    db.add(upd)
-    db.flush()
-    summary = run_update(db, upd)
+    summary, price_type, scope = upd.summary, upd.price_type, upd.scope
     audit(db, user, "jahresabgleich", "price_update", upd.id,
           {"basis": base.id, "hersteller": source.id, "typ": price_type, "rabatt": str(upd.dealer_discount),
            "schwelle": str(upd.review_threshold), "umfang": scope, "waehrung": upd.list_currency,
            "kurs": str(upd.exchange_rate), "ausnahmen": upd.exceptions, "zusammenfassung": summary}, client_ip(request))
     return RedirectResponse(f"/aktualisierungen/{upd.id}", status_code=303)
-
-
-def list_currencies(db: Session, pl: PriceList) -> set[str]:
-    return set(db.scalars(select(ArticlePrice.currency).distinct().join(Article)
-                          .where(Article.price_list_id == pl.id)))
-
-
-def currency_problems(db: Session, base: PriceList, source: PriceList, settings: dict) -> list[str]:
-    """Falsch importierte Währung ist der teuerste Fehler (SEK als EUR = Faktor 10): vorher abfangen."""
-    ours, theirs = list_currencies(db, base), list_currencies(db, source)
-    errors = []
-    if len(ours) > 1:
-        errors.append(f"Unsere Liste enthält mehrere Währungen ({', '.join(sorted(ours))})")
-    if len(theirs) > 1:
-        errors.append(f"Herstellerliste enthält mehrere Währungen ({', '.join(sorted(theirs))})")
-    if errors or not ours or not theirs:
-        return errors
-    our, their = ours.pop(), theirs.pop()
-    expected = settings["currency"]
-    if their != expected:
-        errors.append(f"Herstellerliste ist in {their} importiert, laut Hersteller-Einstellung liefert der Hersteller "
-                      f"in {expected}. Bitte Liste mit der richtigen Währung neu importieren oder Einstellung prüfen.")
-    elif their != our and not (our == "EUR" and settings["rate"]):
-        errors.append(f"Kein Umrechnungskurs {their} → {our} beim Hersteller hinterlegt")
-    return errors
 
 
 def _list_page(request, db, user, error, status_code=200):
@@ -147,15 +79,18 @@ def _get(db: Session, upd_id: int, user: User) -> PriceUpdate:
     return get_visible(db, PriceUpdate, upd_id, user)
 
 
-FILTERS = ("offen",) + STATUSES
+FILTERS = ("offen", "alle") + STATUSES
 
 
 @router.get("/aktualisierungen/{upd_id}")
 def update_detail(request: Request, upd_id: int, status: str | None = None, grund: str | None = None,
+                  fertig: int = 0,
                   q: str | None = None, page: int = 1, meldung: str | None = None,
                   db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
                   user: User = Depends(current_user)):
     upd = _get(db, upd_id, user)
+    if status is None and not q and not grund and (upd.summary or {}).get("offen"):
+        status = "offen"  # zuerst nur das, was geprüft werden muss
     stmt = select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd_id)
     if status == "offen":
         stmt = stmt.where(PriceUpdateItem.needs_review.is_(True), PriceUpdateItem.reviewed_at.is_(None))
@@ -177,7 +112,7 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
         "upd": upd, "rows": rows, "info": info, "status": status if status in FILTERS else "",
         "grund": grund if grund in REASON_LABELS else "", "q": q or "", "meldung": meldung,
         "statuses": STATUSES, "labels": STATUS_LABELS, "reasons": REASON_LABELS, "codes": code_map(db),
-        "step": 6, "reviewers": reviewers,
+        "step": 4, "reviewers": reviewers, "fertig": bool(fertig and upd.adopted_list_id),
         "ai_targets": db.scalar(select(func.count(PriceUpdateItem.id)).where(
             PriceUpdateItem.update_id == upd_id, PriceUpdateItem.reviewed_at.is_(None),
             PriceUpdateItem.status.in_(("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG")))),
@@ -357,3 +292,17 @@ def ai_check(request: Request, upd_id: int, db: Session = Depends(get_db), user:
     job = enqueue(db, "AI_UPDATE_MATCH", {"update_id": upd.id}, user)
     audit(db, user, "ki_pruefung_abgleich", "price_update", upd.id, {"job": job.id}, client_ip(request))
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+
+@router.post("/aktualisierungen/{upd_id}/abschliessen", dependencies=[Depends(check_csrf)])
+async def finish(request: Request, upd_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Ein Klick: als aktuelle Liste übernehmen und die fertige Excel-Liste herunterladen."""
+    upd = _get(db, upd_id, user)
+    form = await request.form()
+    if not upd.adopted_list_id:
+        try:
+            pl = adopt_as_current(db, upd, user.id)
+        except ValueError as e:
+            return _back(upd_id, form, str(e))
+        audit(db, user, "abgleich_uebernommen", "price_update", upd.id, {"neue_liste": pl.id}, client_ip(request))
+    return RedirectResponse(f"/aktualisierungen/{upd_id}?fertig=1", status_code=303)

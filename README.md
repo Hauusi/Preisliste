@@ -1,4 +1,4 @@
-# Preisliste
+# Sales Assistant (Modul Preisliste)
 
 Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfung, Kalkulation, Vorjahresvergleich, Export. Läuft auf dem eigenen Server unter `https://salesassistent.duckdns.org`, mit Anmeldung. Die KI (Ollama) ist optional und läuft auf demselben Server.
 
@@ -16,28 +16,24 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 | C | Ollama, Hintergrundjobs, UI | umgesetzt |
 | D | Export, Deployment, Backup | umgesetzt |
 
-## Jahresabgleich (Hauptablauf)
+## So arbeitet man damit (Sales Assistant → Preisliste)
 
-1. Hersteller anlegen (Seite Hersteller → Name/Kürzel → Bearbeiten):
-   - Kürzel (RT + 12345 = RT12345), Standardregel für den VK (z. B. EK × 2,6)
-   - Artikel mit eigener Kalkulation (z. B. × 2,8 bei zu wenig Marge): am einfachsten im Ergebnis des Abgleichs
-     Artikel anhaken und Faktor eingeben. Gilt dauerhaft, auch in den Folgejahren. Auf der Herstellerseite auch
-     „Artikelnummer beginnt mit …“. Einzelne Artikel gehen vor; sonst wird bei mehreren passenden Regeln nicht geraten.
-   - Herstellerliste enthält EK oder UVP/RRP (dann EK = UVP − Händlerrabatt)
-   - Währung der Liste und Kurs, z. B. SEK × 0,095 = EUR (EK in € kaufmännisch auf Cent gerundet)
-   - Prüfschwelle (Standard ±10 % EK-Änderung)
-2. Unsere aktuelle Liste importieren, in Schritt 3 „Unsere Liste“ wählen (EK- und VK-Spalte, optional Serie).
-3. Neue Herstellerliste importieren (in der Währung des Herstellers), „Neue Herstellerliste“ wählen,
-   in Schritt 5 „Abgleich starten“: Jahrespreisliste (vollständig) oder Preiserhöhung einzelner Serien (Teilliste).
-4. Ergebnis: nur unsere Artikel. EK alt/neu und VK alt/neu mit Änderung in %, Faktor VK/EK, Rechenweg pro Artikel.
-   Jeder VK wird unabhängig von der Regelengine nachgerechnet (Gegenrechnung); Abweichung = Fehler, alter Preis bleibt.
-   Zu prüfen: EK-Änderung ab Schwelle, VK-Änderung passt nicht zur EK-Änderung, VK unter EK, Preis 0,
-   fehlender alter EK/VK, unklare Zuordnung, Artikel fehlt (nur bei Jahrespreisliste), Fehler.
-   Neue Artikel des Herstellers werden ignoriert. Bei einer Teilliste bleiben nicht enthaltene Artikel unverändert.
-5. Positionen bestätigen (optional VK von Hand), unklare Zuordnungen auswählen. Fehler und unklare Zuordnungen
-   nur einzeln. Endgültiger Export erst, wenn alles geprüft ist; vorher nur ENTWURF.
-6. „Als aktuelle Liste übernehmen“: das Ergebnis wird unsere neue EK/VK-Liste und ist beim nächsten Abgleich
-   vorausgewählt. Alle Entscheidungen stehen mit Benutzer und Zeit im Audit-Log und im Export.
+Nach dem Login: Kachel-Startseite des **Sales Assistant**, Modul **Preisliste** öffnen.
+
+1. **Hersteller einmal anlegen**: Name, Kürzel (z. B. RA), Faktor (VK = EK × 2,6). Die Kalkulationsregel entsteht
+   automatisch. Optional: Hersteller schickt UVP (Händlerrabatt), Fremdwährung (Kurs), Prüfschwelle.
+2. **Liste einspielen** (eine Datei für alles): Das Tool erkennt Hersteller, Spalten, Art der Liste (unsere
+   EK/VK-Liste oder neue Herstellerliste), Währung, Kürzel in den Nummern und bei Herstellerlisten, wie viele
+   unserer Artikel enthalten sind (Teilliste wird vorgeschlagen). Eine Prüfseite, ein Klick auf „Starten“.
+   - Unsere Liste → wird die aktuelle EK/VK-Liste des Herstellers.
+   - Herstellerliste → der Jahresabgleich startet automatisch, danach direkt das Ergebnis.
+3. **Prüfen**: Es werden zuerst nur die Auffälligkeiten gezeigt (EK-Änderung ab Schwelle, VK unter EK, fehlende
+   oder unklare Artikel, Fehler). Jeder VK ist unabhängig nachgerechnet. Einzelne Artikel lassen sich mit eigenem
+   Faktor kalkulieren (gilt dauerhaft), geänderte Nummern per Auswahl oder KI-Vorschlag zuordnen.
+4. **Abschließen**: ein Klick übernimmt die neuen EK/VK als aktuelle Liste und lädt die fertige Excel-Liste herunter.
+
+Testdaten für den kompletten Ablauf: `beispiel-daten/` (erzeugt mit `python beispiel-daten/erzeuge_testdaten.py`),
+automatisch durchgespielt in `tests/test_e2e_szenarien.py`.
 
 ## Benutzer und Sichtbarkeit
 

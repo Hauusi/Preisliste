@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Job {{ job.id }}{% endblock %}
-{% block head %}{% if running %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="2">{% elif auto_go and link %}<meta http-equiv="refresh" content="0;url={{ link[0] }}">{% endif %}{% endblock %}
 {% block content %}
 {% if step %}{% include "_steps.html" %}{% endif %}
 <h1>{{ labels.get(job.type, job.type) }} <small class="hint">Job {{ job.id }}</small></h1>
@@ -18,6 +18,7 @@
       <p>Datei in zwei Listen aufgeteilt und verglichen:</p>
       <ul>{% for lid in r.price_list_ids %}{% set sm = r.summaries[loop.index0] %}<li>{{ "alt" if loop.first else "neu" }}: <a href="/listen/{{ lid }}">{{ r.labels[loop.index0] }}</a> – {{ sm.articles }} Artikel, {{ sm.messages.FEHLER }} Fehler, {{ sm.messages.UNKLAR }} unklar</li>{% endfor %}</ul>
     {% elif job.type == "IMPORT" and r.summary %}<p>{{ r.summary.articles }} Artikel, {{ r.summary.prices }} Preise, {{ r.summary.messages.FEHLER }} Fehler, {{ r.summary.messages.UNKLAR }} unklar, {{ r.summary.messages.WARNUNG }} Warnungen.</p>{% endif %}
+    {% if r.update_errors %}<p class="msg FEHLER">Import fertig, Abgleich konnte nicht starten: {{ r.update_errors | join("; ") }}</p>{% endif %}
     {% if job.type == "AI_UPDATE_MATCH" %}<p>{{ r.anfragen }} Artikel geprüft, {{ r.treffer }} mögliche Treffer, {{ r.UNKLAR }} unklare Antworten. Nichts wurde automatisch übernommen.</p>{% endif %}
     {% if job.type == "AI_MATCH" %}<p>{{ r.anfragen }} Anfragen, {{ r.treffer }} mögliche Treffer, {{ r.UNKLAR }} unklare Antworten. Nichts wurde automatisch übernommen.</p>{% endif %}
   {% endif %}

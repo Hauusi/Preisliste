@@ -61,8 +61,26 @@ def import_job(ctx: JobContext, p: dict) -> dict:
         with session_scope() as db:
             pl = db.get(PriceList, p["price_list_id"])
             summary = confirm_import(db, pl, ctx.settings, mapping=p["mapping"], **kwargs)
+            kind = pl.kind
+        result = {"price_list_id": p["price_list_id"], "summary": summary, "kind": kind,
+                  "manufacturer_id": manufacturer_id}
+        if p.get("auto_update") and manufacturer_id:
+            # Herstellerliste: Jahresabgleich direkt anschließen (gleiche Prüfungen wie im Formular)
+            ctx.progress(1, 1, "Import fertig – Abgleich läuft")
+            from backend.models.entities import Rule
+            from backend.services.updates import current_list, start_update
+
+            with session_scope() as db:
+                m = db.get(Manufacturer, manufacturer_id)
+                source = db.get(PriceList, p["price_list_id"])
+                rule = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
+                upd, errors = start_update(db, current_list(db, m), source, rule, p["auto_update"].get("scope", "VOLL"))
+                if upd:
+                    result["update_id"] = upd.id
+                else:
+                    result["update_errors"] = errors
         ctx.progress(1, 1, "Import abgeschlossen")
-        return {"price_list_id": p["price_list_id"], "summary": summary}
+        return result
 
     # Eine Datei mit zwei Preisspalten (z. B. EK 2025 und EK 2026): zwei Listen + Vergleich
     list_ids, summaries = [], []

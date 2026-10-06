@@ -5,27 +5,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>{% block title %}Preisliste{% endblock %} – Preisliste</title>
+  <title>{% block title %}Sales Assistant{% endblock %} – Sales Assistant</title>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="{{ 'app' if user else 'public' }}">
-{% if user %}
+<body class="{{ ('portal' if portal else 'app') if user else 'public' }}">
+{% if user and portal %}
+<header class="portal-bar">
+  <a href="/" class="brand"><span class="brand-mark">SA</span><span>Sales Assistant</span></a>
+  <div class="portal-user">
+    <a href="/konto" class="who-name">{{ icon("user", 18) }}<span>{{ user.username }}</span></a>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="icon-btn" title="Abmelden" aria-label="Abmelden">{{ icon("logout", 18) }}</button>
+    </form>
+  </div>
+</header>
+{% elif user %}
 {% macro nav(href, label, ico, match=None) -%}
   {%- set active = (request.url.path == href) if href == "/" else request.url.path.startswith(match or href) -%}
   <a href="{{ href }}" class="nav-item{{ ' active' if active }}"{% if active %} aria-current="page"{% endif %}>{{ icon(ico) }}<span>{{ label }}</span></a>
 {%- endmacro %}
 <aside class="sidebar">
-  <a href="/" class="brand"><span class="brand-mark">€</span><span>Preisliste</span></a>
+  <a href="/" class="brand"><span class="brand-mark">SA</span><span>Sales Assistant<small>Preisliste</small></span></a>
   <a href="/import" class="nav-cta">{{ icon("upload", 18) }}<span>Liste einspielen</span></a>
   <nav class="nav">
-    {{ nav("/", "Dashboard", "home") }}
+    {{ nav("/preisliste", "Übersicht", "home") }}
     {{ nav("/aktualisierungen", "Jahresabgleich", "sync") }}
     {{ nav("/neue-artikel", "Neue Artikel", "plus") }}
     {{ nav("/listen", "Preislisten", "list") }}
     {{ nav("/hersteller", "Hersteller", "factory") }}
     {{ nav("/regeln", "Regeln", "calc") }}
     <div class="nav-label">Weitere</div>
+    <a href="/" class="nav-item">{{ icon("grid") }}<span>Alle Tools</span></a>
     {{ nav("/vergleiche", "Vergleiche", "compare") }}
     {{ nav("/jobs", "Jobs", "jobs") }}
     {% if user.role == "admin" %}

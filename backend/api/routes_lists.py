@@ -44,6 +44,21 @@ def query_articles(db: Session, list_id: int, status: str | None, q: str | None,
 
 
 @router.get("/")
+def portal(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Startseite des Sales Assistant: Kacheln für die einzelnen Werkzeuge."""
+    from backend.services.access import visible
+    from backend.models.entities import PriceUpdate
+
+    updates = db.scalars(visible(select(PriceUpdate), PriceUpdate, user)).all()
+    stats = {
+        "open": sum((u.summary or {}).get("offen", 0) for u in updates),
+        "manufacturers": db.scalar(select(func.count()).select_from(
+            visible(select(Manufacturer.id), Manufacturer, user).subquery())),
+    }
+    return render(request, "portal.html", {"portal": True, "stats": stats})
+
+
+@router.get("/preisliste")
 def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     from backend.services.dashboard import build
 

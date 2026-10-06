@@ -10,3 +10,9 @@
     ["dragleave", "drop"].forEach(function (e) { input.addEventListener(e, function () { zone.classList.remove("drag"); }); });
   });
 })();
+// Auswahlfelder mit data-autosubmit laden die Prüfseite mit der neuen Auswahl neu
+(function () {
+  document.querySelectorAll("[data-autosubmit]").forEach(function (el) {
+    el.addEventListener("change", function () { el.form.submit(); });
+  });
+})();

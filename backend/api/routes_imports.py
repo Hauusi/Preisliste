@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -13,7 +14,7 @@ from backend.services.access import get_visible
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.excel.columns import FIELDS, PRICE_FIELDS
-from backend.excel.numbers import SUPPORTED_CURRENCIES
+from backend.excel.numbers import SUPPORTED_CURRENCIES, parse_amount
 from backend.excel.reader import ExcelRejected
 from backend.models.entities import Manufacturer, PriceList, User
 from backend.services.audit import audit
@@ -91,7 +92,96 @@ def _ai_columns(db: Session, ki_job: str | None, pl: PriceList, user: User, pv) 
             "confidence": r.get("confidence")}
 
 
+SMART_KEYS = ("manufacturer_id", "kind", "currency", "strip_code", "scope", "new_name", "new_code", "new_factor")
+
+
+def _smart_page(request, db, pl, settings, user, overrides: dict, error: str | None = None, status_code: int = 200):
+    from backend.services.smart_import import build_proposal
+
+    try:
+        p = build_proposal(db, pl, settings, overrides, _stored_columns(pl))
+    except ExcelRejected as exc:
+        raise HTTPException(400, str(exc))
+    return render(request, "import_check.html", {"pl": pl, "p": p, "o": overrides, "error": error, "step": 2,
+                                                 "currencies": SUPPORTED_CURRENCIES, "fields": FIELDS},
+                  status_code=status_code)
+
+
 @router.get("/import/{list_id}")
+def smart_check(request: Request, list_id: int, db: Session = Depends(get_db),
+                settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
+    """Prüfseite: alles erkannt, ein Klick zum Starten."""
+    pl = _draft(db, list_id, user)
+    overrides = {k: request.query_params[k] for k in SMART_KEYS if request.query_params.get(k)}
+    if request.query_params.get("strip_set") and "strip_code" not in overrides:
+        overrides["strip_code"] = "0"  # Häkchen bewusst entfernt
+    return _smart_page(request, db, pl, settings, user, overrides)
+
+
+@router.post("/import/{list_id}/start", dependencies=[Depends(check_csrf)])
+async def smart_start(request: Request, list_id: int, db: Session = Depends(get_db),
+                      settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
+    """Import (und bei Herstellerlisten den Abgleich) mit dem geprüften Vorschlag starten."""
+    from backend.services.calc_setup import set_factor
+    from backend.services.smart_import import build_proposal
+
+    pl = _draft(db, list_id, user)
+    form = await request.form()
+    o = {k: str(form.get(k)) for k in SMART_KEYS if form.get(k) not in (None, "")}
+    if "strip_code" not in o:
+        o["strip_code"] = "0"
+    new_m = None
+    if o.get("manufacturer_id") == "neu":
+        name = o.get("new_name", "").strip()[:200]
+        code = normalize_code(o.get("new_code", ""))
+        factor = parse_amount(o.get("new_factor", ""), ",") if o.get("new_factor") else None
+        errors = []
+        if not name:
+            errors.append("Name des neuen Herstellers fehlt")
+        elif db.scalar(select(Manufacturer).where(Manufacturer.name == name, Manufacturer.owner_id == pl.uploaded_by)):
+            errors.append(f"Hersteller {name} gibt es schon – bitte in der Liste auswählen")
+        errors += [e for e in [validate_code(db, code, None, pl.uploaded_by)] if e]
+        if factor is None or not factor.ok or not Decimal(0) < factor.value <= Decimal(100):
+            errors.append("Faktor für den neuen Hersteller angeben, z. B. 2,6")
+        if errors:
+            return _smart_page(request, db, pl, settings, user, o, "; ".join(errors), 400)
+    # Vorschlag serverseitig neu berechnen, nichts aus dem Formular ungeprüft übernehmen
+    p = build_proposal(db, pl, settings, o, _stored_columns(pl))
+    if not p.ready:
+        return _smart_page(request, db, pl, settings, user, o, "; ".join(p.issues + p.cols["errors"]), 400)
+    if o.get("manufacturer_id") == "neu":
+        new_m = Manufacturer(name=name, code=code, aliases=[], owner_id=pl.uploaded_by)
+        db.add(new_m)
+        db.flush()
+        set_factor(db, new_m, factor.value, user)
+        audit(db, user, "hersteller_angelegt", "manufacturer", new_m.id,
+              {"name": name, "kuerzel": code, "faktor": str(factor.value), "beim_import": pl.id}, client_ip(request))
+    m = new_m or p.manufacturer
+    cols = p.cols
+    mapping, split = dict(cols["mapping"]), cols["split"]
+    if split:
+        labels = {c.index: c.label or f"Spalte {c.index + 1}" for c in p.pv.detection.columns}
+        split = order_split(split, labels)
+        mapping[split["field"]] = split["columns"][0]
+    pl.status = "WARTESCHLANGE"
+    pl.kind = p.kind
+    params = {
+        "price_list_id": pl.id, "sheet": cols["sheet"], "header_row": cols["header_row"],
+        "header_rows": cols["header_rows"], "mapping": mapping, "manufacturer_id": m.id if m else None,
+        "new_manufacturer": None, "new_manufacturer_code": None, "split": split, "user_id": user.id,
+        "currency": p.currency, "strip_code": bool(p.strip_code and m and m.code),
+        "separators": {str(k): v for k, v in cols["separators"].items()}, "valid_from": None,
+    }
+    if p.kind == "HERSTELLER" and not split:
+        params["auto_update"] = {"scope": p.scope}
+    job = enqueue(db, "IMPORT", params, user)
+    audit(db, user, "import_gestartet", "price_list", pl.id,
+          {"mapping": mapping, "job": job.id, "art": p.kind, "hersteller": m.id if m else None,
+           "waehrung": p.currency, "umfang": p.scope}, client_ip(request))
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+
+@router.get("/import/{list_id}/spalten")
 def preview(request: Request, list_id: int, sheet: str | None = None, header_row: str | None = None,
             header_rows: str | None = None, ki_job: str | None = None, db: Session = Depends(get_db),
             settings: Settings = Depends(get_settings), user: User = Depends(current_user)):
@@ -229,7 +319,7 @@ def _details_context(db: Session, pl: PriceList, settings: Settings, cols: dict)
                if nr_col is not None and nr_col < len(r) and r[nr_col] not in (None, "")]
     return {"pl": pl, "pv": pv, "cols": cols, "summary": summary, "fields": FIELDS, "samples": samples,
             "prefixed": pv.manufacturer_suggestion is not None and pv.prefix_suggestion,
-            "currencies": SUPPORTED_CURRENCIES, "step": 3,
+            "currencies": SUPPORTED_CURRENCIES, "step": 2,
             "manufacturers": list(db.scalars(select(Manufacturer).where(Manufacturer.owner_id == pl.uploaded_by)
                                              .order_by(Manufacturer.name)))}
 
@@ -252,7 +342,7 @@ async def save_columns(request: Request, list_id: int, db: Session = Depends(get
         return _columns_page(request, db, pl, settings, cols, cols["errors"])
     pl.column_mapping = {"draft": True, **{k: v for k, v in cols.items() if k != "errors"},
                          "separators": {str(k): v for k, v in cols["separators"].items()}}
-    return RedirectResponse(f"/import/{pl.id}/hersteller", status_code=303)
+    return RedirectResponse(f"/import/{pl.id}", status_code=303)
 
 
 @router.get("/import/{list_id}/hersteller")

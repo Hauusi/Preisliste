@@ -4,15 +4,15 @@
 {% block content %}
 <h1>Hersteller</h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<p class="hint">Hier stehen nur deine eigenen Hersteller{% if owners %} (als Administrator siehst du alle){% endif %}. Pro Hersteller: Kürzel vor der Artikelnummer (RT + 12345 = RT12345), Standardregel für den VK, Artikel mit eigener Kalkulation, und was die Herstellerliste enthält (EK oder UVP, Währung).</p>
+<p class="hint">Hier stehen nur deine eigenen Hersteller{% if owners %} (als Administrator siehst du alle){% endif %}. Pro Hersteller: Kürzel vor der Artikelnummer (RT + 12345 = RT12345), Kalkulationsfaktor (VK = EK × Faktor) und was der Hersteller schickt (EK oder UVP, Währung).</p>
 <div class="scroll">
 <table>
-  <thead><tr><th>Name</th>{% if owners %}<th>Benutzer</th>{% endif %}<th>Kürzel</th><th>Standardregel</th><th>Artikel mit eigener Kalk.</th><th>Herstellerliste</th><th>Prüfschwelle</th><th>Aliase</th><th></th></tr></thead>
+  <thead><tr><th>Name</th>{% if owners %}<th>Benutzer</th>{% endif %}<th>Kürzel</th><th>Kalkulation</th><th>Artikel mit eigener Kalk.</th><th>Herstellerliste</th><th>Prüfschwelle</th><th>Aliase</th><th></th></tr></thead>
   <tbody>
   {% for m in manufacturers %}
     <tr>
       <td><a href="/hersteller/{{ m.id }}">{{ m.name }}</a></td>{% if owners %}<td>{{ owners.get(m.owner_id, "–") }}</td>{% endif %}<td><b>{{ m.code or "" }}</b></td>
-      <td>{% if m.default_rule_id and m.default_rule_id in rules %}{{ rules[m.default_rule_id].name }}{% else %}<span class="FEHLER">keine</span>{% endif %}</td>
+      <td>{% if factors.get(m.id) is not none %}<b>EK × {{ factors[m.id] | num }}</b>{% elif m.default_rule_id and m.default_rule_id in rules %}{{ rules[m.default_rule_id].name }}{% else %}<span class="FEHLER">fehlt</span>{% endif %}</td>
       <td class="num">{{ exception_counts.get(m.id, 0) }}</td>
       <td>{{ "UVP − " ~ (m.dealer_discount | money) ~ " %" if m.list_basis == "UVP" else "EK" }}{% if m.list_currency and m.list_currency != "EUR" %} in {{ m.list_currency }} (× {{ m.exchange_rate | num }}){% endif %}</td>
       <td class="num">±{{ m.review_threshold | money }} %</td>
@@ -30,10 +30,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Name <input name="name" required maxlength="200" placeholder="z. B. Redtronic"></label>
     <label>Kürzel <input name="code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
-    <label>Aliase <input name="aliases" placeholder="z. B. Redtronic GmbH"></label>
+    <label>Faktor <small class="hint">VK = EK ×</small><input name="factor" size="6" placeholder="2,6"></label>
     <button type="submit">Anlegen →</button>
   </form>
-  <p class="hint">Danach öffnet sich die Seite für Kalkulation, Ausnahmen und Währung.</p>
+  <p class="hint">Danach kannst du UVP/Händlerrabatt, Währung und Prüfschwelle einstellen. Eine Liste mit unbekanntem Hersteller kannst du auch direkt einspielen – der Hersteller wird dabei angelegt.</p>
 </section>
 {% endif %}
 {% endblock %}

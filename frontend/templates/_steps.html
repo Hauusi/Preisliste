@@ -1,5 +1,5 @@
-{# Schrittleiste für den Ablauf Liste einspielen -> kalkulieren. Erwartet: step (1-6) #}
-{% set labels = ["Datei", "Spalten", "Hersteller & Währung", "Import", "Kalkulation", "Ergebnis"] %}
+{# Schrittleiste: Liste einspielen -> prüfen -> verarbeiten -> Ergebnis. Erwartet: step (1-4) #}
+{% set labels = ["Datei", "Prüfen", "Verarbeiten", "Ergebnis"] %}
 <ol class="steps-bar">
   {% for l in labels %}
     <li class="{% if loop.index < step %}done{% elif loop.index == step %}current{% endif %}"><span>{{ loop.index }}</span>{{ l }}</li>

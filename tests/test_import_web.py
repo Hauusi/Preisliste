@@ -25,7 +25,9 @@ def test_full_import_flow(admin_client, tmp_path, app):
     assert r.status_code == 303
     list_id = int(r.headers["location"].rsplit("/", 1)[1])
 
-    page = admin_client.get(f"/import/{list_id}").text
+    smart = admin_client.get(f"/import/{list_id}").text
+    assert "<script>alert(1)</script>" not in smart and "&lt;script&gt;" in smart  # Ausgabe wird escaped
+    page = admin_client.get(f"/import/{list_id}/spalten").text
     assert "<script>alert(1)</script>" not in page  # Ausgabe wird escaped
     assert "&lt;script&gt;" in page
     assert re.search(r'name="col_0">.*?<option value="article_number" selected', page, re.S)

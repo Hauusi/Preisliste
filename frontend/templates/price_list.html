@@ -1,13 +1,21 @@
 {% extends "base.html" %}
-{% from "_icons.html" import trash %}
+{% from "_icons.html" import trash, icon %}
 {% block title %}{{ pl.name }}{% endblock %}
 {% block content %}
-<h1>{{ pl.name }}</h1>
-<p class="hint">{{ pl.source_file }} · Blatt {{ pl.sheet }} · Kopfzeile {{ pl.header_row }} · importiert {{ pl.imported_at | dt }}{% if pl.currency %} · Währung {{ pl.currency }}{% endif %}</p>
+<div class="page-head">
+  <div><h1>{{ pl.name }} {% if pl.kind == "UNSERE" %}<span class="badge NEUER_ARTIKEL">Unsere Liste</span>{% elif pl.kind == "HERSTELLER" %}<span class="badge">Herstellerliste</span>{% endif %}</h1>
+    <p>{{ pl.source_file }}{% if pl.sheet %} · Blatt {{ pl.sheet }}{% endif %} · importiert {{ pl.imported_at | dt }}{% if pl.currency %} · {{ pl.currency }}{% endif %}</p></div>
+  <div class="actions m0">
+    {% if pl.kind == "UNSERE" %}<a class="button" href="/import">{{ icon("upload", 16) }} Neue Herstellerliste einspielen</a>
+    {% else %}<a class="button" href="/listen/{{ pl.id }}/kalkulation">{{ "Abgleich starten" if pl.kind == "HERSTELLER" else "Kalkulieren" }}</a>{% endif %}
+    {% if user.role == "admin" or pl.uploaded_by == user.id %}<a class="button danger-link" href="/listen/{{ pl.id }}/loeschen">{{ trash() }} Löschen</a>{% endif %}
+  </div>
+</div>
+{% if request.query_params.get("neu") %}<p class="msg OK">Gespeichert. Das ist jetzt die aktuelle EK/VK-Liste{% if pl.manufacturer %} von {{ pl.manufacturer.name }}{% endif %}. Schickt der Hersteller eine neue Liste, einfach einspielen – der Abgleich startet automatisch.</p>{% endif %}
 {% if pl.summary %}
 <div class="stats">
   <div class="stat"><span>{{ pl.summary.articles }}</span>Artikel</div>
-  <div class="stat"><span>{{ pl.summary.prices }}</span>Preise</div>
+  {% if pl.summary.prices is defined %}<div class="stat"><span>{{ pl.summary.prices }}</span>Preise</div>{% endif %}
   <a class="stat FEHLER" href="/listen/{{ pl.id }}/meldungen?level=FEHLER"><span>{{ pl.summary.messages.FEHLER }}</span>Fehler</a>
   <a class="stat UNKLAR" href="/listen/{{ pl.id }}/meldungen?level=UNKLAR"><span>{{ pl.summary.messages.UNKLAR }}</span>Unklar</a>
   <a class="stat WARNUNG" href="/listen/{{ pl.id }}/meldungen?level=WARNUNG"><span>{{ pl.summary.messages.WARNUNG }}</span>Warnungen</a>
@@ -15,8 +23,6 @@
 {% if pl.summary.manufacturers_created %}<p class="msg WARNUNG">Neu angelegte Hersteller: {{ pl.summary.manufacturers_created | join(", ") }}</p>{% endif %}
 {% endif %}
 
-<div class="actions"><a class="button" href="/listen/{{ pl.id }}/kalkulation">Kalkulieren</a>
-  {% if user.role == "admin" or pl.uploaded_by == user.id %}<a class="button danger-link" href="/listen/{{ pl.id }}/loeschen">{{ trash() }} Liste löschen</a>{% endif %}</div>
 <form method="get" class="card row">
   <label>Status
     <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>

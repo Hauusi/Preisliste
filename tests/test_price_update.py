@@ -104,7 +104,9 @@ def test_annual_reconciliation_full_flow(admin_client, tmp_path, app):
     assert upd.summary["offen"] == 4 and upd.summary["OK"] == 1
 
     page = c.get(url).text
-    assert 'class="current"><span>6</span>' in page and "RALED1" in page and "Endgültiger Export gesperrt" in page
+    assert 'class="current"><span>4</span>' in page and "Endgültiger Export gesperrt" in page
+    assert "RALED2" in page and "RALED1<" not in page  # Standard: nur die offenen Positionen
+    assert "RALED1<" in c.get(url + "?status=alle").text
     page = c.get(url + "?grund=EK_AENDERUNG").text
     assert "RALED2" in page and "RALED4" in page and "RALED1<" not in page and "RALED3" not in page
     page = c.get(url + "?status=offen").text

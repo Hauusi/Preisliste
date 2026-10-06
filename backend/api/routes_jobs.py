@@ -31,6 +31,10 @@ def result_link(job: Job) -> tuple[str, str] | None:
         if job.type == "IMPORT":
             return f"/import/{p.get('price_list_id')}", "Zurück zur Import-Vorschau"
         return None
+    if job.type == "IMPORT" and r.get("update_id"):
+        return f"/aktualisierungen/{r['update_id']}", "Ergebnis prüfen →"
+    if job.type == "IMPORT" and r.get("kind") == "UNSERE":
+        return f"/listen/{r.get('price_list_id')}?neu=1", "Zur Liste →"
     if job.type == "IMPORT":
         # Nächster Schritt im Ablauf: kalkulieren (bei aufgeteilter Datei die neue Liste)
         target = (r.get("price_list_ids") or [r.get("price_list_id")])[-1]
@@ -38,7 +42,7 @@ def result_link(job: Job) -> tuple[str, str] | None:
     if job.type == "AI_COLUMNS":
         query = urlencode({"sheet": p.get("sheet"), "header_row": p.get("header_row"),
                            "header_rows": p.get("header_rows", 1), "ki_job": job.id})
-        return f"/import/{p.get('price_list_id')}?{query}", "Vorschlag in der Vorschau anzeigen"
+        return f"/import/{p.get('price_list_id')}/spalten?{query}", "Vorschlag in der Vorschau anzeigen"
     if job.type == "AI_RULE":
         return f"/regeln/neu?ki_job={job.id}", "Vorschlag im Regel-Editor öffnen"
     if job.type == "AI_MATCH":
@@ -46,6 +50,12 @@ def result_link(job: Job) -> tuple[str, str] | None:
     if job.type == "AI_UPDATE_MATCH":
         return f"/aktualisierungen/{p.get('update_id')}?status=offen", "KI-Einschätzungen ansehen"
     return None
+
+
+def _auto_go(job: Job) -> bool:
+    """Nach dem Import automatisch weiter zum Ergebnis (Abgleich bzw. neue eigene Liste)."""
+    r = job.result or {}
+    return job.type == "IMPORT" and job.status == "FERTIG" and bool(r.get("update_id") or r.get("kind") == "UNSERE")
 
 
 @router.get("/jobs")
@@ -60,7 +70,7 @@ def jobs(request: Request, db: Session = Depends(get_db), user: User = Depends(c
 def job_detail(request: Request, job_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     job = _job(db, job_id, user)
     return render(request, "job.html", {"job": job, "labels": JOB_LABELS, "link": result_link(job),
-                                        "step": 4 if job.type == "IMPORT" else None,
+                                        "step": 3 if job.type == "IMPORT" else None, "auto_go": _auto_go(job),
                                         "running": job.status in ("WARTEND", "LAEUFT"), "live": live_progress(job)})
 
 

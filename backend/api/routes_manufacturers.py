@@ -18,6 +18,7 @@ from backend.database.engine import get_db
 from backend.excel.numbers import SUPPORTED_CURRENCIES, parse_amount
 from backend.models.entities import Article, Manufacturer, Rule, RuleException, User
 from backend.services.audit import audit
+from backend.services.calc_setup import factor_of, set_factor
 from backend.services.manufacturers import normalize_code, validate_code, with_code
 
 router = APIRouter()
@@ -39,8 +40,9 @@ def _list_page(request: Request, db: Session, user: User, error: str | None = No
     counts = dict(db.execute(select(RuleException.manufacturer_id, func.count())
                              .group_by(RuleException.manufacturer_id)).all())
     owners = {u.id: u.username for u in db.scalars(select(User))} if user.role == "admin" else {}
+    mfrs = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
     return render(request, "manufacturers.html", {
-        "manufacturers": db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all(),
+        "manufacturers": mfrs, "factors": {m.id: factor_of(db, m) for m in mfrs},
         "rules": {r.id: r for r in _rules(db, user=user)}, "exception_counts": counts, "error": error,
         "owners": owners}, status_code=status_code)
 
@@ -50,7 +52,7 @@ def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None
     exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == m.id)
                             .order_by(RuleException.match_type, RuleException.value)).all()
     return render(request, "manufacturer_edit.html", {
-        "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
+        "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "factor": factor_of(db, m), "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
         "currencies": SUPPORTED_CURRENCIES, "error": error, "message": message}, status_code=status_code)
 
 
@@ -93,8 +95,11 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
     threshold = _amount(form, "review_threshold") or parse_amount("10", ",")
     list_currency = str(form.get("list_currency") or "EUR")
     rate = _amount(form, "exchange_rate")
+    factor = _amount(form, "factor")  # Kalkulationsfaktor: VK = EK × Faktor (legt die Standardregel an)
 
     errors = []
+    if factor is not None and (not factor.ok or not Decimal(0) < factor.value <= Decimal(100)):
+        errors.append("Faktor muss eine Zahl größer 0 sein, z. B. 2,6")
     clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name, Manufacturer.owner_id == owner_id))
     if not name:
         errors.append("Name fehlt")
@@ -127,6 +132,8 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
             return _edit_page(request, db, current, "; ".join(errors), 400)
         return _list_page(request, db, user, "; ".join(errors), 400)
 
+    if factor is not None:
+        rule_id = current.default_rule_id if current else None  # Faktor bestimmt die Standardregel
     values = {"name": name, "aliases": aliases, "ignore_leading_zeros": ignore, "code": code,
               "default_rule_id": rule_id, "list_basis": list_basis,
               "dealer_discount": discount.value if discount else None, "review_threshold": threshold.value,
@@ -135,12 +142,18 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
         before = {k: getattr(current, k) for k in values}
         for k, v in values.items():
             setattr(current, k, v)
+        if factor is not None:
+            set_factor(db, current, factor.value, user)
+            values["faktor"] = factor.value
         audit(db, user, "hersteller_geaendert", "manufacturer", current.id,
               {"vorher": _jsonable(before), "nachher": _jsonable(values)}, client_ip(request))
         return RedirectResponse(f"/hersteller/{current.id}?meldung=Gespeichert", status_code=303)
     m = Manufacturer(**values, owner_id=user.id)
     db.add(m)
     db.flush()
+    if factor is not None:
+        set_factor(db, m, factor.value, user)
+        values["faktor"] = factor.value
     audit(db, user, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
     return RedirectResponse(f"/hersteller/{m.id}?meldung=Angelegt. Jetzt Kalkulation und Herstellerliste einstellen.",
                             status_code=303)

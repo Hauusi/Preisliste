@@ -34,7 +34,7 @@ def test_two_year_columns_split_into_two_lists_and_compare(admin_client, tmp_pat
         "csrf_token": admin_client.csrf, "sheet": "Preise", "header_row": "1", "header_rows": "1",
         "col_0": "article_number", "col_1": "description", "col_2": "supplier_price", "col_3": "supplier_price"},
         follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == f"/import/{list_id}/hersteller"
+    assert r.status_code == 303 and r.headers["location"] == f"/import/{list_id}"
     page = admin_client.get(r.headers["location"]).text
     assert f'<option value="{mid}" selected>RaphiLED (RA)</option>' in page
     assert "in zwei Listen aufgeteilt" in page

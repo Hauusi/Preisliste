@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Start{% endblock %}
+{% block content %}
+<section class="portal-hero">
+  <div class="eyebrow">Sales Assistant</div>
+  <h1>Hallo {{ user.username }}, was steht heute an?</h1>
+  <p>Wähle ein Werkzeug.</p>
+</section>
+
+<div class="tiles">
+  <a class="tile tile-active" href="/preisliste">
+    <span class="tile-icon">{{ icon("tag", 28) }}</span>
+    <h2>Preisliste</h2>
+    <p>Neue Herstellerlisten abgleichen, EK/VK kalkulieren, prüfen und exportieren.</p>
+    <div class="tile-meta">
+      {% if stats.open %}<span class="badge FEHLER">{{ stats.open }} zu prüfen</span>{% else %}<span class="badge OK">alles erledigt</span>{% endif %}
+      <span class="badge">{{ stats.manufacturers }} Hersteller</span>
+    </div>
+    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+  </a>
+  <div class="tile tile-soon" aria-disabled="true">
+    <span class="tile-icon">{{ icon("doc", 28) }}</span>
+    <h2>Datenblatt erstellen</h2>
+    <p>Produktdatenblätter aus Herstellerdaten erzeugen.</p>
+    <div class="tile-meta"><span class="badge">in Planung</span></div>
+  </div>
+  <div class="tile tile-soon" aria-disabled="true">
+    <span class="tile-icon">{{ icon("sparkle", 28) }}</span>
+    <h2>Weitere Tools</h2>
+    <p>Hier kommen künftige Module des Sales Assistant dazu.</p>
+    <div class="tile-meta"><span class="badge">folgt</span></div>
+  </div>
+  {% if user.role == "admin" %}
+  <a class="tile" href="/benutzer">
+    <span class="tile-icon">{{ icon("shield", 28) }}</span>
+    <h2>Verwaltung</h2>
+    <p>Benutzer anlegen, Passwörter, Protokoll.</p>
+    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}

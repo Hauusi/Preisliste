@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Jahresabgleich{% endblock %}
+{% block head %}{% if fertig %}<meta http-equiv="refresh" content="1;url=/aktualisierungen/{{ upd.id }}/export">{% endif %}{% endblock %}
 {% block content %}
 {% include "_steps.html" %}
 {% set s = upd.summary or {} %}
@@ -7,7 +8,7 @@
 {% from "_icons.html" import icon %}
 <div class="page-head">
   <div>
-    <h1>Jahresabgleich {{ upd.base_list.name }}</h1>
+    <h1>{{ upd.base_list.manufacturer.name if upd.base_list.manufacturer else upd.base_list.name }} <span class="title-sub">Jahresabgleich</span></h1>
     <p>{{ "Teilliste" if upd.scope == "TEIL" else "Jahrespreisliste" }} „{{ upd.source_list.name }}“
       · {{ "UVP − " ~ (upd.dealer_discount | money) ~ " %" if upd.price_type == "UVP" else "EK" }}{% if upd.list_currency and upd.list_currency != "EUR" %} · {{ upd.list_currency }} × {{ upd.exchange_rate | num }}{% endif %}
       · VK {{ rule.name if rule else "–" }}{% if upd.exceptions %} (+{{ upd.exceptions | length }} eigene){% endif %}
@@ -16,7 +17,7 @@
   <div class="actions m0">
     {% if s.offen %}
       <a class="button secondary" href="/aktualisierungen/{{ upd.id }}/export?entwurf=1">{{ icon("upload", 16) }} Entwurf exportieren</a>
-    {% else %}
+    {% elif upd.adopted_list_id %}
       <a class="button" href="/aktualisierungen/{{ upd.id }}/export">{{ icon("upload", 16) }} Neue Preisliste exportieren</a>
     {% endif %}
   </div>
@@ -33,19 +34,20 @@
       <a class="button" href="?status=offen">Offene anzeigen</a>
     {% elif upd.adopted_list_id %}
       <span class="dot ok">{{ icon("check", 18) }}</span>
-      <div><b>Fertig und als aktuelle Liste übernommen</b><span class="hint"><a href="/listen/{{ upd.adopted_list_id }}">Zur neuen Liste</a> – beim nächsten Abgleich vorausgewählt.</span></div>
+      <div><b>{% if fertig %}Fertig! Die neue Preisliste wird heruntergeladen.{% else %}Abgeschlossen und als aktuelle Liste übernommen{% endif %}</b>
+        <span class="hint"><a href="/listen/{{ upd.adopted_list_id }}">Neue aktuelle Liste ansehen</a> – sie ist beim nächsten Abgleich automatisch die Grundlage.</span></div>
+      <a class="button secondary" href="/aktualisierungen/{{ upd.id }}/export">{{ icon("upload", 16) }} Excel erneut laden</a>
     {% else %}
       <span class="dot ok">{{ icon("check", 18) }}</span>
-      <div><b>Alles geprüft</b><span class="hint">Jetzt exportieren und als neue aktuelle EK/VK-Liste übernehmen.</span></div>
-      <form method="post" action="/aktualisierungen/{{ upd.id }}/uebernehmen" class="row">
+      <div><b>Alles geprüft – bereit zum Abschließen</b><span class="hint">Übernimmt die neuen EK/VK als aktuelle Liste und lädt die fertige Excel-Liste herunter.</span></div>
+      <form method="post" action="/aktualisierungen/{{ upd.id }}/abschliessen">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required> Alles geprüft – als aktuelle Liste speichern</label>
-        <button type="submit">Als aktuelle Liste übernehmen</button>
+        <button type="submit" class="button big">{{ icon("check", 18) }} Abschließen</button>
       </form>
     {% endif %}
   </div>
   {% if needs > 0 %}<div class="bar" role="img" aria-label="{{ needs - s.offen }} von {{ needs }} geprüft"><span class="bar-fill bar-{{ ((needs - s.offen) * 20 // needs) * 5 }}"></span></div>{% endif %}
-  <p class="hint m0">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und werden ignoriert.</p>
+  {% if s.ignoriert_nur_beim_hersteller %}<p class="hint m0">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und werden ignoriert (bei uns nicht angelegt).</p>{% endif %}
 </section>
 
 {% if ai_targets %}
@@ -63,7 +65,7 @@
 {% endif %}
 
 <nav class="tabs" aria-label="Filter">
-  <a href="?" class="{{ 'active' if not status }}">Alle <b>{{ s.artikel }}</b></a>
+  <a href="?status=alle" class="{{ 'active' if status in ('', 'alle') }}">Alle <b>{{ s.artikel }}</b></a>
   <a href="?status=offen" class="{{ 'active' if status == 'offen' }}">Noch zu prüfen <b>{{ s.offen }}</b></a>
   {% for st in statuses if (st != "UNVERAENDERT" or upd.scope == "TEIL") and s.get(st, 0) %}<a href="?status={{ st }}" class="{{ 'active' if status == st }}">{{ labels[st] }} <b>{{ s.get(st, 0) }}</b></a>{% endfor %}
 </nav>
@@ -80,7 +82,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="status" value="{{ status if status != 'offen' else '' }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}">
     <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required>
-      Alle offenen im Filter ({{ labels[status] if status in labels else "alle" }}{% if grund %}, {{ reasons[grund] }}{% endif %}) geprüft</label>
+      Alle offenen Positionen{% if status in labels %} „{{ labels[status] }}“{% endif %}{% if grund %} mit „{{ reasons[grund] }}“{% endif %} sind geprüft</label>
     <button type="submit" class="secondary">Sammelbestätigung</button>
     <span class="hint">Unklare Zuordnungen und Fehler müssen einzeln entschieden werden.</span>
   </form>
@@ -116,9 +118,10 @@
         {% if i.decision == "MANUELL" %}<div class="small">von Hand</div>{% elif new and i.vk_difference_percent is not none %}<div class="delta {{ 'up' if i.vk_difference_percent > 0 else 'down' if i.vk_difference_percent < 0 else '' }}">{{ "+" if i.vk_difference_percent > 0 else "" }}{{ i.vk_difference_percent | money }} %</div>{% endif %}</td>
       <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "–" }}</td>
       <td class="hints"><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>
-        {% if i.reasons %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
-        {% if i.note %}<div class="small">{{ i.note }}</div>{% endif %}
-        {% if i.decision == "ALT" %}<div class="small"><b>Alter EK/VK bleibt</b></div>{% endif %}
+        {% if i.note %}<div class="small">{{ i.note }}</div>
+        {% elif i.reasons %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+        {% if i.note and i.reasons and i.reasons | length > 1 %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+        {% if i.decision == "ALT" and not (i.note and "alt" in i.note) %}<div class="small"><b>Alter EK/VK bleibt</b></div>{% endif %}
         {% set h = i.ai_hint %}
         {% if h and h.status in ("TREFFER", "KEIN_TREFFER", "UNKLAR") and not i.reviewed_at and i.status in ("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG") %}
         <div class="ai-hint {{ h.status }}">

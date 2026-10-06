@@ -26,7 +26,8 @@ def test_full_wizard(admin_client, tmp_path, app):
 
     # Schritt 2
     page = c.get(step2).text
-    assert 'class="current"><span>2</span>Spalten' in page and "Weiter: Hersteller" in page
+    assert 'class="current"><span>2</span>Prüfen' in page and "Alles erkannt" in page
+    assert "Weiter: Prüfen" in c.get(step2 + "/spalten").text  # Spalten von Hand anpassen
     list_id = int(step2.rsplit("/", 1)[1])
     r = c.post(f"/import/{list_id}/spalten", data={"csrf_token": c.csrf, "sheet": "Preise", "header_row": "1",
                                                    "col_0": "article_number"})
@@ -38,10 +39,10 @@ def test_full_wizard(admin_client, tmp_path, app):
 
     # Schritt 3: EUR ist vorausgewählt, Hersteller fehlt -> Fehler bleibt in Schritt 3
     page = c.get(f"/import/{list_id}/hersteller").text
-    assert 'class="current"><span>3</span>' in page and '<option value="EUR" selected>' in page
+    assert 'class="current"><span>2</span>' in page and '<option value="EUR" selected>' in page
     hidden = dict(re.findall(r'<input type="hidden" name="((?:col|sep)_\d+|sheet|header_rows?)" value="([^"]*)">', page))
     r = c.post(f"/import/{list_id}/confirm", data={"csrf_token": c.csrf, **hidden, "currency": "EUR"})
-    assert r.status_code == 400 and "Hersteller wählen" in r.text and "Schritt 3" in r.text
+    assert r.status_code == 400 and "Hersteller wählen" in r.text  # alter Weg bleibt
     r = c.post(f"/import/{list_id}/confirm", data={"csrf_token": c.csrf, **hidden, "currency": "EUR",
                                                    "manufacturer_id": str(mid)}, follow_redirects=False)
     job_url = r.headers["location"]
@@ -49,13 +50,13 @@ def test_full_wizard(admin_client, tmp_path, app):
     # Schritt 4
     run_jobs(app)
     page = c.get(job_url).text
-    assert 'class="current"><span>4</span>' in page
+    assert 'class="current"><span>3</span>' in page
     next_url = re.search(r'<a class="button" href="([^"]+)">Weiter: Kalkulieren', page).group(1)
     assert next_url == f"/listen/{list_id}/kalkulation"
 
     # Schritt 5 ohne Regel: Link zum Regel-Editor mit Rücksprung
     page = c.get(next_url).text
-    assert 'class="current"><span>5</span>' in page and "noch keine Kalkulationsregel" in page
+    assert 'class="current"><span>3</span>' in page and "noch keine Kalkulationsregel" in page
     rule_url = re.search(r'href="(/regeln/neu\?[^"]+)"', page).group(1).replace("&amp;", "&")
     page = c.get(rule_url).text
     assert 'value="Redtronic"' in page and f'<option value="{mid}" selected>' in page
@@ -70,7 +71,7 @@ def test_full_wizard(admin_client, tmp_path, app):
     # Schritt 6
     r = c.post(next_url, data={"csrf_token": c.csrf, "rule_id": rule_id, "quantity": "1"}, follow_redirects=False)
     page = c.get(r.headers["location"]).text
-    assert 'class="current"><span>6</span>' in page
+    assert 'class="current"><span>4</span>' in page
     assert "RT100" in page and "26,00" in page and "6,50" in page
     assert "Excel-Export" in page and "Mit Vorgängerliste vergleichen" in page
 

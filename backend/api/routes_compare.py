@@ -79,7 +79,7 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), use
     mid = list_manufacturer(db, pl)
     return render(request, "calc_form.html", {
         "pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": rule_names, "error": None,
-        "preselect": preselect, "preselect_hint": hint, "step": 5, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
+        "preselect": preselect, "preselect_hint": hint, "step": 3, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
         "article_count": db.scalar(select(func.count(Article.id)).where(Article.price_list_id == pl.id)),
         **_update_defaults(db, pl, mid),
     })
@@ -170,7 +170,7 @@ def calc_results(request: Request, run_id: int, status: str | None = None, page:
                                   .order_by(Comparison.id.desc()), Comparison, user)).all()
     return render(request, "calc_results.html", {
         "run": run, "rule": rule, "rows": rows, "info": info, "status": status, "pl": pl, "codes": code_map(db),
-        "step": 6, "others": others, "compare_default": same[0].id if same else None, "comparisons": existing,
+        "step": 4, "others": others, "compare_default": same[0].id if same else None, "comparisons": existing,
     })
 
 

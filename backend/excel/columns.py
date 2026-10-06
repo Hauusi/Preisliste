@@ -79,7 +79,8 @@ def match_label(label: str, synonyms: dict[str, list[str]]) -> list[tuple[str, f
                 break
             syn_tokens = set(_tokens(syn))
             if syn_tokens and syn_tokens <= tokens:
-                best[fld] = max(best.get(fld, 0), 0.7)
+                # spezifischere Treffer (mehr Wörter) gewinnen: "Net price SEK" -> Net Price, nicht Price
+                best[fld] = max(best.get(fld, 0), 0.7 + 0.02 * min(len(syn_tokens), 5))
     return sorted(best.items(), key=lambda kv: -kv[1])
 
 

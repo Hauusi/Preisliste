@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.services.calc_setup import factor_of
 from backend.models.entities import (
     Article,
     AuditLog,
@@ -75,6 +76,7 @@ def build(db: Session, user) -> dict:
         rule = rules.get(m.default_rule_id)
         cards.append({"m": m, "current": current, "articles": counts.get(current.id, 0) if current else 0,
                       "latest_mfr": latest_mfr, "upd": upd, "ek_avg": ek_avg, "vk_avg": vk_avg, "rule": rule,
+                      "factor": factor_of(db, m),
                       "exceptions": exc_counts.get(m.id, 0),
                       "pending_source": latest_mfr if latest_mfr and latest_mfr.id not in used_sources else None})
         if rule is None:
@@ -90,11 +92,13 @@ def build(db: Session, user) -> dict:
     for u in updates:
         s = u.summary or {}
         if s.get("offen"):
-            todo.insert(0, ("err", f"Jahresabgleich: {s['offen']} Positionen zu prüfen", u.base_list.name,
+            who = u.base_list.manufacturer.name if u.base_list.manufacturer else u.base_list.name
+            todo.insert(0, ("err", f"{who}: {s['offen']} Positionen prüfen", f"Jahresabgleich vom {u.created_at:%d.%m.%Y}",
                             f"/aktualisierungen/{u.id}?status=offen", "Jetzt prüfen"))
         elif not u.adopted_list_id and u is next((x for x in updates if x.base_price_list_id == u.base_price_list_id), None):
-            todo.append(("ok", "Abgleich geprüft – noch nicht übernommen", u.base_list.name,
-                         f"/aktualisierungen/{u.id}", "Übernehmen"))
+            who = u.base_list.manufacturer.name if u.base_list.manufacturer else u.base_list.name
+            todo.append(("ok", f"{who}: geprüft – jetzt abschließen", "übernehmen und Excel herunterladen",
+                         f"/aktualisierungen/{u.id}", "Abschließen"))
     for pl in lists:
         if pl.status == "ENTWURF":
             todo.append(("warn", "Import nicht abgeschlossen", pl.source_file, f"/import/{pl.id}", "Fortsetzen"))

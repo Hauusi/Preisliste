@@ -44,3 +44,15 @@ def num(value) -> str:
 
 
 templates.env.filters["num"] = num
+
+
+def price(value) -> str:
+    """Zellwert als Preis anzeigen: Zahlen deutsch formatiert, Text unverändert (z. B. „auf Anfrage“)."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+        return money(Decimal(str(value)))
+    return str(value)
+
+
+templates.env.filters["price"] = price
