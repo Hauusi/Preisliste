@@ -54,6 +54,13 @@ category:
   - Product Group
 supplier_price:
   - EK
+  - EK-Preis
+  - EK Preis
+  - EK-Preis netto
+  - Einkauf
+  - Ihr Preis
+  - Ihr EK
+  - Händler-EK
   - EK netto
   - Einkaufspreis
   - Einkaufspreis netto
@@ -66,6 +73,8 @@ supplier_price:
   - Dealer Price
 list_price:
   - Listenpreis
+  - VK-Preis
+  - VK Preis
   - Bruttolistenpreis
   - Liste
   - Preis

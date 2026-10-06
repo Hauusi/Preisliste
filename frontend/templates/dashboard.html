@@ -70,7 +70,7 @@
     <div class="mfr-head">
       <span class="mfr-code">{{ m.code or "–" }}</span>
       <div><h3><a href="/hersteller/{{ m.id }}">{{ m.name }}</a></h3>
-        <p class="hint">{% if owners %}<b>{{ owners.get(m.owner_id, "–") }}</b> · {% endif %}{% if c.factor is not none %}VK = EK × {{ c.factor | num }}{% elif c.rule %}{{ c.rule.name }}{% else %}<span class="FEHLER">Kalkulation fehlt</span>{% endif %}{% if c.exceptions %} · {{ c.exceptions }} eigene Kalk.{% endif %}{% if m.list_currency and m.list_currency != "EUR" %} · {{ m.list_currency }} × {{ m.exchange_rate | num }}{% endif %}</p></div>
+        <p class="hint">{% if owners %}<b>{{ owners.get(m.owner_id, "–") }}</b> · {% endif %}{% if c.factor is not none %}VK = {{ c.calc_text }}{% elif c.rule %}{{ c.rule.name }}{% else %}<span class="FEHLER">Kalkulation fehlt</span>{% endif %}{% if c.exceptions %} · {{ c.exceptions }} eigene Kalk.{% endif %}{% if m.list_currency and m.list_currency != "EUR" %} · {{ m.list_currency }} × {{ m.exchange_rate | num }}{% endif %}</p></div>
     </div>
     <dl class="mfr-facts">
       <div><dt>Aktuelle Liste</dt><dd>{% if c.current %}<a href="/listen/{{ c.current.id }}" title="{{ c.current.name }}">{{ "{:,}".format(c.articles).replace(",", ".") }} Artikel</a>{% else %}<span class="WARNUNG">fehlt</span>{% endif %}</dd></div>

@@ -27,6 +27,8 @@ from backend.excel.reader import SheetData
 from backend.models.entities import Article, ArticlePrice, ImportMessage, Manufacturer
 
 PRICE_TYPE = {"supplier_price": "EK", "list_price": "LISTE", "rrp": "UVP"}
+DISCONTINUED_RE = re.compile(r"entf[äa]ll|ausgelaufen|auslauf|nicht mehr lieferbar|discontinued|abgek[üu]ndigt|end of life|\bEOL\b",
+                             re.IGNORECASE)
 LEVEL_RANK = {"OK": 0, "WARNUNG": 1, "UNKLAR": 2, "FEHLER": 3}
 
 
@@ -245,7 +247,12 @@ def process_row(sheet: SheetData, row_idx: int, row: list, cfg: ImportConfig) ->
         })
     if not prices and not any(code.startswith(("WAEHRUNG", "KEIN_BETRAG", "MEHRDEUTIG", "PREIS_NEG"))
                               for _, code, _, _ in messages):
-        messages.append(("FEHLER", "PREIS_FEHLT", "Kein Preis vorhanden", None))
+        remark = next((cell_text(v) for v in row if cell_text(v) and DISCONTINUED_RE.search(cell_text(v))), None)
+        if remark:
+            # Hersteller kennzeichnet den Artikel als entfallen: kein Fehler der Liste, sondern eine Information
+            messages.append(("WARNUNG", "ENTFALLEN", f"Laut Hersteller entfallen: {remark[:200]}", None))
+        else:
+            messages.append(("FEHLER", "PREIS_FEHLT", "Kein Preis vorhanden", None))
 
     manufacturer_raw = cell_text(_get(row, m.get("manufacturer"))) if "manufacturer" in m else None
     if "manufacturer" in m and manufacturer_raw is None and cfg.manufacturer_id is None:

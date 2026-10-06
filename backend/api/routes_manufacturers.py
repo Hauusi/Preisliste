@@ -18,7 +18,7 @@ from backend.database.engine import get_db
 from backend.excel.numbers import SUPPORTED_CURRENCIES, parse_amount
 from backend.models.entities import Article, Manufacturer, Rule, RuleException, User
 from backend.services.audit import audit
-from backend.services.calc_setup import factor_of, set_factor
+from backend.services.calc_setup import VK_ROUNDINGS, describe, factor_of, rounding_of, set_factor
 from backend.services.manufacturers import normalize_code, validate_code, with_code
 
 router = APIRouter()
@@ -43,6 +43,7 @@ def _list_page(request: Request, db: Session, user: User, error: str | None = No
     mfrs = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
     return render(request, "manufacturers.html", {
         "manufacturers": mfrs, "factors": {m.id: factor_of(db, m) for m in mfrs},
+        "calc_text": {m.id: describe(factor_of(db, m), rounding_of(db, m)) for m in mfrs},
         "rules": {r.id: r for r in _rules(db, user=user)}, "exception_counts": counts, "error": error,
         "owners": owners}, status_code=status_code)
 
@@ -52,7 +53,7 @@ def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None
     exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == m.id)
                             .order_by(RuleException.match_type, RuleException.value)).all()
     return render(request, "manufacturer_edit.html", {
-        "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "factor": factor_of(db, m), "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
+        "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "factor": factor_of(db, m), "vk_rounding": rounding_of(db, m), "vk_roundings": VK_ROUNDINGS, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
         "currencies": SUPPORTED_CURRENCIES, "error": error, "message": message}, status_code=status_code)
 
 
@@ -96,10 +97,13 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
     list_currency = str(form.get("list_currency") or "EUR")
     rate = _amount(form, "exchange_rate")
     factor = _amount(form, "factor")  # Kalkulationsfaktor: VK = EK × Faktor (legt die Standardregel an)
+    vk_rounding = str(form.get("vk_rounding")) if "vk_rounding" in form else None
 
     errors = []
     if factor is not None and (not factor.ok or not Decimal(0) < factor.value <= Decimal(100)):
         errors.append("Faktor muss eine Zahl größer 0 sein, z. B. 2,6")
+    if vk_rounding is not None and vk_rounding not in VK_ROUNDINGS:
+        errors.append("Unbekannte VK-Rundung")
     clash = db.scalar(select(Manufacturer).where(Manufacturer.name == name, Manufacturer.owner_id == owner_id))
     if not name:
         errors.append("Name fehlt")
@@ -143,8 +147,9 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
         for k, v in values.items():
             setattr(current, k, v)
         if factor is not None:
-            set_factor(db, current, factor.value, user)
+            set_factor(db, current, factor.value, user, vk_rounding)
             values["faktor"] = factor.value
+            values["vk_rundung"] = vk_rounding
         audit(db, user, "hersteller_geaendert", "manufacturer", current.id,
               {"vorher": _jsonable(before), "nachher": _jsonable(values)}, client_ip(request))
         return RedirectResponse(f"/hersteller/{current.id}?meldung=Gespeichert", status_code=303)
@@ -152,8 +157,9 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
     db.add(m)
     db.flush()
     if factor is not None:
-        set_factor(db, m, factor.value, user)
+        set_factor(db, m, factor.value, user, vk_rounding)
         values["faktor"] = factor.value
+        values["vk_rundung"] = vk_rounding
     audit(db, user, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
     return RedirectResponse(f"/hersteller/{m.id}?meldung=Angelegt. Jetzt Kalkulation und Herstellerliste einstellen.",
                             status_code=303)

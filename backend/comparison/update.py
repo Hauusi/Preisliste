@@ -24,6 +24,7 @@ from backend.excel.importer import normalize_article_number
 from backend.models.entities import (
     Article,
     ArticlePrice,
+    ImportMessage,
     Manufacturer,
     MatchDecision,
     PriceList,
@@ -119,6 +120,11 @@ class _Ctx:
         self.threshold = upd.review_threshold if upd.review_threshold is not None else Decimal(10)
         self.list_currency = upd.list_currency
         self.rate = upd.exchange_rate
+        # Artikel, die der Hersteller als entfallen kennzeichnet (Importmeldung ENTFALLEN)
+        rows = dict(db.execute(select(ImportMessage.source_row, ImportMessage.text).where(
+            ImportMessage.price_list_id == upd.source_price_list_id, ImportMessage.code == "ENTFALLEN")).all())
+        self.discontinued = {a_id: rows[r] for a_id, r in db.execute(select(Article.id, Article.source_row).where(
+            Article.price_list_id == upd.source_price_list_id, Article.source_row.in_(list(rows)))).all()} if rows else {}
         self.exceptions = []
         for ex in upd.exceptions or []:
             erv = db.get(RuleVersion, ex["rule_version_id"])
@@ -185,6 +191,9 @@ def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str |
 
 def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk_old, currency):
     src = _price(source, ctx.basis)
+    if src is None and source.id in ctx.discontinued:
+        row["source_article_id"] = None
+        return keep_old("NICHT_IN_HERSTELLERLISTE", "FEHLT", f"{ctx.discontinued[source.id]} – alter EK und VK bleiben")
     if src is None:
         return keep_old("FEHLER", "FEHLER", f"Herstellerliste enthält keinen {ctx.basis}-Preis für diesen Artikel")
     row.update(source_amount=src.amount, source_currency=src.currency)
@@ -260,6 +269,22 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     row["status"] = "PRUEFEN" if reasons else "OK"
 
 
+def _drop_identical_duplicates(source: dict, basis: str) -> dict:
+    """Doppelte Zeilen der Herstellerliste mit identischem Preis zählen einmal (kommt in echten Listen oft vor).
+    Doppelte Nummern mit unterschiedlichem Preis bleiben doppelt und werden als Fehler gemeldet."""
+    groups = defaultdict(list)
+    for a in source.values():
+        if a.article_number_normalized:
+            groups[(a.manufacturer_id, a.article_number_normalized)].append(a)
+    drop = set()
+    for arts in groups.values():
+        if len(arts) > 1:
+            prices = {(p.amount, p.currency) for a in arts for p in [_price(a, basis)] if p is not None}
+            if len(prices) == 1 and all(_price(a, basis) is not None for a in arts):
+                drop |= {a.id for a in sorted(arts, key=lambda a: a.source_row)[1:]}
+    return {k: v for k, v in source.items() if k not in drop}
+
+
 def run_update(db: Session, upd: PriceUpdate) -> dict:
     ctx = _Ctx(db, upd)
 
@@ -268,6 +293,7 @@ def run_update(db: Session, upd: PriceUpdate) -> dict:
         return {a.id: a for a in db.scalars(stmt)}
 
     base, source = load(upd.base_price_list_id), load(upd.source_price_list_id)
+    source = _drop_identical_duplicates(source, ctx.basis)
     result = match_articles(db, base, source)
     pairs = {old: (new, method) for old, new, method, _ in result.pairs}
     cand_for_old = defaultdict(list)
@@ -433,6 +459,7 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
     pl = PriceList(name=f"{stem} – Stand {utcnow():%d.%m.%Y}"[:255], source_file=f"Jahresabgleich #{upd.id}",
                    stored_file=base.stored_file, file_sha256=base.file_sha256, manufacturer_id=base.manufacturer_id,
                    currency=base.currency, status="IMPORTIERT", kind="UNSERE", uploaded_by=user_id,
+                   valid_from=upd.valid_from,
                    imported_at=utcnow(),
                    summary={"aus_abgleich": upd.id, "basis_liste": base.id, "herstellerliste": upd.source_price_list_id,
                             "articles": 0, "messages": {}})

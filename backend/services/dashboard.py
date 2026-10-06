@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.services.calc_setup import factor_of
+from backend.services.calc_setup import describe, factor_of, rounding_of
 from backend.models.entities import (
     Article,
     AuditLog,
@@ -76,7 +76,7 @@ def build(db: Session, user) -> dict:
         rule = rules.get(m.default_rule_id)
         cards.append({"m": m, "current": current, "articles": counts.get(current.id, 0) if current else 0,
                       "latest_mfr": latest_mfr, "upd": upd, "ek_avg": ek_avg, "vk_avg": vk_avg, "rule": rule,
-                      "factor": factor_of(db, m),
+                      "factor": factor_of(db, m), "calc_text": describe(factor_of(db, m), rounding_of(db, m)),
                       "exceptions": exc_counts.get(m.id, 0),
                       "pending_source": latest_mfr if latest_mfr and latest_mfr.id not in used_sources else None})
         if rule is None:

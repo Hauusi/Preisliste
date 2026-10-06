@@ -142,8 +142,70 @@ def svensk() -> None:
           money_cols=(2,))
 
 
+# ---------- Lumatec Fahrzeugtechnik (LT): so chaotisch, wie Listen wirklich ankommen ----------
+
+LT_GROUPS = {
+    "Arbeitsscheinwerfer": [("00123", "Arbeitsscheinwerfer LED 1500 lm 12/24V"), ("00124", "Arbeitsscheinwerfer LED 3000 lm"),
+                            ("00125", "Arbeitsscheinwerfer LED 4500 lm Flood"), ("00126", "Arbeitsscheinwerfer rund 9-36V")],
+    "Rundumleuchten": [("01001", "Rundumleuchte LED gelb Rohrmontage"), ("01002", "Rundumleuchte LED gelb Magnet"),
+                       ("01003", "Rundumleuchte Halogen gelb 12V")],
+    "Zubehör": [("09001", "Anschlusskabel 3 m"), ("09002", "Halter Edelstahl"), ("09003", "Schutzgitter 140 mm"),
+                ("09004", "Kabelbaum Relais")],
+}
+
+
+def lumatec() -> None:
+    rnd = random.Random(42)
+    ours_rows, new_rows, base = [], [], {}
+    for group, items in LT_GROUPS.items():
+        for nr, desc in items:
+            ek = money(Decimal(rnd.randint(400, 30000)) / 100)
+            base[nr] = ek
+            ours_rows.append([f"LT{nr}", desc, ek, money(ek * Decimal("2.5")), group])
+    write(OUT / "Lumatec_unsere_Liste_2026.xlsx", "Export", ["Artikelnr.", "Kurztext", "EK-Preis", "VK-Preis", "Warengruppe"],
+          ours_rows, money_cols=(2, 3))
+
+    wb = openpyxl.Workbook()
+    cover = wb.active
+    cover.title = "Deckblatt"
+    cover["A1"] = "Lumatec Fahrzeugtechnik GmbH"
+    cover["A3"] = "Preisliste 2027 – gültig ab 01.01.2027"
+    cover["A5"] = "Alle Preise in EUR netto ab Werk, zzgl. MwSt. Änderungen und Irrtümer vorbehalten."
+    ws = wb.create_sheet("Preisliste 2027")
+    ws.append(["Lumatec Fahrzeugtechnik GmbH – Preisliste 2027"])
+    ws.append(["Stand: 12/2026"])
+    ws.append([])
+    ws.append(["Pos.", "Artikel-Nr.", "EAN", "Bezeichnung", "VPE", "Preis € netto", "ab 10 Stk.", "Bemerkung"])
+    pos = 1
+    for group, items in LT_GROUPS.items():
+        ws.append([None, None, None, group.upper()])  # Warengruppen-Zwischenzeile
+        for nr, desc in items:
+            ek = money(base[nr] * Decimal(rnd.choice(["1.03", "1.04", "1.05"])))
+            note, price = None, ek
+            if nr == "01003":
+                price, note = None, "entfällt – Nachfolger 01004"
+            if nr == "09002":
+                price = f"{str(ek).replace('.', ',')} €"  # Preis als Text mit Euro-Zeichen
+            if nr == "00125":
+                price = f"{ek:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")  # "1.234,56" als Text
+            ean = f"4012345{rnd.randint(100000, 999999)}"
+            row = [pos, nr, ean, desc, 1 if nr[0] == "0" else 5,
+                   float(price) if isinstance(price, Decimal) else price,
+                   float(money(ek * Decimal("0.95"))) if price is not None else None, note]
+            ws.append(row)
+            pos += 1
+            if nr == "09001":
+                ws.append(row)  # doppelte Zeile, gleicher Preis
+    ws.append([None, "01004", "4012345000001", "Rundumleuchte LED gelb Rohrmontage flach", 1, 189.90, 180.40, "NEU"])
+    ws.append([])
+    ws.append(["* Preise freibleibend. Es gelten unsere AGB."])
+    ws.append(["Stand 12/2026, Druckfehler vorbehalten"])
+    wb.save(OUT / "Lumatec_Preisliste_2027.xlsx")
+
+
 if __name__ == "__main__":
     raphi()
     nordlicht()
     svensk()
+    lumatec()
     print("Testdaten erzeugt in", OUT)

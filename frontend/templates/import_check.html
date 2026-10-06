@@ -58,7 +58,7 @@
   <div class="flow-step"><span class="flow-num">1</span><div><b>{{ p.stats.found }} von {{ p.stats.ours }}</b> unserer Artikel gefunden
     <span class="hint">in „{{ p.base.name }}“{% if p.stats.missing %} · {{ p.stats.missing }} fehlen in der Liste{% endif %}{% if p.stats.new %} · {{ p.stats.new }} neue des Herstellers werden ignoriert{% endif %}</span></div></div>
   <div class="flow-step"><span class="flow-num">2</span><div><b>EK neu</b> {{ "= UVP − " ~ (p.settings.discount | money) ~ " % Händlerrabatt" if p.settings.basis == "UVP" else "aus der Liste" }}{% if p.currency != "EUR" %}, × Kurs {{ p.settings.rate | num }} in €{% endif %}</div></div>
-  <div class="flow-step"><span class="flow-num">3</span><div><b>VK neu = {% if p.factor is not none %}EK × {{ p.factor | num }}{% else %}{{ p.rule.name if p.rule else "–" }}{% endif %}</b>
+  <div class="flow-step"><span class="flow-num">3</span><div><b>VK neu = {% if p.factor is not none %}{{ p.calc_text }}{% else %}{{ p.rule.name if p.rule else "–" }}{% endif %}</b>
     <span class="hint">jeder Wert wird unabhängig nachgerechnet · Prüfung ab ±{{ p.settings.threshold | money }} % EK-Änderung</span></div></div>
   <div class="flow-step"><span class="flow-num">4</span><div><b>Du prüfst nur die Auffälligkeiten</b> <span class="hint">und übernimmst das Ergebnis mit einem Klick</span></div></div>
 </section>

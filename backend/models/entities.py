@@ -393,6 +393,7 @@ class PriceUpdate(Base):
     exchange_rate: Mapped[object | None] = mapped_column(DecimalText)
     # Ausnahmen zum Zeitpunkt der Berechnung: [{id, typ, wert, rule_version_id, regel}]
     exceptions: Mapped[list | None] = mapped_column(JSON)
+    valid_from: Mapped[str | None] = mapped_column(String(10))  # neue Preise gültig ab (JJJJ-MM-TT)
     adopted_list_id: Mapped[int | None] = mapped_column(ForeignKey("price_lists.id", ondelete="SET NULL",
                                                                    name="fk_price_updates_adopted_list"))
     summary: Mapped[dict | None] = mapped_column(JSON)

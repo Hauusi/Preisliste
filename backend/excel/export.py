@@ -227,7 +227,7 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     checks = {True: "stimmt", False: "ABWEICHUNG"}
     cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40), ("Herstellerpreis", 14),
             ("Währung Hersteller", 10), ("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
-            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Währung", 9), ("Status", 20),
+            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9), ("Status", 20),
             ("Prüfhinweise", 60), ("Entscheidung", 20), ("Regel", 36), ("Rechenweg EK", 50),
             ("Gegenrechnung", 13), ("geprüft von", 14), ("geprüft am (UTC)", 18)]
     header, widths = [c[0] for c in cols], [c[1] for c in cols]
@@ -242,12 +242,47 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
                main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
                main._cell(i.factor, "0.0000") if i.factor is not None and i.decision == "NEU" else None,
+               main.percent(margin(i.final_ek, i.final_vk)),
                i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision),
                i.rule_label, i.ek_text, checks.get(i.check_ok, "nicht prüfbar" if i.decision == "NEU" else ""), users.get(i.reviewed_by),
                i.reviewed_at.strftime("%d.%m.%Y %H:%M") if i.reviewed_at else None]
         main.row(row)
         if i.needs_review and not i.reviewed_at:
             open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def margin(ek, vk):
+    """Rohertragsmarge in % vom VK: (VK − EK) / VK × 100."""
+    if ek is None or vk in (None, Decimal(0)):
+        return None
+    return ((vk - ek) / vk * 100).quantize(Decimal("0.1"))
+
+
+def export_customer_changes(db: Session, upd) -> bytes:
+    """Preisänderungsliste für Kunden: nur Artikel mit geändertem VK, alt -> neu, gültig ab."""
+    from backend.models.entities import PriceUpdateItem
+
+    codes = code_map(db)
+    items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
+                       .order_by(PriceUpdateItem.article_number)).all()
+    who = upd.base_list.manufacturer.name if upd.base_list.manufacturer else upd.base_list.name
+    valid = ".".join(reversed(upd.valid_from.split("-"))) if upd.valid_from else None
+    wb = openpyxl.Workbook(write_only=True)
+    sh = _Sheet(wb, "Preisänderungen", ["Artikelnummer", "Bezeichnung", "Preis bisher", "Preis neu", "Änderung %",
+                                         "Gültig ab"], [18, 44, 14, 14, 12, 12])
+    for i in items:
+        if i.vk_old is None or i.final_vk is None or i.final_vk == i.vk_old:
+            continue
+        change = ((i.final_vk - i.vk_old) / i.vk_old * 100).quantize(Decimal("0.01")) if i.vk_old else None
+        sh.row([with_code(i.article_number, codes.get(i.manufacturer_id)), i.description, sh.money(i.vk_old),
+                sh.money(i.final_vk), sh.percent(change), valid])
+    info = _Sheet(wb, "Info", ["Angabe", "Wert"], [30, 60])
+    info.row(["Hersteller", who])
+    info.row(["Gültig ab", valid or "nicht angegeben"])
+    info.row(["Preise", "netto, in " + (upd.base_list.currency or "EUR")])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

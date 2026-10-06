@@ -20,7 +20,7 @@ from backend.comparison.update import (
 )
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
-from backend.excel.export import export_price_update
+from backend.excel.export import export_customer_changes, export_price_update
 from backend.excel.numbers import parse_amount
 from backend.api.routes_compare import list_manufacturer
 from backend.services.access import get_visible, visible, visible_or_none
@@ -199,11 +199,21 @@ async def review_bulk(request: Request, upd_id: int, db: Session = Depends(get_d
 
 
 @router.get("/aktualisierungen/{upd_id}/export")
-def export(request: Request, upd_id: int, entwurf: int = 0, db: Session = Depends(get_db),
+def export(request: Request, upd_id: int, entwurf: int = 0, art: str = "", db: Session = Depends(get_db),
            user: User = Depends(current_user)):
     upd = _get(db, upd_id, user)
     refresh_summary(db, upd)
     open_ = (upd.summary or {}).get("offen", 0)
+    if art == "kunden":
+        # Preisänderungsliste für Kunden: nur geprüfte, endgültige Werte
+        if open_:
+            raise HTTPException(409, f"Erst alle Positionen prüfen ({open_} offen)")
+        data = export_customer_changes(db, upd)
+        audit(db, user, "export_kunden", "price_update", upd_id, ip=client_ip(request))
+        who = upd.base_list.manufacturer.name if upd.base_list.manufacturer else upd.base_list.name
+        name = re.sub(r"[^A-Za-z0-9._-]+", "_", f"Preisaenderungen_{who}_{upd.valid_from or upd_id}")[:80]
+        return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="{name}.xlsx"'})
     if not entwurf and open_:
         raise HTTPException(409, f"Endgültiger Export gesperrt: {open_} Positionen sind noch nicht geprüft. "
                                  "Bitte prüfen oder den Entwurf exportieren.")
@@ -299,7 +309,11 @@ async def finish(request: Request, upd_id: int, db: Session = Depends(get_db), u
     """Ein Klick: als aktuelle Liste übernehmen und die fertige Excel-Liste herunterladen."""
     upd = _get(db, upd_id, user)
     form = await request.form()
+    valid_from = str(form.get("gueltig_ab") or "").strip() or None
+    if valid_from and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", valid_from):
+        return _back(upd_id, form, "Gültig ab: Datum im Format JJJJ-MM-TT")
     if not upd.adopted_list_id:
+        upd.valid_from = valid_from
         try:
             pl = adopt_as_current(db, upd, user.id)
         except ValueError as e:

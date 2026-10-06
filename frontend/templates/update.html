@@ -12,7 +12,7 @@
     <p>{{ "Teilliste" if upd.scope == "TEIL" else "Jahrespreisliste" }} „{{ upd.source_list.name }}“
       · {{ "UVP − " ~ (upd.dealer_discount | money) ~ " %" if upd.price_type == "UVP" else "EK" }}{% if upd.list_currency and upd.list_currency != "EUR" %} · {{ upd.list_currency }} × {{ upd.exchange_rate | num }}{% endif %}
       · VK {{ rule.name if rule else "–" }}{% if upd.exceptions %} (+{{ upd.exceptions | length }} eigene){% endif %}
-      · Schwelle ±{{ upd.review_threshold | money }} %</p>
+      · Schwelle ±{{ upd.review_threshold | money }} %{% if upd.valid_from %} · gültig ab {{ upd.valid_from.split("-") | reverse | join(".") }}{% endif %}</p>
   </div>
   <div class="actions m0">
     {% if s.offen %}
@@ -36,12 +36,16 @@
       <span class="dot ok">{{ icon("check", 18) }}</span>
       <div><b>{% if fertig %}Fertig! Die neue Preisliste wird heruntergeladen.{% else %}Abgeschlossen und als aktuelle Liste übernommen{% endif %}</b>
         <span class="hint"><a href="/listen/{{ upd.adopted_list_id }}">Neue aktuelle Liste ansehen</a> – sie ist beim nächsten Abgleich automatisch die Grundlage.</span></div>
-      <a class="button secondary" href="/aktualisierungen/{{ upd.id }}/export">{{ icon("upload", 16) }} Excel erneut laden</a>
+      <div class="row">
+        <a class="button secondary" href="/aktualisierungen/{{ upd.id }}/export">{{ icon("upload", 16) }} Neue Preisliste</a>
+        <a class="button secondary" href="/aktualisierungen/{{ upd.id }}/export?art=kunden">{{ icon("doc", 16) }} Preisänderungen für Kunden</a>
+      </div>
     {% else %}
       <span class="dot ok">{{ icon("check", 18) }}</span>
       <div><b>Alles geprüft – bereit zum Abschließen</b><span class="hint">Übernimmt die neuen EK/VK als aktuelle Liste und lädt die fertige Excel-Liste herunter.</span></div>
-      <form method="post" action="/aktualisierungen/{{ upd.id }}/abschliessen">
+      <form method="post" action="/aktualisierungen/{{ upd.id }}/abschliessen" class="row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Neue Preise gültig ab <input type="date" name="gueltig_ab"></label>
         <button type="submit" class="button big">{{ icon("check", 18) }} Abschließen</button>
       </form>
     {% endif %}
@@ -102,7 +106,7 @@
 {% include "_pager.html" %}
 <div class="scroll">
 <table class="review-table">
-  <thead><tr><th class="sel" title="für „anders kalkulieren“ auswählen"><span class="sr">Auswahl</span></th><th>Artikel</th><th class="num">EK alt → neu</th><th class="num">VK alt → neu</th><th class="num">Faktor</th><th>Status &amp; Hinweise</th><th>Prüfung</th></tr></thead>
+  <thead><tr><th class="sel" title="für „anders kalkulieren“ auswählen"><span class="sr">Auswahl</span></th><th>Artikel</th><th class="num">EK alt → neu</th><th class="num">VK alt → neu</th><th class="num">Faktor / Marge</th><th>Status &amp; Hinweise</th><th>Prüfung</th></tr></thead>
   <tbody>
   {% for i in rows %}
     {% set open = i.needs_review and not i.reviewed_at %}
@@ -116,7 +120,8 @@
         {% if foreign and i.source_amount is not none %}<div class="small">Hersteller {{ i.source_amount | money }} {{ i.source_currency or "" }}</div>{% endif %}</td>
       <td class="num"><span class="old">{{ i.vk_old | money }}</span> → <b>{{ i.final_vk | money }}</b>
         {% if i.decision == "MANUELL" %}<div class="small">von Hand</div>{% elif new and i.vk_difference_percent is not none %}<div class="delta {{ 'up' if i.vk_difference_percent > 0 else 'down' if i.vk_difference_percent < 0 else '' }}">{{ "+" if i.vk_difference_percent > 0 else "" }}{{ i.vk_difference_percent | money }} %</div>{% endif %}</td>
-      <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "–" }}</td>
+      <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "–" }}
+        {% if i.final_ek is not none and i.final_vk %}<div class="small">Marge {{ (((i.final_vk - i.final_ek) / i.final_vk) * 100) | round(1) | num }} %</div>{% endif %}</td>
       <td class="hints"><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>
         {% if i.note %}<div class="small">{{ i.note }}</div>
         {% elif i.reasons %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}

@@ -30,7 +30,13 @@ Nach dem Login: Kachel-Startseite des **Sales Assistant**, Modul **Preisliste** 
 3. **Prüfen**: Es werden zuerst nur die Auffälligkeiten gezeigt (EK-Änderung ab Schwelle, VK unter EK, fehlende
    oder unklare Artikel, Fehler). Jeder VK ist unabhängig nachgerechnet. Einzelne Artikel lassen sich mit eigenem
    Faktor kalkulieren (gilt dauerhaft), geänderte Nummern per Auswahl oder KI-Vorschlag zuordnen.
-4. **Abschließen**: ein Klick übernimmt die neuen EK/VK als aktuelle Liste und lädt die fertige Excel-Liste herunter.
+4. **Abschließen** (optional mit „gültig ab“): ein Klick übernimmt die neuen EK/VK als aktuelle Liste und lädt die
+   fertige Excel-Liste herunter. Zusätzlich: **Preisänderungsliste für Kunden** (nur geänderte VK, alt → neu, gültig ab).
+
+Vertriebsdetails: VK-Rundung pro Hersteller (10 Cent, volle Euro, ,90/,95/,99 – Endungen runden immer auf),
+Marge (Rohertrag in % vom VK) in Prüfung und Export, doppelte Zeilen mit gleichem Preis zählen einmal,
+„entfällt“-Vermerke des Herstellers werden erkannt (alter Preis bleibt, Hinweis in der Prüfung),
+Deckblätter werden übersprungen, eine allgemeine „Preis“-Spalte wird laut Hersteller-Einstellung als EK bzw. UVP gelesen.
 
 Testdaten für den kompletten Ablauf: `beispiel-daten/` (erzeugt mit `python beispiel-daten/erzeuge_testdaten.py`),
 automatisch durchgespielt in `tests/test_e2e_szenarien.py`.

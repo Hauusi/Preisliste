@@ -225,3 +225,78 @@ def test_blocking_problems_are_explained(admin_client, app):
     # SEK-Liste, aber Hersteller auf EUR eingestellt -> blockiert mit Link zu den Einstellungen
     url, page = smart_page(c, "SvenskLjus_Pricelist_2027_SEK.xlsx")
     assert "Die Liste ist in SEK" in page and f'href="/hersteller/{m.id}"' in page and "disabled" in page
+
+
+def test_lumatec_messy_real_world_list(admin_client, app):
+    """Deckblatt, Titelzeilen, Warengruppen-Zwischenzeilen, Preise als Text, EAN/VPE/Staffel-Spalten,
+    'entfällt', doppelte Zeile, Fußnoten – so wie Listen wirklich ankommen."""
+    c = admin_client
+    mid = new_manufacturer(c, "Lumatec Fahrzeugtechnik", "LT", "2,5")
+    url, page = smart_page(c, "Lumatec_unsere_Liste_2026.xlsx")
+    assert '<option value="UNSERE" selected>' in page and "EK-Preis" not in page.split("Erkannte Spalten")[0][-50:]
+    start(c, app, page)
+
+    url, page = smart_page(c, "Lumatec_Preisliste_2027.xlsx")
+    assert f'<option value="{mid}" selected>' in page
+    assert "Die Spalte „Preis € netto“ wird als EK gelesen" in page  # allgemeine Preisspalte -> laut Hersteller EK
+    assert "<b>11 von 11</b>" in page and "1 neue des Herstellers" in page
+    assert "disabled" not in page.split("Import &amp; Abgleich starten")[0][-300:]
+    target = start(c, app, page)
+    items = items_of(int(target.rsplit("/", 1)[1]))
+    assert len(items) == 11
+
+    ws = openpyxl.load_workbook(DATA / "Lumatec_Preisliste_2027.xlsx", data_only=True)["Preisliste 2027"]
+    new = {}
+    for row in ws.iter_rows(min_row=5, values_only=True):
+        if row[1] and row[5] is not None:
+            v = row[5]
+            new[row[1]] = money(str(v).replace("€", "").strip().replace(".", "").replace(",", ".")
+                                if isinstance(v, str) else str(v))
+    for nr, i in items.items():
+        if nr == "01003":
+            continue
+        assert (i.final_ek, i.final_vk, i.status) == (new[nr], money(new[nr] * D("2.5")), "OK"), (nr, i.note)
+    gone = items["01003"]
+    assert gone.status == "NICHT_IN_HERSTELLERLISTE" and "Laut Hersteller entfallen" in gone.note
+    assert "Nachfolger 01004" in gone.note and (gone.final_ek, gone.decision) == (gone.old_amount, "ALT")
+    assert items["09001"].status == "OK"  # doppelte Zeile mit gleichem Preis zählt einmal
+
+
+def test_sales_features_rounding_margin_customer_list(admin_client, app):
+    """VK auf ,90 runden, Marge sehen, Abschließen mit Gültig-ab, Preisänderungsliste für Kunden."""
+    c = admin_client
+    mid = new_manufacturer(c, "Raphi LED", "RA", "2,6")
+    r = c.post("/hersteller", data={"csrf_token": c.csrf, "id": str(mid), "name": "Raphi LED", "code": "RA",
+                                    "factor": "2,6", "vk_rounding": "e90", "list_basis": "EK",
+                                    "review_threshold": "10", "ignore_leading_zeros": "1"})
+    assert "Gespeichert" in r.text and 'value="e90" selected' in r.text
+    assert "EK × 2,6, auf ,90 (aufrunden)" in c.get("/hersteller").text
+    url, page = smart_page(c, "RaphiLED_Preisliste_2026.xlsx")
+    start(c, app, page)
+    url, page = smart_page(c, "RaphiLED_Herstellerliste_2027.xlsx")
+    assert "VK neu = EK × 2,6, auf ,90 (aufrunden)" in page
+    target = start(c, app, page)
+    items = items_of(int(target.rsplit("/", 1)[1]))
+    new = file_prices("RaphiLED_Herstellerliste_2027.xlsx", 4, 2)
+    for nr, i in items.items():
+        if i.decision == "NEU":
+            exact = money(str(new.get(nr, 0))) * D("2.6")
+            assert i.final_vk % 1 == D("0.90") and exact <= i.final_vk < exact + 1, (nr, i.final_vk)
+            assert i.check_ok is True
+    assert "Marge" in c.get(target + "?status=alle").text
+    # alles prüfen, abschließen mit Gültig-ab
+    for i in items.values():
+        if i.status == "NICHT_EINDEUTIG":
+            c.post(f"{target}/positionen/{i.id}", data={"csrf_token": c.csrf, "action": "zuordnen", "new_id": "kein"})
+    c.post(f"{target}/alle-bestaetigen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
+    r = c.post(f"{target}/abschliessen", data={"csrf_token": c.csrf, "gueltig_ab": "2027-01-01"})
+    assert "gültig ab 01.01.2027" in r.text and "Preisänderungen für Kunden" in r.text
+    wb = openpyxl.load_workbook(io.BytesIO(c.get(f"{target}/export?art=kunden").content))
+    ws = wb["Preisänderungen"]
+    assert [h.value for h in ws[1]] == ["Artikelnummer", "Bezeichnung", "Preis bisher", "Preis neu", "Änderung %",
+                                        "Gültig ab"]
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    changed = [i for i in items_of(int(target.rsplit("/", 1)[1])).values() if i.final_vk != i.vk_old]
+    assert len(rows) == len(changed) > 0 and all(r[0].startswith("RA") and r[5] == "01.01.2027" for r in rows)
+    assert "Marge %" in [h.value for h in openpyxl.load_workbook(io.BytesIO(c.get(f"{target}/export").content))
+                         ["Neue Preisliste"][1]]

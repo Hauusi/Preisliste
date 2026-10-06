@@ -22,7 +22,7 @@ from backend.excel.numbers import SUPPORTED_CURRENCIES
 from backend.excel.reader import read_sheet
 from backend.matching.cascade import strip_zeros
 from backend.models.entities import Article, Manufacturer, PriceList, Rule
-from backend.services.calc_setup import factor_of
+from backend.services.calc_setup import describe, factor_of, rounding_of
 from backend.services.imports import build_preview, stored_path
 from backend.services.updates import current_list
 
@@ -51,7 +51,8 @@ class Proposal:
     hints: list[str] = field(default_factory=list)
     settings: dict = field(default_factory=dict)
     total_rows: int = 0
-    prefix_share: float = 0.0  # Anteil der Nummern, die mit dem Kürzel des Herstellers beginnen
+    prefix_share: float = 0.0
+    calc_text: str = ""  # Anteil der Nummern, die mit dem Kürzel des Herstellers beginnen
 
     @property
     def ready(self) -> bool:
@@ -107,6 +108,17 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     kind = o.get("kind") if o.get("kind") in ("UNSERE", "HERSTELLER") else ("UNSERE" if has_ek and has_vk else "HERSTELLER")
     st = manufacturer_settings(m)
+
+    # Herstellerliste mit nur einer allgemeinen „Preis“-Spalte: Bedeutung kommt aus der Hersteller-Einstellung
+    remapped = None
+    prices_mapped = [f for f in ("supplier_price", "list_price", "rrp") if f in mapping]
+    if kind == "HERSTELLER" and m and stored_cols is None and prices_mapped == ["list_price"]:
+        target = "rrp" if st["basis"] == "UVP" else "supplier_price"
+        idx = mapping.pop("list_price")
+        mapping[target] = idx
+        cols["assigned"][target] = cols["assigned"].pop("list_price")
+        remapped = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
+        remapped = (remapped, "UVP" if target == "rrp" else "EK")
 
     file_cur = _currency_in_file(pv)
     if o.get("currency") in SUPPORTED_CURRENCIES:
@@ -179,6 +191,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         rule = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
         p.rule = rule if rule is not None and not rule.deleted else None
         p.factor = factor_of(db, m)
+        p.calc_text = describe(p.factor, rounding_of(db, m))
         if p.base is None:
             p.issues.append(f"Für {m.name} gibt es noch keine eigene EK/VK-Liste. Erst unsere Liste vom Vorjahr "
                             "einspielen – oder diese Datei als „Unsere Liste“ importieren.")
@@ -209,6 +222,9 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
             share = found / len(ours_n) if ours_n else 1
             p.scope_suggested = "TEIL" if share < PARTIAL_SHARE else "VOLL"
     p.scope = o.get("scope") if o.get("scope") in ("VOLL", "TEIL") else p.scope_suggested
+    if remapped:
+        p.hints.append(f"Die Spalte „{remapped[0]}“ wird als {remapped[1]} gelesen "
+                       f"(laut Einstellung schickt {m.name} {remapped[1]}-Preise).")
     if cols.get("split"):
         p.hints.append("Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch "
                        "verglichen (älteres Jahr bzw. linke Spalte = alt).")

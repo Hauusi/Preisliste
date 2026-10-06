@@ -81,12 +81,30 @@ class Preview:
     prefix_suggestion: bool = False
 
 
+def _best_sheet(path: Path, sheets: list[str], synonyms) -> str:
+    best, best_score = sheets[0], -1
+    for name in sheets:
+        try:
+            sh = read_sheet(path, name, max_rows=DETECTION_ROWS)
+        except Exception:
+            continue
+        mapping = col.detect_columns(sh, synonyms, None, None).mapping()
+        score = (2 if "article_number" in mapping else 0) + sum(1 for f in col.PRICE_FIELDS if f in mapping)
+        score = score * 100000 + len(sh.rows) if score else 0
+        if score > best_score and not sh.hidden:
+            best, best_score = name, score
+    return best
+
+
 def build_preview(db: Session, pl: PriceList, settings: Settings, sheet_name: str | None = None,
                   header_row: int | None = None, header_rows: int | None = None) -> Preview:
     path = stored_path(pl, settings)
     sheets = list_sheets(path)
-    sheet = read_sheet(path, sheet_name or sheets[0], max_rows=DETECTION_ROWS)
     synonyms = col.load_synonyms(settings.config_dir)
+    if sheet_name is None and len(sheets) > 1:
+        # Deckblatt, Konditionen o. Ä. überspringen: das Blatt mit Artikelnummer und Preis gewinnt
+        sheet_name = _best_sheet(path, sheets, synonyms)
+    sheet = read_sheet(path, sheet_name or sheets[0], max_rows=DETECTION_ROWS)
     detection = col.detect_columns(sheet, synonyms, header_row, header_rows)
     start = detection.header_row
     sample = sheet.rows[start: start + PREVIEW_ROWS]
