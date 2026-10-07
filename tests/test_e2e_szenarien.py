@@ -602,3 +602,31 @@ def test_ambiguous_price_columns_are_not_silently_dropped(admin_client, app, tmp
     wb.save(tmp_path / "Nordic Lights EK VK.xlsx")
     page = c.get(upload(c, tmp_path / "Nordic Lights EK VK.xlsx").headers["location"]).text
     assert "„Netto EK“" in page and "Spalten anpassen" in page
+
+
+def test_nordic_lights_manufacturer_list_net_msrp(admin_client, app, tmp_path):
+    """Echte Nordic-Lights-Herstellerliste: „Item #“, „Description“, „NET 2027“ (darunter „60%“), „MSRP“ (darunter
+    „2027“). NET ist der EK, MSRP wird nicht verwendet (Hersteller auf EK eingestellt)."""
+    c = admin_client
+    new_manufacturer(c, "Nordic Lights", "NL", "2,8")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Brutto EK", "Rabatt", "Netto EK", "Kalk", "Brutto VK gerundet"])
+    ws.append(["NL984-9020", "Scorpius PRO 4500", 204.0, -0.6, 81.60000000000001, 2.8, 228.5])
+    ws.append(["NL984-9023", "Scorpius PRO 5500", 219.0, -0.6, 87.60000000000001, 2.8, 245.3])
+    wb.save(tmp_path / "Nordic Lights EK VK 2026_final.xlsx")
+    start(c, app, c.get(upload(c, tmp_path / "Nordic Lights EK VK 2026_final.xlsx").headers["location"]).text)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Item #", "Description", "NET 2027", "MSRP"])
+    ws.append([None, None, 0.6, 2027])
+    ws.cell(2, 3).number_format = "0%"
+    ws.append(["984-9020", "Scorpius PRO 4500 WideFlood TT", 84.0, 210.0])
+    ws.append(["984-9023", "Scorpius PRO 5500 WideFlood TT", 90.0, 225.0])
+    wb.save(tmp_path / "Nordic Lights Pricelist 2027.xlsx")
+    page = c.get(upload(c, tmp_path / "Nordic Lights Pricelist 2027.xlsx").headers["location"]).text
+    assert '<option value="HERSTELLER" selected>' in page and "keine EK-Spalte" not in page
+    assert "2 von 2" in page
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    assert (items["984-9020"].final_ek, items["984-9020"].final_vk) == (D("84.00"), D("235.20"))
+    assert (items["984-9023"].final_ek, items["984-9023"].final_vk) == (D("90.00"), D("252.00"))

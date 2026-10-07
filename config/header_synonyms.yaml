@@ -15,6 +15,9 @@ article_number:
   - Teilenummer
   - SKU
   - Item No
+  - Item #
+  - Item
+  - Art. No
   - Item Number
   - Part Number
   - Part No
@@ -75,6 +78,9 @@ supplier_price:
   - HEK
   - Purchase Price
   - Net Price
+  - Net
+  - Netto
+  - Nett
   - Dealer Price
 list_price:
   - Listenpreis
