@@ -199,7 +199,10 @@ def test_vk_below_ek_and_missing_ek_price(admin_client, tmp_path, app):
                    mid, "HERSTELLER")
     c.post("/aktualisierungen", data={"csrf_token": c.csrf, "base_id": ours, "source_id": new2, "rule_id": rule_id})
     _, items = _items()
-    assert items["LED1"].status == "PRUEFEN" and items["LED1"].reasons == ["VK_ABWEICHUNG", "VK_UNTER_EK"]
+    i = items["LED1"]
+    assert i.status == "PRUEFEN" and set(i.reasons) == {"VK_ABWEICHUNG", "SONDERPREIS", "VK_UNTER_EK"}
+    # Kalkuliert wäre 9,00 (unter EK) – alter VK 20,00 bleibt vorgeschlagen statt still zu senken
+    assert (i.calculated_amount, i.final_vk, i.decision) == (D("9.00"), D("20.00"), "MANUELL")
 
 
 def test_update_form_validation(admin_client, tmp_path, app):

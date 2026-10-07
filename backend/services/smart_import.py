@@ -119,6 +119,18 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         m = next((x for x in mfrs if str(x.id) == str(o["manufacturer_id"])), None)
     elif pv.manufacturer_suggestion:
         m = next((x for x in mfrs if x.id == pv.manufacturer_suggestion), None)
+    elif "article_number" in mapping:
+        # Kein Name in Datei/Dateiname: am Kürzel vor den Nummern erkennen (NL984-9020 -> Kürzel NL), nur eindeutig
+        idx = mapping["article_number"]
+        nrs = [cell_text(r[idx]).upper() for r in pv.sample_rows if idx < len(r) and cell_text(r[idx])]
+        hits = [x for x in mfrs if x.code and nrs
+                and sum(1 for n in nrs if n.startswith(x.code) and len(n) > len(x.code)) / len(nrs) >= 0.8]
+        if not hits:
+            # Kürzel als eigenes Wort im Dateinamen („NL 2026.xlsx“)
+            words = set(re.split(r"[^A-Z0-9]+", (pl.source_file or "").upper()))
+            hits = [x for x in mfrs if x.code and x.code.upper() in words]
+        if len(hits) == 1:
+            m = hits[0]
 
     # Ein gewählter Hersteller gilt für die ganze Datei; eine Hersteller-/Markenspalte wird dann nicht gelesen
     # (sonst landen die Artikel z. B. unter „Strands Lighting AB“ statt beim gewählten Hersteller).

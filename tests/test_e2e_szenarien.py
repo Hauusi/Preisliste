@@ -556,3 +556,34 @@ def test_nordic_lights_our_list_brutto_rabatt_netto(admin_client, app, tmp_path)
         assert {p.price_type: p.amount for p in a.prices} == {"EK": D("81.6"), "LISTE": D("228.5")}
         assert {p.price_type: p.amount for p in arts["984-9023"].prices}["LISTE"] == D("245.3")
         assert all(p.discount_percent is None for x in arts.values() for p in x.prices)
+
+
+def test_clearance_articles_keep_their_vk(admin_client, app, tmp_path):
+    """Abverkaufsartikel (EK 0,01, fester Abverkaufs-VK) bleiben in unserer Liste; der Abgleich darf ihren VK nie
+    auf EK × Faktor (0,03 €) setzen."""
+    c = admin_client
+    new_manufacturer(c, "Nordic Lights", "NL", "2,8")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Netto EK", "Brutto VK gerundet"])
+    ws.append(["NL988-301B", "Abverkauf", 0.01, 93.0])
+    ws.append(["NL988-302B", "Abverkauf 2", 0.01, 90.6])
+    ws.append(["NL984-9020", "Scorpius", 81.6, 228.5])
+    wb.save(tmp_path / "NL EK VK 2025.xlsx")
+    start(c, app, c.get(upload(c, tmp_path / "NL EK VK 2025.xlsx").headers["location"]).text)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Art.-Nr.", "Bezeichnung", "Netto EK"])
+    ws.append(["984-9020", "Scorpius", 84.0])
+    ws.append(["988-302B", "Abverkauf 2", 0.01])  # Hersteller führt ihn noch mit 0,01
+    wb.save(tmp_path / "NL 2026.xlsx")
+    items = items_of(int(start(c, app, c.get(upload(c, tmp_path / "NL 2026.xlsx").headers["location"]).text)
+                         .rsplit("/", 1)[1]))
+    a, b = items["988-301B"], items["988-302B"]
+    assert (a.status, a.final_ek, a.final_vk) == ("NICHT_IN_HERSTELLERLISTE", D("0.01"), D("93.00"))
+    assert (b.status, b.final_vk, b.decision) == ("PRUEFEN", D("90.60"), "MANUELL") and "SONDERPREIS" in b.reasons
+    # Auch „alle bestätigen“ senkt den Abverkaufs-VK nicht
+    upd = int(items["984-9020"].update_id)
+    c.post(f"/aktualisierungen/{upd}/alle-bestaetigen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
+    assert items_of(upd)["988-302B"].final_vk == D("90.60")
+    assert items_of(upd)["984-9020"].final_vk == D("235.20")  # 84,00 × 2,8

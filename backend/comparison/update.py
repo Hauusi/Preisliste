@@ -47,6 +47,7 @@ REASON_LABELS = {
     "EK_AENDERUNG": "EK-Änderung über Prüfschwelle",
     "VK_ABWEICHUNG": "VK-Änderung passt nicht zur EK-Änderung (Vorjahr anders kalkuliert?)",
     "VK_UNTER_EK": "VK neu liegt unter EK neu",
+    "SONDERPREIS": "alter VK passt nicht zur Kalkulation (Abverkauf/Sonderpreis?) – alter VK vorgeschlagen",
     "PREIS_NULL": "Preis ist 0",
     "KEIN_ALTER_EK": "kein EK im Vorjahr",
     "KEIN_ALTER_VK": "kein VK im Vorjahr",
@@ -258,6 +259,15 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     if pct is not None and vk_pct is not None and abs(vk_pct - pct) >= ctx.threshold:
         reasons.append("VK_ABWEICHUNG")
         notes.append(f"EK {de(pct)} %, VK {de(vk_pct)} %")
+    if ("VK_ABWEICHUNG" in reasons and vk_old is not None and vk_new < vk_old and vk_old >= ek_new
+            and ek_old is not None and ek_new >= ek_old):
+        # VK würde stark fallen, obwohl der EK nicht fällt: alter VK war ein Sonder-/Abverkaufspreis
+        # (z. B. EK 0,01 / VK 93,00). Nie still senken – alter VK bleibt vorgeschlagen, „Zurücknehmen“ = kalkuliert.
+        reasons.append("SONDERPREIS")
+        notes.append(f"Kalkuliert wären {de(vk_new)} – alter VK {de(vk_old)} bleibt vorgeschlagen")
+        row.update(final_vk=vk_old, decision="MANUELL", vk_difference=Decimal(0), vk_difference_percent=Decimal(0))
+        if ek_new > 0:
+            row["factor"] = (vk_old / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
     if vk_new < ek_new:
         reasons.append("VK_UNTER_EK")
     if ek_new == 0 or vk_new == 0:
