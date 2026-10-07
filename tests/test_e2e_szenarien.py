@@ -587,3 +587,18 @@ def test_clearance_articles_keep_their_vk(admin_client, app, tmp_path):
     c.post(f"/aktualisierungen/{upd}/alle-bestaetigen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
     assert items_of(upd)["988-302B"].final_vk == D("90.60")
     assert items_of(upd)["984-9020"].final_vk == D("235.20")  # 84,00 × 2,8
+
+
+def test_ambiguous_price_columns_are_not_silently_dropped(admin_client, app, tmp_path):
+    """Zwei gleichwertige EK-Spalten (z. B. Netto EK 2025 und 2026 mit gleicher Überschrift): blockieren mit klarem
+    Hinweis statt still als UVP-Herstellerliste weiterzumachen."""
+    c = admin_client
+    new_manufacturer(c, "Nordic Lights", "NL", "2,8")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Netto EK", "Netto EK", "UVP"])
+    for n in range(1, 6):
+        ws.append([f"NL984-90{n:02d}", "Scorpius", 80.0, 81.6, 299.0])
+    wb.save(tmp_path / "Nordic Lights EK VK.xlsx")
+    page = c.get(upload(c, tmp_path / "Nordic Lights EK VK.xlsx").headers["location"]).text
+    assert "„Netto EK“" in page and "Spalten anpassen" in page

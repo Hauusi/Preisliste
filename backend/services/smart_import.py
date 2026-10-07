@@ -309,6 +309,20 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         p.hints.append(f"Die Spalte „{remapped[0]}“ wird als {remapped[1]} gelesen "
                        f"(laut Einstellung schickt {m.name} {remapped[1]}-Preise).")
     p.hints.extend(pending_hints)
+    # Unklare Spalten nie still übergehen: mehrdeutige Preisspalten blockieren, Rest als Hinweis
+    if stored_cols is None:
+        for c in pv.detection.columns:
+            if not c.note or c.alt_field or c.field:
+                continue
+            label = c.label or f"Spalte {c.index + 1}"
+            from backend.excel.columns import FIELDS as _F
+
+            open_price = [f for f in PRICE_KEYS if f not in mapping and _F[f] in c.note]
+            if open_price and ("mehreren Spalten" in c.note or "Mehrdeutige" in c.note):
+                p.issues.append(f"Spalte „{label}“: {c.note} – unter „Spalten anpassen“ festlegen")
+            else:
+                p.hints.append(f"Spalte „{label}“: {c.note}")
+        p.hints.extend(n for n in pv.detection.notes if n not in p.hints)
     if cols.get("split"):
         p.hints.append("Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch "
                        "verglichen (älteres Jahr bzw. linke Spalte = alt).")
