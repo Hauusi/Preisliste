@@ -230,6 +230,9 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         p.issues.append(f"Die Preisspalten sind in {used_cur.pop()}, gewählt ist {currency}")
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     if kind == "UNSERE":
+        if currency != "EUR":
+            p.issues.append(f"Unsere EK/VK-Liste wird in Euro geführt – bitte Währung EUR wählen (EK und VK in €). "
+                            f"Fremdwährung ({currency}) gibt es nur bei Herstellerlisten; umgerechnet wird beim Abgleich.")
         if not has_ek:
             p.issues.append("Unsere Liste braucht eine EK-Spalte")
         if not has_vk:

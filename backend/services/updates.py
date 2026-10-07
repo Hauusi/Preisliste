@@ -49,6 +49,10 @@ def currency_problems(db: Session, base: PriceList, source: PriceList, settings:
     if errors or not ours or not theirs:
         return errors
     our, their = ours.pop(), theirs.pop()
+    if our != "EUR":
+        errors.append(f"Unsere EK/VK-Liste ist in {our} gespeichert – sie muss in Euro sein (EK und VK in €). "
+                      "Bitte unsere Liste neu importieren und dabei Währung EUR wählen.")
+        return errors
     expected = settings["currency"]
     if their != expected:
         errors.append(f"Herstellerliste ist in {their} importiert, laut Hersteller-Einstellung liefert der Hersteller "

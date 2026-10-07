@@ -329,7 +329,7 @@ def test_our_list_with_ek_in_two_currencies(admin_client, app, tmp_path):
     assert "disabled" not in page.split("sticky-actions")[1].split("</button>")[0]
     # SEK gewählt: EK-Spalte wechselt auf SEK, VK bleibt Euro -> gemischte Währung blockiert
     page_sek = c.get(url + "?currency=SEK").text
-    assert "verschiedene Währungen" in page_sek
+    assert "verschiedene Währungen" in page_sek and "in Euro geführt" in page_sek
     start(c, app, page)
     with session_scope() as db:
         arts = db.scalars(select(Article).join(PriceList).where(PriceList.kind == "UNSERE")).all()
@@ -391,3 +391,34 @@ def test_strands_manufacturer_column_does_not_break_matching(admin_client, app, 
     items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
     assert len(items) == 20 and "NICHT_IN_HERSTELLERLISTE" not in {i.status for i in items.values()}
     assert all(i.final_ek == D("12.50") for i in items.values())
+
+
+def test_our_list_in_foreign_currency_is_refused(admin_client, app, tmp_path):
+    """Unsere Liste in SEK (VK-Spalte ohne Währungsangabe, Benutzer wählt SEK): Import gesperrt; schon gespeicherte
+    SEK-Liste: Abgleich gesperrt statt SEK-EK × Faktor als Euro-VK."""
+    from backend.comparison.update import manufacturer_settings
+    from backend.models.entities import ArticlePrice
+    from backend.services.updates import currency_problems
+
+    c = admin_client
+    mid = new_manufacturer(c, "Strands", "ST", "2,6", list_currency="SEK", exchange_rate="0,095")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Nettoeinkauf 2025 SEK", "VK"])
+    for n in range(1, 6):
+        ws.append([f"ST27{n:04d}", "Winkel", 134.0, 33.5])
+    wb.save(tmp_path / "Strands EK VK 2025.xlsx")
+    url = upload(c, tmp_path / "Strands EK VK 2025.xlsx").headers["location"]
+    page = c.get(url + "?currency=SEK").text
+    assert "in Euro geführt" in page and "disabled" in page.split("sticky-actions")[1].split("</button>")[0]
+    page = c.get(url + "?currency=EUR").text
+    assert "Die Preisspalten sind in SEK, gewählt ist EUR" in page
+    start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands final.xlsx")).headers["location"]).text)
+    page = c.get(upload(c, _strands_mfr_list(tmp_path / "Strands 2026.xlsx")).headers["location"]).text
+    with session_scope() as db:
+        base = db.scalar(select(PriceList).where(PriceList.kind == "UNSERE"))
+        for pr in db.scalars(select(ArticlePrice).join(Article).where(Article.price_list_id == base.id)):
+            pr.currency = "SEK"  # so wie eine früher falsch importierte Liste
+        db.flush()
+        errs = currency_problems(db, base, base, manufacturer_settings(db.get(Manufacturer, mid)))
+        assert any("muss in Euro sein" in e for e in errs)
