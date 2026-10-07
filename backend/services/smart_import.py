@@ -232,6 +232,13 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     elif used_cur and currency not in used_cur:
         p.issues.append(f"Die Preisspalten sind in {used_cur.pop()}, gewählt ist {currency}")
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
+    if kind == "UNSERE" and "discount" in mapping:
+        # Unsere Liste enthält den fertigen Netto-EK; eine Rabattspalte (z. B. „-60 %“ zwischen Brutto- und
+        # Netto-EK) ist nur Information und darf den EK nicht verändern oder Fehler auslösen
+        idx = mapping.pop("discount")
+        cols["assigned"].pop("discount", None)
+        label = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
+        p.hints.append(f"Die Spalte „{label}“ wird nicht verwendet – unsere Liste enthält den fertigen EK.")
     if kind == "UNSERE":
         if currency != "EUR":
             p.issues.append(f"Unsere EK/VK-Liste wird in Euro geführt (EK und VK in €). "

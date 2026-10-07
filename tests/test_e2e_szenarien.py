@@ -527,3 +527,32 @@ def test_create_manufacturer_with_uvp_discount_and_currency(admin_client, app):
     r = c.post("/hersteller", data={"csrf_token": c.csrf, "name": "X", "list_basis": "UVP", "factor": "2",
                                     "review_threshold": "10", "list_currency": "EUR"})
     assert r.status_code == 400 and "der Händlerrabatt Pflicht" in r.text
+
+
+def test_nordic_lights_our_list_brutto_rabatt_netto(admin_client, app, tmp_path):
+    """Echte Nordic-Lights-Struktur: Brutto EK, Rabatt -60 %, Netto EK (Excel-Rechenrest 81,60000000000001),
+    Kalk, Brutto VK gerundet. Netto EK wird EK, Brutto VK gerundet wird VK, Rabattspalte stört nicht."""
+    c = admin_client
+    new_manufacturer(c, "Nordic Lights", "NL", "2,8")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Zolltarifnummer", "EAN Code", "MOQ EK", "MOQ VK", "Produktgewicht",
+               "Brutto EK", "Rabatt", "Netto EK", "Kalk", "Brutto VK gerundet", "Kennzeichen"])
+    rows = [("984-9020", 204.0, -0.6, 81.60000000000001, 228.5), ("984-9023", 219.0, -0.6, 87.60000000000001, 245.29999999999998),
+            ("988-301B", 0.01, 0, 0.01, 93.0)]
+    for nr, brutto, rabatt, netto, vk in rows:
+        ws.append([f"NL{nr}", "Scorpius", "8512200090", "6420296561681", 36, 0, 1.1, brutto, rabatt, netto, 2.8, vk,
+                   "Standard"])
+        ws.cell(ws.max_row, 9).number_format = "0%"
+    wb.save(tmp_path / "Nordic Lights EK VK 2025.xlsx")
+    url = upload(c, tmp_path / "Nordic Lights EK VK 2025.xlsx").headers["location"]
+    page = c.get(url).text
+    assert "„Rabatt“ wird nicht verwendet" in page
+    start(c, app, page)
+    with session_scope() as db:
+        arts = {a.article_number: a for a in db.scalars(select(Article))}
+        a = arts["984-9020"]
+        assert a.status == "OK"
+        assert {p.price_type: p.amount for p in a.prices} == {"EK": D("81.6"), "LISTE": D("228.5")}
+        assert {p.price_type: p.amount for p in arts["984-9023"].prices}["LISTE"] == D("245.3")
+        assert all(p.discount_percent is None for x in arts.values() for p in x.prices)

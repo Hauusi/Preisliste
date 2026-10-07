@@ -72,8 +72,9 @@ def _from_number(value) -> ParsedAmount:
     if isinstance(value, float):
         if not math.isfinite(value):
             return _err("FEHLER", "KEIN_BETRAG", "Ungültiger Zahlenwert")
-        # repr liefert die kürzeste Darstellung, die Excel gespeichert hat (12.3 statt 12.2999...)
-        return ParsedAmount(value=Decimal(repr(value)))
+        # Excel rechnet und zeigt mit 15 signifikanten Stellen: berechnete Zellen wie =204*0,4 stehen als
+        # 81.60000000000001 in der Datei, gemeint ist 81,6. Genau so viele Stellen wie Excel, nicht mehr.
+        return ParsedAmount(value=Decimal(format(value, ".15g")).normalize() + Decimal(0))
     if isinstance(value, Decimal):
         return ParsedAmount(value=value)
     return _err("FEHLER", "KEIN_BETRAG", f"Kein Betrag: {value!r}")
