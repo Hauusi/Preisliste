@@ -324,12 +324,13 @@ def test_our_list_with_ek_in_two_currencies(admin_client, app, tmp_path):
     page = c.get(url).text
     # EK in Euro wird genommen, die SEK-Spalte bewusst nicht; Währung EUR, startbar
     assert "Unsere Liste braucht eine EK-Spalte" not in page
-    assert '<option value="UNSERE" selected>' in page and '<option value="EUR" selected>' in page
+    assert '<option value="UNSERE" selected>' in page and 'name="currency" value="EUR"' in page
     assert "Nettoeinkauf 2025 SEK" in page and "wird nicht verwendet" in page
     assert "disabled" not in page.split("sticky-actions")[1].split("</button>")[0]
-    # SEK gewählt: EK-Spalte wechselt auf SEK, VK bleibt Euro -> gemischte Währung blockiert
+    # Unsere Liste ist immer Euro: keine Währungsauswahl, ein manipuliertes ?currency=SEK ändert nichts
+    assert 'name="currency" value="EUR"' in page and '<select name="currency"' not in page
     page_sek = c.get(url + "?currency=SEK").text
-    assert "verschiedene Währungen" in page_sek and "in Euro geführt" in page_sek
+    assert "Nettoeinkauf 2025 SEK" in page_sek and "wird nicht verwendet" in page_sek and "verschiedene Währungen" not in page_sek
     start(c, app, page)
     with session_scope() as db:
         arts = db.scalars(select(Article).join(PriceList).where(PriceList.kind == "UNSERE")).all()
@@ -410,9 +411,8 @@ def test_our_list_in_foreign_currency_is_refused(admin_client, app, tmp_path):
     wb.save(tmp_path / "Strands EK VK 2025.xlsx")
     url = upload(c, tmp_path / "Strands EK VK 2025.xlsx").headers["location"]
     page = c.get(url + "?currency=SEK").text
-    assert "in Euro geführt" in page and "disabled" in page.split("sticky-actions")[1].split("</button>")[0]
-    page = c.get(url + "?currency=EUR").text
     assert "Die Preisspalten sind in SEK, gewählt ist EUR" in page
+    assert "disabled" in page.split("sticky-actions")[1].split("</button>")[0]
     start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands final.xlsx")).headers["location"]).text)
     page = c.get(upload(c, _strands_mfr_list(tmp_path / "Strands 2026.xlsx")).headers["location"]).text
     with session_scope() as db:
@@ -507,3 +507,23 @@ def test_upload_without_any_manufacturer_never_creates_brands(admin_client, app,
     with session_scope() as db:
         assert [m.name for m in db.scalars(select(Manufacturer))] == ["Strands"]
         assert db.scalar(select(PriceList).where(PriceList.kind == "UNSERE", PriceList.status == "IMPORTIERT"))
+
+
+def test_create_manufacturer_with_uvp_discount_and_currency(admin_client, app):
+    """Hersteller direkt mit UVP − Händlerrabatt, SEK und Kurs anlegen."""
+    c = admin_client
+    page = c.get("/hersteller").text
+    assert 'name="list_basis"' in page and 'name="dealer_discount"' in page and 'name="exchange_rate"' in page
+    r = c.post("/hersteller", data={"csrf_token": c.csrf, "name": "Nordlicht", "code": "NL", "list_basis": "UVP",
+                                    "dealer_discount": "35", "list_currency": "SEK", "exchange_rate": "0,095",
+                                    "factor": "2,6", "ignore_leading_zeros": "1", "review_threshold": "10"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    with session_scope() as db:
+        m = db.scalar(select(Manufacturer).where(Manufacturer.name == "Nordlicht"))
+        assert (m.list_basis, m.dealer_discount, m.list_currency, m.exchange_rate, m.code) == \
+            ("UVP", D(35), "SEK", D("0.095"), "NL") and m.default_rule_id and m.ignore_leading_zeros
+    # UVP ohne Rabatt wird abgelehnt
+    r = c.post("/hersteller", data={"csrf_token": c.csrf, "name": "X", "list_basis": "UVP", "factor": "2",
+                                    "review_threshold": "10", "list_currency": "EUR"})
+    assert r.status_code == 400 and "der Händlerrabatt Pflicht" in r.text

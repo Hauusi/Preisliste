@@ -16,3 +16,16 @@
     el.addEventListener("change", function () { el.form.submit(); });
   });
 })();
+// Felder nur zeigen, wenn eine Auswahl passt (z. B. Händlerrabatt nur bei UVP, Kurs nur bei Fremdwährung)
+(function () {
+  document.querySelectorAll("[data-toggle-target]").forEach(function (sel) {
+    var target = document.getElementById(sel.getAttribute("data-toggle-target"));
+    var want = sel.getAttribute("data-toggle-value");
+    function update() {
+      var show = want.charAt(0) === "!" ? sel.value !== want.slice(1) : sel.value === want;
+      if (target) { target.hidden = !show; }
+    }
+    sel.addEventListener("change", update);
+    update();
+  });
+})();

@@ -45,7 +45,7 @@ def _list_page(request: Request, db: Session, user: User, error: str | None = No
         "manufacturers": mfrs, "factors": {m.id: factor_of(db, m) for m in mfrs},
         "calc_text": {m.id: describe(factor_of(db, m), rounding_of(db, m)) for m in mfrs},
         "rules": {r.id: r for r in _rules(db, user=user)}, "exception_counts": counts, "error": error,
-        "owners": owners}, status_code=status_code)
+        "owners": owners, "currencies": SUPPORTED_CURRENCIES}, status_code=status_code)
 
 
 def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None = None, status_code: int = 200,

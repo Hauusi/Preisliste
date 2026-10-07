@@ -31,7 +31,8 @@
     </div>
     <div class="check-item">
       <span class="check-label">{{ icon("tag", 16) }} Währung</span>
-      <select name="currency" data-autosubmit aria-label="Währung">{% for c in currencies %}<option value="{{ c }}" {% if c == p.currency %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+      {% if p.kind == "UNSERE" %}<div class="check-fixed"><b>EUR</b></div><input type="hidden" name="currency" value="EUR">
+      {% else %}<select name="currency" data-autosubmit aria-label="Währung">{% for c in currencies %}<option value="{{ c }}" {% if c == p.currency %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>{% endif %}
       <span class="check-src">{{ p.currency_source }}</span>
     </div>
     {% if p.kind == "HERSTELLER" and m %}

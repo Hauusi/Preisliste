@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_icons.html" import trash %}
-{% block title %}{{ m.name }}{% endblock %}
+{% block title %}{{ m.name }}<script src="/static/app.js"></script>
+{% endblock %}
 {% block content %}
 {% set admin = true %}{# sichtbar = eigener Hersteller oder Admin #}
 <p><a href="/hersteller">← alle Hersteller</a></p>
@@ -47,14 +48,14 @@
     <h2>Was schickt der Hersteller?</h2>
     <div class="row">
       <label>Die Liste enthält
-        <select name="list_basis"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>unseren EK</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP</option></select>
+        <select name="list_basis" data-toggle-target="edit-discount" data-toggle-value="UVP"><option value="EK" {% if m.list_basis != "UVP" %}selected{% endif %}>unseren EK (Einkaufspreis)</option><option value="UVP" {% if m.list_basis == "UVP" %}selected{% endif %}>UVP / RRP – Händlerrabatt abziehen</option></select>
       </label>
-      <label>Händlerrabatt % <small class="hint">nur bei UVP</small>
+      <label id="edit-discount">Händlerrabatt % <small class="hint">EK = UVP − Rabatt</small>
         <input name="dealer_discount" value="{{ m.dealer_discount | money if m.dealer_discount is not none else '' }}" size="6"></label>
       <label>Währung
-        <select name="list_currency">{% for c in currencies %}<option value="{{ c }}" {% if c == (m.list_currency or "EUR") %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        <select name="list_currency" data-toggle-target="edit-rate" data-toggle-value="!EUR">{% for c in currencies %}<option value="{{ c }}" {% if c == (m.list_currency or "EUR") %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
       </label>
-      <label>Kurs <small class="hint">1 Einheit = ? EUR</small>
+      <label id="edit-rate">Kurs <small class="hint">1 Einheit = ? EUR</small>
         <input name="exchange_rate" value="{{ m.exchange_rate | num }}" size="8" placeholder="z. B. 0,095"></label>
       <label>Prüfschwelle % <small class="hint">EK-Änderung</small>
         <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="6"></label>
@@ -92,4 +93,5 @@
   <p class="hint">Artikelnummern ohne Kürzel{% if m.code %} {{ m.code }}{% endif %} eingeben, Bindestriche/Leerzeichen sind egal.</p>
   {% endif %}
 </section>
+<script src="/static/app.js"></script>
 {% endblock %}

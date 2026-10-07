@@ -412,3 +412,7 @@ button[disabled] { opacity: .45; cursor: not-allowed; }
 select, input, textarea { max-width: 100%; }
 .row > label { min-width: 0; max-width: 100%; }
 @media (max-width: 600px) { .toolbar .row > label { width: 100%; } }
+.check-fixed { padding: 8px 0; font-size: 1.05rem; }
+.calc-steps { border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: var(--radius-sm); padding: 12px 14px; margin: 12px 0; }
+.calc-steps legend { font-weight: 600; padding: 0 6px; }
+[hidden] { display: none !important; }

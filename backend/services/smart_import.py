@@ -148,8 +148,8 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     by_index = {c.index: c for c in pv.detection.columns}
     alternates = [c for c in pv.detection.columns if c.alt_field and c.currency]
     if alternates and stored_cols is None:
-        wanted = o.get("currency") if o.get("currency") in SUPPORTED_CURRENCIES else (
-            st["currency"] if kind == "HERSTELLER" and m else "EUR")
+        wanted = "EUR" if kind == "UNSERE" else o.get("currency") if o.get("currency") in SUPPORTED_CURRENCIES else (
+            st["currency"] if m else "EUR")
         candidates = {alt.alt_field: {mapping[alt.alt_field]} for alt in alternates if alt.alt_field in mapping}
         for alt in alternates:
             candidates.setdefault(alt.alt_field, set()).add(alt.index)
@@ -161,11 +161,14 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
             used = by_index[mapping[fld]]
             for i in sorted(idxs - {mapping[fld]}):
                 pending_hints.append(f"Spalte „{by_index[i].label}“ ({by_index[i].currency}) wird nicht verwendet – "
-                                     f"es gilt „{used.label}“ ({used.currency}). Andere Spalte: Währung oben umstellen.")
+                                     f"es gilt „{used.label}“ ({used.currency})." + ("" if kind == "UNSERE" else " Andere Spalte: Währung oben umstellen."))
     used_cur = {by_index[i].currency for f, i in mapping.items() if f in PRICE_KEYS and by_index.get(i)}
 
     file_cur = _currency_in_file(pv, mapping)
-    if o.get("currency") in SUPPORTED_CURRENCIES:
+    if kind == "UNSERE":
+        # Unsere EK/VK-Liste ist immer in Euro; Fremdwährungsspalten (z. B. „EK SEK“) werden nicht verwendet
+        currency, source = "EUR", "unsere Liste ist immer in €"
+    elif o.get("currency") in SUPPORTED_CURRENCIES:
         currency, source = o["currency"], "gewählt"
     elif file_cur:
         currency, source = file_cur, "aus der Datei"
@@ -231,7 +234,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     if kind == "UNSERE":
         if currency != "EUR":
-            p.issues.append(f"Unsere EK/VK-Liste wird in Euro geführt – bitte Währung EUR wählen (EK und VK in €). "
+            p.issues.append(f"Unsere EK/VK-Liste wird in Euro geführt (EK und VK in €). "
                             f"Fremdwährung ({currency}) gibt es nur bei Herstellerlisten; umgerechnet wird beim Abgleich.")
         if not has_ek:
             p.issues.append("Unsere Liste braucht eine EK-Spalte")

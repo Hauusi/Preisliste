@@ -26,14 +26,37 @@
 {% if true %}
 <section class="card">
   <h2>Hersteller anlegen</h2>
-  <form method="post" action="/hersteller" class="row">
+  <form method="post" action="/hersteller" class="mfr-new">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Name <input name="name" required maxlength="200" placeholder="z. B. Redtronic"></label>
-    <label>Kürzel <input name="code" maxlength="10" size="6" class="code" placeholder="z. B. RT"></label>
-    <label>Faktor <small class="hint">VK = EK ×</small><input name="factor" size="6" placeholder="2,6"></label>
+    <input type="hidden" name="ignore_leading_zeros" value="1">
+    <input type="hidden" name="review_threshold" value="10">
+    <div class="row">
+      <label class="grow">Name <input name="name" required maxlength="200" placeholder="z. B. Strands"></label>
+      <label>Kürzel <input name="code" maxlength="10" size="6" class="code" placeholder="z. B. ST"></label>
+    </div>
+    <fieldset class="calc-steps">
+      <legend>Kalkulation</legend>
+      <div class="row">
+        <label>1. Herstellerliste enthält
+          <select name="list_basis" data-toggle-target="discount-field" data-toggle-value="UVP">
+            <option value="EK">unseren EK (Einkaufspreis)</option>
+            <option value="UVP">UVP / RRP – Händlerrabatt abziehen</option>
+          </select></label>
+        <label id="discount-field" data-toggle>Händlerrabatt % <small class="hint">EK = UVP − Rabatt</small>
+          <input name="dealer_discount" size="6" placeholder="z. B. 35"></label>
+        <label>2. Währung der Herstellerliste
+          <select name="list_currency" data-toggle-target="rate-field" data-toggle-value="!EUR">
+            {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select></label>
+        <label id="rate-field" data-toggle>Kurs <small class="hint">1 Einheit = ? EUR</small>
+          <input name="exchange_rate" size="8" placeholder="z. B. 0,095"></label>
+        <label>3. Faktor <small class="hint">VK = EK × Faktor</small><input name="factor" size="6" placeholder="2,6" required></label>
+      </div>
+    </fieldset>
+    <p class="hint">Beispiel UVP-Liste in SEK: UVP 1.000 SEK − 35 % = 650 SEK × 0,095 = 61,75 € EK × 2,6 = 160,55 € VK. VK-Rundung, Prüfschwelle und einzelne Artikel mit eigenem Faktor stellst du danach beim Hersteller ein.</p>
     <button type="submit">Anlegen →</button>
   </form>
-  <p class="hint">Danach kannst du UVP/Händlerrabatt, Währung und Prüfschwelle einstellen. Eine Liste mit unbekanntem Hersteller kannst du auch direkt einspielen – der Hersteller wird dabei angelegt.</p>
 </section>
 {% endif %}
+<script src="/static/app.js"></script>
 {% endblock %}
