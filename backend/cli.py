@@ -6,6 +6,7 @@
   backup [anzahl]               Sicherung (Datenbank + Uploads) nach data/backups, behält die letzten N (Standard 14)
   clear-data --ja               Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Uploads löschen.
                                 Benutzer, Regeln und Protokoll bleiben. Vorher automatische Sicherung.
+  clear-data --ja --regeln      Zusätzlich alle Regeln löschen. Alle Benutzer bleiben.
   clear-data --ja --alles       Zusätzlich alle Regeln und alle Benutzer außer Administratoren löschen.
   reset-data --ja               ALLE Daten löschen (Listen, Hersteller, Regeln, Vergleiche, Benutzer, Uploads).
                                 Vorher wird automatisch eine Sicherung erstellt. Danach create-admin ausführen.
@@ -56,8 +57,8 @@ RULE_TRIGGERS = (
 )
 
 
-def clear_data(settings, everything: bool = False) -> tuple[str, dict]:
-    """Geschäftsdaten löschen. Mit everything zusätzlich Regeln und Nicht-Admin-Benutzer."""
+def clear_data(settings, everything: bool = False, rules: bool = False) -> tuple[str, dict]:
+    """Geschäftsdaten löschen. rules: zusätzlich Regeln. everything: Regeln und Nicht-Admin-Benutzer."""
     from sqlalchemy import delete, func, select, text, update
 
     from backend.models import entities as e
@@ -72,21 +73,22 @@ def clear_data(settings, everything: bool = False) -> tuple[str, dict]:
         for model in (e.PriceUpdateItem, e.PriceUpdate, e.RuleException, e.AiMatchSuggestion, e.MatchDecision, e.ComparisonItem, e.Comparison, e.CalculationResult,
                       e.CalculationRun, e.Job, e.ImportMessage, e.ArticlePrice, e.Article, e.PriceList):
             db.execute(delete(model))
-        if everything:
+        if everything or rules:
             counts["Regeln"] = db.scalar(select(func.count(e.Rule.id)))
-            counts["Benutzer (ohne Admins)"] = db.scalar(select(func.count(e.User.id)).where(e.User.role != "admin"))
             db.execute(update(e.Manufacturer).values(default_rule_id=None))
             # Regelversionen sind per Trigger gegen Löschen geschützt: nur hier gezielt aufheben
             db.execute(text("DROP TRIGGER IF EXISTS rule_versions_no_delete"))
             db.execute(delete(e.RuleVersion))
             db.execute(text(RULE_TRIGGERS[1]))
             db.execute(delete(e.Rule))
+        if everything:
+            counts["Benutzer (ohne Admins)"] = db.scalar(select(func.count(e.User.id)).where(e.User.role != "admin"))
             others = select(e.User.id).where(e.User.role != "admin")
             db.execute(delete(e.UserSession).where(e.UserSession.user_id.in_(others)))
             db.execute(update(e.AuditLog).where(e.AuditLog.user_id.in_(others)).values(user_id=None))
             db.execute(delete(e.User).where(e.User.role != "admin"))
             db.execute(delete(e.Setting))
-        else:
+        elif not rules:
             # Regeln bleiben, verlieren aber die Zuordnung zum gelöschten Hersteller
             db.execute(update(e.Rule).values(manufacturer_id=None))
         db.execute(delete(e.Manufacturer))
@@ -131,13 +133,14 @@ def main(argv: list[str]) -> int:
                 audit(db, None, "passwort_gesetzt_cli", "user", user.id, {"username": user.username})
             print("Passwort gesetzt.")
         elif cmd == "clear-data":
-            if argv[1:] not in (["--ja"], ["--ja", "--alles"]):
-                print("Sicherheitsabfrage: 'clear-data --ja' oder 'clear-data --ja --alles' eingeben.", file=sys.stderr)
+            if argv[1:] not in (["--ja"], ["--ja", "--alles"], ["--ja", "--regeln"]):
+                print("Sicherheitsabfrage: 'clear-data --ja' (oder mit --regeln / --alles) eingeben.", file=sys.stderr)
                 return 2
-            everything = "--alles" in argv
-            backup, counts = clear_data(settings, everything)
+            everything, rules = "--alles" in argv, "--regeln" in argv
+            backup, counts = clear_data(settings, everything, rules)
             print("Gelöscht: " + ", ".join(f"{v} {k}" for k, v in counts.items()))
-            kept = "Administratoren und Protokoll" if everything else "Benutzer, Regeln und Protokoll"
+            kept = ("Administratoren und Protokoll" if everything else "alle Benutzer und Protokoll" if rules
+                    else "Benutzer, Regeln und Protokoll")
             print(f"Erhalten: {kept}. Sicherung vorher: {backup}")
         elif cmd == "reset-data":
             if argv[1:] != ["--ja"]:

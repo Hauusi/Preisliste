@@ -144,3 +144,19 @@ def test_clear_data_everything_keeps_only_admins(admin_client, user_client, tmp_
     con.close()
     assert admin_client.get("/").status_code == 200
     assert user_client.get("/", follow_redirects=False).status_code == 303
+
+
+def test_clear_data_rules_keeps_all_users(admin_client, user_client, tmp_path, settings, monkeypatch):
+    _flow(admin_client, tmp_path)
+    from backend import cli
+    monkeypatch.setattr(cli, "get_settings", lambda: settings)
+    assert cli.main(["clear-data", "--ja", "--regeln"]) == 0
+    import sqlite3
+    con = sqlite3.connect(settings.db_path)
+    q = lambda sql: con.execute(sql).fetchone()[0]
+    assert q("select count(*) from rules") == q("select count(*) from manufacturers") == 0
+    assert q("select count(*) from price_lists") == q("select count(*) from articles") == 0
+    assert q("select count(*) from users") == 2
+    assert q("select count(*) from sqlite_master where type='trigger' and name='rule_versions_no_delete'") == 1
+    con.close()
+    assert admin_client.get("/").status_code == 200 and user_client.get("/").status_code == 200

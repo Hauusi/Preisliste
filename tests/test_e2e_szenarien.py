@@ -460,3 +460,22 @@ def test_job_page_with_update_errors(admin_client, app):
     page = c.get(f"/jobs/{jid}").text
     assert "Abgleich konnte nicht starten" in page and "Kein Umrechnungskurs" in page
     assert f'action="/hersteller/{mid}/abgleich"' in page and 'value="TEIL"' in page and "refresh" not in page
+
+
+def test_brand_column_never_creates_manufacturers(admin_client, app, tmp_path):
+    """Marken-Spalte in der Herstellerliste (IZE FROZEN, SLD …): es entstehen keine neuen Hersteller."""
+    c = admin_client
+    new_manufacturer(c, "Strands", "ST", "2")
+    start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands EK VK 2025.xlsx")).headers["location"]).text)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Art.-Nr.", "Bezeichnung", "Marke", "Nettoeinkauf 2026 Euro"])
+    for n, brand in zip(range(1, 21), ["IZE FROZEN", "SLD", "SWEDSTUFF", "OTHER"] * 5):
+        ws.append([f"27{n:04d}", "Winkel", brand, 12.5])
+    wb.save(tmp_path / "Strands 2026.xlsx")
+    page = c.get(upload(c, tmp_path / "Strands 2026.xlsx").headers["location"]).text
+    assert "„Marke“ wird ignoriert" in page
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    assert len(items) == 20
+    with session_scope() as db:
+        assert [m.name for m in db.scalars(select(Manufacturer))] == ["Strands"]

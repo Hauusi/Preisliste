@@ -310,11 +310,12 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
             results.append(res)
 
     # Hersteller auflösen
+    # Gewählter Hersteller gilt für die ganze Datei: eine Marken-/Herstellerspalte legt dann nie Hersteller an
     for r in results:
-        if r.manufacturer_raw:
-            r.manufacturer_key = str(manufacturers.resolve(r.manufacturer_raw))
-        elif cfg.manufacturer_id is not None:
+        if cfg.manufacturer_id is not None:
             r.manufacturer_key = str(cfg.manufacturer_id)
+        elif r.manufacturer_raw:
+            r.manufacturer_key = str(manufacturers.resolve(r.manufacturer_raw))
 
     # Gleiche Artikelnummer: Staffel (verschiedene Mengen) oder Dublette
     groups: dict[tuple, list[RowResult]] = defaultdict(list)
