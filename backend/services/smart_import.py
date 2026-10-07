@@ -217,7 +217,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     # Blockierende Punkte und Hinweise
     if cols["errors"]:
         p.issues.append("Spalten nicht vollständig erkannt: " + "; ".join(cols["errors"]))
-    if m is None and o.get("manufacturer_id") != "neu" and "manufacturer" not in mapping:
+    if m is None and o.get("manufacturer_id") != "neu":
         p.issues.append("Hersteller wählen oder neu anlegen")
     if o.get("manufacturer_id") == "neu" and kind == "HERSTELLER":
         p.issues.append("Ein neuer Hersteller hat noch keine eigene EK/VK-Liste – diese Datei als „Unsere Liste“ "

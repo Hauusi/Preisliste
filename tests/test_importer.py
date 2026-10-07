@@ -142,13 +142,15 @@ def test_formula_without_cache_warns(db, tmp_path):
     assert arts[0].status == "FEHLER"  # ohne Wert kein Preis
 
 
-def test_manufacturer_column_creates_and_reuses(db, tmp_path):
+def test_manufacturer_column_never_creates(db, tmp_path):
     summary, arts, _ = do_import(db, tmp_path, [
         ["Hersteller", "Art.-Nr.", "EK"], ["acme", "1", 1], ["Neu AG", "2", 2], ["", "3", 3],
     ], {"manufacturer": 0, "article_number": 1, "supplier_price": 2})
     acme = db.scalar(select(Manufacturer).where(Manufacturer.name == "ACME"))
     assert arts[0].manufacturer_id == acme.id
-    assert summary["manufacturers_created"] == ["Neu AG"]
+    assert summary["manufacturers_unknown"] == ["Neu AG"]
+    assert db.scalar(select(Manufacturer).where(Manufacturer.name == "Neu AG")) is None
+    assert arts[1].status == "FEHLER" and arts[1].manufacturer_id is None
     assert arts[2].status == "FEHLER"
 
 

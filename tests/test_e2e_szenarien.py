@@ -479,3 +479,31 @@ def test_brand_column_never_creates_manufacturers(admin_client, app, tmp_path):
     assert len(items) == 20
     with session_scope() as db:
         assert [m.name for m in db.scalars(select(Manufacturer))] == ["Strands"]
+
+
+def test_upload_without_any_manufacturer_never_creates_brands(admin_client, app, tmp_path):
+    """Nach dem Löschen (noch kein Hersteller): Datei mit Marken-Spalte muss erst einem Hersteller zugeordnet werden."""
+    c = admin_client
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Marke", "Nettoeinkauf 2025 Euro", "VK"])
+    for n, brand in zip(range(1, 9), ["IZE FROZEN", "SLD", "SWEDSTUFF", "OTHER"] * 2):
+        ws.append([f"ST27{n:04d}", "Winkel", brand, 12.5, 32.5])
+    wb.save(tmp_path / "Strands EK VK 2025.xlsx")
+    url = upload(c, tmp_path / "Strands EK VK 2025.xlsx").headers["location"]
+    page = c.get(url).text
+    assert "Hersteller wählen oder neu anlegen" in page and "disabled" in page.split("sticky-actions")[1].split("</button>")[0]
+    # Direkt-POST ohne Hersteller: wird abgelehnt bzw. legt nichts an
+    action, fields = start_form(page)
+    c.post(action, data=fields)
+    run_jobs(app)
+    # Mit neuem Hersteller „Strands“: genau ein Hersteller entsteht
+    page = c.get(url + "?manufacturer_id=neu").text
+    action, fields = start_form(page)
+    r = c.post(action, data={**fields, "new_name": "Strands", "new_code": "ST", "new_factor": "2,6"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    run_jobs(app)
+    with session_scope() as db:
+        assert [m.name for m in db.scalars(select(Manufacturer))] == ["Strands"]
+        assert db.scalar(select(PriceList).where(PriceList.kind == "UNSERE", PriceList.status == "IMPORTIERT"))

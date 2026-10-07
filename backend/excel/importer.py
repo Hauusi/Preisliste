@@ -100,7 +100,8 @@ class RowResult:
 
 
 class _Manufacturers:
-    """Herstellerzuordnung über Name/Alias; unbekannte Namen aus der Herstellerspalte werden angelegt."""
+    """Herstellerzuordnung über Name/Alias. Unbekannte Namen werden NIE automatisch angelegt (sonst entstehen aus
+    Marken-Spalten wie „SLD“, „OTHER“ ungewollt Hersteller) – die Zeile wird als Fehler gemeldet."""
 
     def __init__(self, db: Session, owner_id: int | None):
         self.db = db
@@ -116,15 +117,11 @@ class _Manufacturers:
     def key(name: str) -> str:
         return re.sub(r"[^a-z0-9]", "", normalize_label(name))
 
-    def resolve(self, raw: str) -> int:
+    def resolve(self, raw: str) -> int | None:
         k = self.key(raw)
-        if k not in self.by_key:
-            m = Manufacturer(name=raw.strip(), aliases=[], owner_id=self.owner_id)
-            self.db.add(m)
-            self.db.flush()
-            self.by_key[k] = m.id
-            self.created.append(m.name)
-        return self.by_key[k]
+        if k not in self.by_key and raw.strip() not in self.created:
+            self.created.append(raw.strip())  # nur zur Meldung: unbekannt, nicht angelegt
+        return self.by_key.get(k)
 
 
 def _get(row: list, idx: int | None):
@@ -315,7 +312,14 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
         if cfg.manufacturer_id is not None:
             r.manufacturer_key = str(cfg.manufacturer_id)
         elif r.manufacturer_raw:
-            r.manufacturer_key = str(manufacturers.resolve(r.manufacturer_raw))
+            mid = manufacturers.resolve(r.manufacturer_raw)
+            if mid is None:
+                r.manufacturer_key = None
+                r.messages.append(("FEHLER", "HERSTELLER_UNBEKANNT",
+                                   f"Unbekannter Hersteller „{r.manufacturer_raw}“ – Hersteller beim Import wählen "
+                                   "oder unter Hersteller anlegen", FIELDS["manufacturer"]))
+            else:
+                r.manufacturer_key = str(mid)
 
     # Gleiche Artikelnummer: Staffel (verschiedene Mengen) oder Dublette
     groups: dict[tuple, list[RowResult]] = defaultdict(list)
@@ -392,5 +396,5 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
         "empty_rows": empty_rows,
         "status": {k: counts.get(k, 0) for k in LEVEL_RANK},
         "messages": {k: msg_counts.get(k, 0) for k in ("FEHLER", "UNKLAR", "WARNUNG")},
-        "manufacturers_created": manufacturers.created,
+        "manufacturers_unknown": manufacturers.created,
     }

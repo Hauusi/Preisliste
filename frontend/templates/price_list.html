@@ -20,7 +20,7 @@
   <a class="stat UNKLAR" href="/listen/{{ pl.id }}/meldungen?level=UNKLAR"><span>{{ pl.summary.messages.UNKLAR }}</span>Unklar</a>
   <a class="stat WARNUNG" href="/listen/{{ pl.id }}/meldungen?level=WARNUNG"><span>{{ pl.summary.messages.WARNUNG }}</span>Warnungen</a>
 </div>
-{% if pl.summary.manufacturers_created %}<p class="msg WARNUNG">Neu angelegte Hersteller: {{ pl.summary.manufacturers_created | join(", ") }}</p>{% endif %}
+{% if pl.summary.manufacturers_unknown %}<p class="msg FEHLER">Unbekannte Hersteller (nicht angelegt, Zeilen als Fehler markiert): {{ pl.summary.manufacturers_unknown | join(", ") }}</p>{% endif %}
 {% endif %}
 
 <form method="get" class="card row">
