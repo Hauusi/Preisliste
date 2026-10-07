@@ -30,7 +30,8 @@
       {% for kind, title, sub, href, cta in todo[:8] %}
       <li><span class="dot {{ kind }}">{{ icon({"err": "alert", "warn": "alert", "info": "arrow", "ok": "check"}[kind], 18) }}</span>
         <div class="todo-text"><b>{{ title }}</b><span>{{ sub }}</span></div>
-        <a class="button {{ '' if kind == 'err' else 'secondary' }}" href="{{ href }}">{{ cta }}</a></li>
+        {% if href.startswith("post:") %}<form method="post" action="{{ href[5:] }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">{{ cta }}</button></form>
+        {% else %}<a class="button {{ '' if kind == 'err' else 'secondary' }}" href="{{ href }}">{{ cta }}</a>{% endif %}</li>
       {% endfor %}
     </ul>
     {% if todo | length > 8 %}<p class="hint">… und {{ todo | length - 8 }} weitere.</p>{% endif %}
@@ -81,7 +82,7 @@
       <div><dt>Status</dt><dd>{% if not u %}–{% elif s.offen %}<span class="badge FEHLER">{{ s.offen }} offen</span>{% elif u.adopted_list_id %}<span class="badge OK">übernommen</span>{% else %}<span class="badge PRUEFEN">geprüft</span>{% endif %}</dd></div>
     </dl>
     <div class="mfr-actions">
-      {% if c.pending_source %}<a class="button" href="/listen/{{ c.pending_source.id }}/kalkulation">{{ icon("sync", 16) }} Abgleich starten</a>
+      {% if c.pending_source %}<form method="post" action="/hersteller/{{ m.id }}/abgleich" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">{{ icon("sync", 16) }} Abgleich starten</button></form>
       {% elif u and s.offen %}<a class="button" href="/aktualisierungen/{{ u.id }}?status=offen">Prüfen</a>
       {% else %}<a class="button secondary" href="/import">{{ icon("upload", 16) }} Neue Liste</a>{% endif %}
       <a class="button ghost" href="/hersteller/{{ m.id }}">Einstellungen</a>

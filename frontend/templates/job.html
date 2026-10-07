@@ -18,7 +18,15 @@
       <p>Datei in zwei Listen aufgeteilt und verglichen:</p>
       <ul>{% for lid in r.price_list_ids %}{% set sm = r.summaries[loop.index0] %}<li>{{ "alt" if loop.first else "neu" }}: <a href="/listen/{{ lid }}">{{ r.labels[loop.index0] }}</a> – {{ sm.articles }} Artikel, {{ sm.messages.FEHLER }} Fehler, {{ sm.messages.UNKLAR }} unklar</li>{% endfor %}</ul>
     {% elif job.type == "IMPORT" and r.summary %}<p>{{ r.summary.articles }} Artikel, {{ r.summary.prices }} Preise, {{ r.summary.messages.FEHLER }} Fehler, {{ r.summary.messages.UNKLAR }} unklar, {{ r.summary.messages.WARNUNG }} Warnungen.</p>{% endif %}
-    {% if r.update_errors %}<p class="msg FEHLER">Import fertig, Abgleich konnte nicht starten: {{ r.update_errors | join("; ") }}</p>{% endif %}
+    {% if r.update_errors %}
+    <div class="msg FEHLER"><b>Die Herstellerliste ist eingespielt, aber der Abgleich konnte nicht starten:</b>
+      <ul class="m0">{% for e in r.update_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+    <p>Problem beheben (z. B. Einstellung beim Hersteller oder unsere Liste neu einspielen), dann:</p>
+    {% if r.manufacturer_id %}<form method="post" action="/hersteller/{{ r.manufacturer_id }}/abgleich" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="scope" value="{{ (job.params.auto_update or {}).scope or 'VOLL' }}">
+      <button type="submit">Abgleich erneut starten</button></form>{% endif %}
+    {% endif %}
     {% if job.type == "AI_UPDATE_MATCH" %}<p>{{ r.anfragen }} Artikel geprüft, {{ r.treffer }} mögliche Treffer, {{ r.UNKLAR }} unklare Antworten. Nichts wurde automatisch übernommen.</p>{% endif %}
     {% if job.type == "AI_MATCH" %}<p>{{ r.anfragen }} Anfragen, {{ r.treffer }} mögliche Treffer, {{ r.UNKLAR }} unklare Antworten. Nichts wurde automatisch übernommen.</p>{% endif %}
   {% endif %}

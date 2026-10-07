@@ -249,6 +249,13 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         if p.base is None:
             p.issues.append(f"Für {m.name} gibt es noch keine eigene EK/VK-Liste. Erst unsere Liste vom Vorjahr "
                             "einspielen – oder diese Datei als „Unsere Liste“ importieren.")
+        if p.base is not None:
+            from backend.services.updates import list_currencies
+
+            base_cur = list_currencies(db, p.base)
+            if base_cur and base_cur != {"EUR"}:
+                p.issues.append(f"Unsere Liste „{p.base.name}“ ist in {', '.join(sorted(base_cur))} gespeichert statt "
+                                "in Euro – bitte unter Preislisten löschen und mit Währung EUR neu einspielen")
         if p.rule is None:
             p.issues.append(f"Für {m.name} ist noch keine Kalkulation hinterlegt (Faktor fehlt)")
         if st["basis"] == "UVP" and "rrp" not in mapping:

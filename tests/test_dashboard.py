@@ -13,8 +13,11 @@ def test_dashboard_shows_tasks_and_manufacturer_status(admin_client, tmp_path, a
     new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "12,00"]],
                   mid, "HERSTELLER")
     page = c.get("/preisliste").text
-    assert "neue Herstellerliste noch nicht abgeglichen" in page and f"/listen/{new}/kalkulation" in page
-    url = _start(c, ours, new, rule_id)
+    assert "neue Herstellerliste noch nicht abgeglichen" in page and f'action="/hersteller/{mid}/abgleich"' in page
+    # Ein Klick auf „Abgleich starten“ startet unsere Liste gegen die neueste Herstellerliste
+    r = c.post(f"/hersteller/{mid}/abgleich", data={"csrf_token": c.csrf}, follow_redirects=False)
+    assert r.status_code == 303 and "/aktualisierungen/" in r.headers["location"]
+    url = r.headers["location"]
     page = c.get("/preisliste").text
     assert "RaphiLED: 2 Positionen prüfen" in page and "2 offen" in page
     assert "+20 %" in page  # Ø EK-Änderung

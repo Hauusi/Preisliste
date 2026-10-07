@@ -68,6 +68,32 @@ async def create_update(request: Request, db: Session = Depends(get_db), user: U
     return RedirectResponse(f"/aktualisierungen/{upd.id}", status_code=303)
 
 
+@router.post("/hersteller/{mid}/abgleich", dependencies=[Depends(check_csrf)])
+async def start_for_manufacturer(mid: int, request: Request, db: Session = Depends(get_db),
+                                 user: User = Depends(current_user)):
+    """Abgleich mit einem Klick: unsere aktuelle Liste gegen die neueste Herstellerliste des Herstellers."""
+    from backend.models.entities import Manufacturer
+    from backend.services.updates import current_list, latest_manufacturer_list
+
+    m = get_visible(db, Manufacturer, mid, user)
+    form = await request.form()
+    base, source = current_list(db, m), latest_manufacturer_list(db, m)
+    rule = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
+    scope = str(form.get("scope") or "VOLL")
+    upd, errors = start_update(db, base, source, rule if rule and not rule.deleted else None,
+                               scope if scope in ("VOLL", "TEIL") else "VOLL")
+    if errors:
+        if base is None:
+            errors.insert(0, f"Für {m.name} gibt es keine eigene EK/VK-Liste")
+        if source is None:
+            errors.insert(0, f"Für {m.name} wurde noch keine Herstellerliste eingespielt")
+        return _list_page(request, db, user, "Abgleich konnte nicht starten: " + "; ".join(dict.fromkeys(errors)), 400)
+    audit(db, user, "jahresabgleich", "price_update", upd.id,
+          {"basis": base.id, "hersteller": source.id, "umfang": upd.scope, "zusammenfassung": upd.summary},
+          client_ip(request))
+    return RedirectResponse(f"/aktualisierungen/{upd.id}", status_code=303)
+
+
 def _list_page(request, db, user, error, status_code=200):
     items = db.scalars(visible(select(PriceUpdate).order_by(PriceUpdate.id.desc()), PriceUpdate, user)).all()
     rules = db.scalars(visible(select(Rule).where(Rule.deleted.is_(False)).order_by(Rule.name), Rule, user)).all()

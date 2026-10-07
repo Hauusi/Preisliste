@@ -33,6 +33,16 @@ def current_list(db: Session, m: Manufacturer) -> PriceList | None:
     return None
 
 
+def latest_manufacturer_list(db: Session, m: Manufacturer) -> PriceList | None:
+    """Neueste importierte Herstellerliste des Herstellers."""
+    for pl in db.scalars(select(PriceList).where(PriceList.status == "IMPORTIERT", PriceList.kind == "HERSTELLER",
+                                                 PriceList.uploaded_by == m.owner_id)
+                         .order_by(PriceList.id.desc())):
+        if list_manufacturer(db, pl) == m.id:
+            return pl
+    return None
+
+
 def list_currencies(db: Session, pl: PriceList) -> set[str]:
     return set(db.scalars(select(ArticlePrice.currency).distinct().join(Article)
                           .where(Article.price_list_id == pl.id)))

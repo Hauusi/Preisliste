@@ -422,3 +422,41 @@ def test_our_list_in_foreign_currency_is_refused(admin_client, app, tmp_path):
         db.flush()
         errs = currency_problems(db, base, base, manufacturer_settings(db.get(Manufacturer, mid)))
         assert any("muss in Euro sein" in e for e in errs)
+
+
+def test_failed_auto_update_explains_and_can_be_restarted(admin_client, app, tmp_path):
+    """Startet der Abgleich nach dem Import nicht, sagt die Seite warum und bietet „Abgleich erneut starten“."""
+    c = admin_client
+    mid = new_manufacturer(c, "Strands", "ST", "2,6", list_currency="SEK", exchange_rate="0,095")
+    start(c, app, c.get(upload(c, _strands_file(tmp_path / "Strands EK VK 2025.xlsx")).headers["location"]).text)
+    url = upload(c, _strands_mfr_list(tmp_path / "Strands 2026.xlsx")).headers["location"]
+    page = c.get(url + "?currency=EUR").text  # Hersteller steht auf SEK: blockiert schon auf der Prüfseite
+    assert "Die Liste ist in EUR, Strands ist auf SEK eingestellt" in page
+    # Einstellung danach auf EUR geändert (Kurs bleibt) -> Abgleich startet erneut per Klick
+    c.post("/hersteller", data={"csrf_token": c.csrf, "id": str(mid), "name": "Strands", "code": "ST", "factor": "2,6",
+                                "list_basis": "EK", "review_threshold": "10", "list_currency": "EUR"})
+    target = start(c, app, c.get(url).text)
+    assert "/aktualisierungen/" in target
+    r = c.post(f"/hersteller/{mid}/abgleich", data={"csrf_token": c.csrf}, follow_redirects=False)
+    assert r.status_code == 303
+    # Ohne Herstellerliste: klare Meldung statt Absturz
+    mid2 = new_manufacturer(c, "Leer", "LE", "2")
+    r = c.post(f"/hersteller/{mid2}/abgleich", data={"csrf_token": c.csrf})
+    assert r.status_code == 400 and "noch keine Herstellerliste" in r.text
+
+
+def test_job_page_with_update_errors(admin_client, app):
+    c = admin_client
+    mid = new_manufacturer(c, "Strands", "ST", "2")
+    with session_scope() as db:
+        from backend.models.entities import User
+        uid = db.scalar(select(User.id).where(User.username == "admin"))
+        job = Job(type="IMPORT", status="FERTIG", params={"price_list_id": 1, "auto_update": {"scope": "TEIL"}},
+                  result={"price_list_id": 1, "kind": "HERSTELLER", "manufacturer_id": mid,
+                          "update_errors": ["Kein Umrechnungskurs SEK → EUR"]}, created_by=uid)
+        db.add(job)
+        db.flush()
+        jid = job.id
+    page = c.get(f"/jobs/{jid}").text
+    assert "Abgleich konnte nicht starten" in page and "Kein Umrechnungskurs" in page
+    assert f'action="/hersteller/{mid}/abgleich"' in page and 'value="TEIL"' in page and "refresh" not in page

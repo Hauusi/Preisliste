@@ -87,7 +87,7 @@ def build(db: Session, user) -> dict:
                          "Unsere Liste importieren und in Schritt 3 „Unsere Liste“ wählen.", "/import", "Importieren"))
         if latest_mfr and latest_mfr.id not in used_sources and current:
             todo.append(("info", f"{m.name}: neue Herstellerliste noch nicht abgeglichen", latest_mfr.name,
-                         f"/listen/{latest_mfr.id}/kalkulation", "Abgleich starten"))
+                         f"post:/hersteller/{m.id}/abgleich", "Abgleich starten"))
 
     for u in updates:
         s = u.summary or {}

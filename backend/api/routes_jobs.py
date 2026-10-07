@@ -33,6 +33,8 @@ def result_link(job: Job) -> tuple[str, str] | None:
         return None
     if job.type == "IMPORT" and r.get("update_id"):
         return f"/aktualisierungen/{r['update_id']}", "Ergebnis prüfen →"
+    if job.type == "IMPORT" and r.get("update_errors") and r.get("manufacturer_id"):
+        return f"/hersteller/{r['manufacturer_id']}", "Hersteller-Einstellungen öffnen"
     if job.type == "IMPORT" and r.get("kind") == "UNSERE":
         return f"/listen/{r.get('price_list_id')}?neu=1", "Zur Liste →"
     if job.type == "IMPORT":
