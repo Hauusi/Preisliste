@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, delete_link %}
+{% block title %}Datenblätter{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/">Sales Assistant</a> · Datenblatt</div>
+    <h1>Datenblätter</h1>
+    <p>Festes Layout mit Kopf- und Fußzeile, der Inhalt wird Schritt für Schritt abgefragt.</p>
+  </div>
+  <a class="button" href="/datenblatt/neu">{{ icon("plus", 18) }} Neues Datenblatt</a>
+</div>
+
+{% if sheets %}
+<div class="scroll">
+<table>
+  <thead><tr><th>Datenblatt</th>{% if owners %}<th>Benutzer</th>{% endif %}<th>Geändert</th><th></th></tr></thead>
+  <tbody>
+  {% for s in sheets %}
+    <tr>
+      <td><a href="/datenblatt/{{ s.id }}/schritt/kopf"><b>{{ s.title }}</b></a></td>
+      {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
+      <td>{{ s.updated_at | dt }}</td>
+      <td class="row-actions">
+        <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
+        <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary" title="Als Vorlage für ein neues Datenblatt kopieren">Kopieren</button>
+        </form>
+        {{ delete_link("/datenblatt/" ~ s.id ~ "/loeschen", "Datenblatt löschen") }}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<section class="card"><div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Datenblätter. <a href="/datenblatt/neu">Erstes Datenblatt erstellen →</a></div></section>
+{% endif %}
+{% endblock %}

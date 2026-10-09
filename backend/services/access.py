@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from backend.models.entities import (
     CalculationRun,
     Comparison,
+    Datasheet,
     Manufacturer,
     PriceList,
     PriceUpdate,
@@ -27,11 +28,12 @@ OWNER = {
     PriceUpdate: PriceUpdate.created_by,
     Comparison: Comparison.created_by,
     CalculationRun: CalculationRun.created_by,
+    Datasheet: Datasheet.owner_id,
 }
 NOT_FOUND = {
     Manufacturer: "Hersteller nicht gefunden", Rule: "Regel nicht gefunden", PriceList: "Preisliste nicht gefunden",
     PriceUpdate: "Abgleich nicht gefunden", Comparison: "Vergleich nicht gefunden",
-    CalculationRun: "Kalkulation nicht gefunden",
+    CalculationRun: "Kalkulation nicht gefunden", Datasheet: "Datenblatt nicht gefunden",
 }
 
 

@@ -19,12 +19,13 @@
     </div>
     <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
   </a>
-  <div class="tile tile-soon" aria-disabled="true">
+  <a class="tile tile-active" href="/datenblatt">
     <span class="tile-icon">{{ icon("doc", 28) }}</span>
     <h2>Datenblatt erstellen</h2>
-    <p>Produktdatenblätter aus Herstellerdaten erzeugen.</p>
-    <div class="tile-meta"><span class="badge">in Planung</span></div>
-  </div>
+    <p>Produktdatenblätter im festen Layout Schritt für Schritt erstellen, als PDF speichern.</p>
+    <div class="tile-meta"><span class="badge">{{ stats.datasheets }} {{ "Datenblatt" if stats.datasheets == 1 else "Datenblätter" }}</span></div>
+    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+  </a>
   <div class="tile tile-soon" aria-disabled="true">
     <span class="tile-icon">{{ icon("sparkle", 28) }}</span>
     <h2>Weitere Tools</h2>
