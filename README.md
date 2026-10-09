@@ -47,7 +47,8 @@ Baukasten mit festem Layout nach dem Muster „LED Blitzmodule – Serie Gecko�
 Fußzeile mit Logo und Firmendaten (fest, nur die Version ist änderbar). Der Inhalt wird in 9 Schritten abgefragt:
 Kopfzeile, Eigenschaften (vorbelegt wie Spannung, LED-Farbe; nur Wert eintragen, per Ziehen sortieren,
 ein-/ausblenden, eigene ergänzen), Produktbilder, Spezifikationen (Prüfzeichen und Tabelle), Maßzeichnungen,
-Anwendungsbilder, Artikelgruppen (Bild, Tabelle, frei benennbare Zusatzspalten, Zeilen auch aus Excel einfügbar),
+Anwendungsbilder (Zulassungslogos wie ECE-R65 Klasse 2 / ECE-R10 werden automatisch aus dem Feld „Zulassung“ erzeugt),
+Artikelgruppen (Bild, Tabelle, frei benennbare Zusatzspalten, Zeilen auch aus Excel einfügbar),
 Zubehör, Fußzeile. Leere Schritte entfallen im Datenblatt. Die Aufteilung auf A4-Seiten passiert automatisch
 (Startseite, Artikelseiten, Zubehörseiten); eine zu volle Seite wird in der Vorschau rot markiert.
 

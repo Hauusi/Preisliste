@@ -1,0 +1,4 @@
+{# Zulassungslogo als HTML (vektoriell, druckscharf). ECE-R65: blau mit Klasse in Orange, sonst schwarz. #}
+{% macro ece_badge(b) -%}
+<span class="ece{{ ' ece-r65' if b.nr == '65' else '' }}"><span class="ece-in"><b>ECE-R{{ b.nr }}</b>{% if b.klasse %}<i>KLASSE {{ b.klasse }}</i>{% endif %}</span></span>
+{%- endmacro %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, trash %}
+{% from "_ece_badge.html" import ece_badge %}
 {% block title %}Datenblatt – {{ step_label }}{% endblock %}
 {% macro slot(field, name, label) -%}
 <div class="ds-slot">
@@ -91,10 +92,10 @@
   {% elif step == "spez" %}
     <h2>Spezifikationen</h2>
     <p class="hint">Seite 1 Mitte. Überschrift kommt automatisch aus der Kopfzeile: „{{ c.kopf.titel | upper }}{% if c.kopf.untertitel %} - {{ c.kopf.untertitel | upper }}{% endif %} / SPEZIFIKATIONEN“.</p>
-    <h3>Prüfzeichen / Zulassungslogos (optional)</h3>
-    <div class="ds-slots ds-slots-small">
-      {% for i in range(max_badges) %}{{ slot("zeichen_%d" % i, c.spez.zeichen[i] if i < c.spez.zeichen | length else none, "Logo %d" % (i + 1)) }}{% endfor %}
-    </div>
+    <h3>Zulassungslogos</h3>
+    <p class="hint">Werden automatisch aus dem Feld „Zulassung“ erzeugt (Eigenschaften oder Tabelle), z. B. „ECE-R65 Klasse II, ECE-R10“.</p>
+    {% if badges %}<div class="ece-preview">{% for b in badges %}{{ ece_badge(b) }}{% endfor %}</div>
+    {% else %}<p class="msg WARNUNG">Noch keine Zulassung erkannt. Im Schritt <b>Eigenschaften</b> bei „Zulassung“ z. B. „ECE-R65 Klasse II, ECE-R10“ eintragen.</p>{% endif %}
     <h3>Tabelle</h3>
     <p class="hint">Leere Zeilen werden ignoriert. Zum Löschen einer Zeile beide Felder leeren. Mehr Zeilen: speichern, dann erscheinen neue leere Zeilen.</p>
     <table class="ds-edit">
