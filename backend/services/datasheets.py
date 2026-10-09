@@ -55,7 +55,7 @@ PROPERTY_SUGGESTIONS = ["Länge", "Breite", "Höhe", "Leistung", "Lichtstrom", "
 MAX_PROPERTIES = 25
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-MAX_SPEC_ROWS, MAX_BADGES, MAX_COLUMNS = 20, 4, 3
+MAX_SPEC_ROWS, MAX_COLUMNS = 20, 3
 MAX_GROUPS, MAX_GROUP_ROWS, MAX_ACCESSORIES = 20, 80, 80
 SPARE_ROWS = 3
 IMAGE_NAME = re.compile(r"^[0-9a-f]{16}\.(png|jpg|gif|webp)$")
@@ -91,6 +91,34 @@ def normalized(content: dict | None) -> dict:
     if "eigenschaften" not in (content or {}) and old and old.get("punkte"):
         out["eigenschaften"] = [{"name": "", "wert": p, "sichtbar": True} for p in old["punkte"]] + out["eigenschaften"]
     return out
+
+
+ECE_RX = re.compile(r"\b(?:ECE|UN)?[\s-]*R\s*-?\s*(\d{1,3})\b", re.IGNORECASE)
+CLASS_RX = re.compile(r"\b(?:Klasse|Kl\.?|Class)\s*(II|I|2|1)\b", re.IGNORECASE)
+
+
+def approval_badges(content: dict) -> list[dict]:
+    """Zulassungslogos aus dem Feld „Zulassung“ (Eigenschaften und Spezifikationstabelle), z. B.
+    „ECE-R65 Klasse II, ECE-R10“ -> [{"nr": "65", "klasse": "2"}, {"nr": "10", "klasse": None}].
+    Bei ECE-R65 wird die Klasse aus dem Text bis zur nächsten Regelung gelesen."""
+    c = normalized(content)
+    texts = [e.get("wert", "") for e in c["eigenschaften"] if e.get("name", "").lower().startswith("zulass")]
+    texts += [z.get("wert", "") for z in c["spez"]["zeilen"] if z.get("merkmal", "").lower().startswith("zulass")]
+    found: dict[str, set] = {}
+    for text in texts:
+        matches = list(ECE_RX.finditer(text))
+        for i, m in enumerate(matches):
+            nr = str(int(m.group(1)))
+            classes = found.setdefault(nr, set())
+            if nr == "65":
+                rest = text[m.end():matches[i + 1].start() if i + 1 < len(matches) else len(text)]
+                for k in CLASS_RX.findall(rest):
+                    classes.add({"I": "1", "II": "2"}.get(k.upper(), k))
+    badges = []
+    for nr, classes in found.items():
+        # Mehrere Klassen (z. B. Gecko 3 Klasse I, Gecko 6 Klasse II): ein Logo mit der höchsten, wie im Muster
+        badges.append({"nr": nr, "klasse": max(classes) if classes else None})
+    return badges
 
 
 def shown_properties(content: dict) -> list[dict]:
@@ -249,14 +277,12 @@ async def apply_step(content: dict, step: str, form, store) -> tuple[dict, list[
         old = c[key] + [None] * n
         c[key] = [name for i in range(n) if (name := await image(f"bild_{i}", old[i]))]
     elif step == "spez":
-        old = c["spez"]["zeichen"] + [None] * MAX_BADGES
-        zeichen = [name for i in range(MAX_BADGES) if (name := await image(f"zeichen_{i}", old[i]))]
         zeilen = []
         for i in _indices(form, r"merkmal_(\d+)$"):
             merkmal, wert = _text(form, f"merkmal_{i}", 60), _text(form, f"wert_{i}", 300)
             if merkmal or wert:
                 zeilen.append({"merkmal": merkmal, "wert": wert})
-        c["spez"] = {"zeichen": zeichen, "zeilen": zeilen[:MAX_SPEC_ROWS]}
+        c["spez"] = {"zeichen": [], "zeilen": zeilen[:MAX_SPEC_ROWS]}
     elif step == "artikel":
         old = c["gruppen"]
         gruppen = []
@@ -310,7 +336,7 @@ def step_done(content: dict, step: str) -> bool:
         "kopf": bool(c["kopf"]["titel"]),
         "eigenschaften": bool(shown_properties(c)),
         "bilder": bool(c["bilder_oben"]),
-        "spez": bool(c["spez"]["zeilen"] or c["spez"]["zeichen"]),
+        "spez": bool(c["spez"]["zeilen"]),
         "zeichnungen": bool(c["zeichnungen"]),
         "anwendung": bool(c["bilder_unten"]),
         "artikel": any(g["zeilen"] for g in c["gruppen"]),
@@ -339,7 +365,7 @@ def paginate(content: dict) -> list[dict]:
     """Inhalt auf A4-Seiten verteilen: Startseite, Artikelseiten (Gruppen ganz, zu große geteilt), Zubehörseiten."""
     c = normalized(content)
     pages: list[dict] = []
-    if any(step_done(c, s) for s in ("eigenschaften", "bilder", "spez", "zeichnungen", "anwendung")):
+    if any(step_done(c, s) for s in ("eigenschaften", "bilder", "spez", "zeichnungen", "anwendung")) or approval_badges(c):
         pages.append({"art": "start"})
 
     current, used = [], 0.0

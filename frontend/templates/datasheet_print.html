@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/datasheet.css">
 </head>
 <body class="ds-print">
+{% from "_ece_badge.html" import ece_badge %}
 {% set img = "/datenblatt/%d/bild/" % sheet.id %}
 {% set titel = c.kopf.titel %}{% set untertitel = c.kopf.untertitel %}
 <div class="ds-toolbar">
@@ -37,12 +38,12 @@
       <div class="intro-images">{% for name in c.bilder_oben %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
     </div>
     {% endif %}
-    {% if c.spez.zeilen or c.spez.zeichen or c.zeichnungen %}
+    {% if c.spez.zeilen or badges or c.zeichnungen %}
     <div class="spec">
       <h2 class="spec-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
       <div class="spec-grid">
         <div>
-          {% if c.spez.zeichen %}<div class="badges">{% for name in c.spez.zeichen %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>{% endif %}
+          {% if badges %}<div class="badges">{% for b in badges %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
           {% if c.spez.zeilen %}
           <table class="spec-table">
             {% for z in c.spez.zeilen %}<tr><th>{{ z.merkmal }}{% if z.merkmal and not z.merkmal.endswith(":") %}:{% endif %}</th><td>{% for line in z.wert.split("\n") %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}

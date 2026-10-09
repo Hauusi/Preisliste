@@ -40,7 +40,7 @@ def test_full_wizard_and_print_layout(admin_client, settings):
     assert r.status_code == 303
     r = _step(c, sid, "spez", {"merkmal_0": "Spannungsbereich", "wert_0": "11-30V", "merkmal_1": "Abmessungen",
                                "wert_1": "74 x 24 x 18mm (Gecko 3)\n123 x 24 x 18mm (Gecko 6)", "merkmal_2": "", "wert_2": ""},
-              files={"zeichen_0": ("ece.png", PNG, "image/png")})
+              )
     assert r.status_code == 303
     r = _step(c, sid, "artikel", {
         "g0_titel": "Gecko 3 - Horizontale Montage", "g0_spalte0": "Zulassung", "g0_spalte1": "Montage", "g0_spalte2": "",
@@ -72,10 +72,10 @@ def test_full_wizard_and_print_layout(admin_client, settings):
 
     # Bilder liegen beim Datenblatt und sind nur angemeldet abrufbar
     names = re.findall(rf"/datenblatt/{sid}/bild/([0-9a-f]{{16}}\.png)", page)
-    assert len(set(names)) == 4
+    assert len(set(names)) == 3
     img = c.get(f"/datenblatt/{sid}/bild/{names[0]}")
     assert img.status_code == 200 and img.headers["content-type"] == "image/png" and img.content == PNG
-    assert len(list(ds.image_dir(settings, sid).iterdir())) == 4
+    assert len(list(ds.image_dir(settings, sid).iterdir())) == 3
 
 
 def test_invalid_image_rejected_and_replaced_images_removed(admin_client, settings):
@@ -170,3 +170,24 @@ def test_old_bullet_points_become_properties():
     c = ds.normalized({"kopf": {"titel": "A", "untertitel": ""}, "beschreibung": {"text": "x", "punkte": ["2 Jahre Garantie"]}})
     assert c["eigenschaften"][0] == {"name": "", "wert": "2 Jahre Garantie", "sichtbar": True}
     assert ds.shown_properties(c) == [c["eigenschaften"][0]]
+
+
+def test_approval_badges_from_zulassung():
+    c = ds.empty_content()
+    c["eigenschaften"] = [{"name": "Zulassung", "wert": "ECE-R10, ECE-R65", "sichtbar": False}]
+    assert ds.approval_badges(c) == [{"nr": "10", "klasse": None}, {"nr": "65", "klasse": None}]
+    c["eigenschaften"][0]["wert"] = "ECE-R65 Klasse I (Gecko 3), ECE-R65 Klasse II (Gecko 6), R 10"
+    assert ds.approval_badges(c) == [{"nr": "65", "klasse": "2"}, {"nr": "10", "klasse": None}]
+    c["eigenschaften"][0]["wert"] = "E-Prüfzeichen"
+    c["spez"]["zeilen"] = [{"merkmal": "Zulassungen", "wert": "ECE R148"}, {"merkmal": "Spannung", "wert": "R12"}]
+    assert ds.approval_badges(c) == [{"nr": "148", "klasse": None}]
+
+
+def test_badges_rendered_in_print_and_step(admin_client):
+    c = admin_client
+    sid = _new(c)
+    _step(c, sid, "eigenschaften", {"e_name": ["Zulassung"], "e_wert": ["ECE-R65 Kl. 2, ECE-R10"], "e_sichtbar": ["1"]})
+    page = c.get(f"/datenblatt/{sid}/vorschau").text
+    assert '<span class="ece ece-r65"><span class="ece-in"><b>ECE-R65</b><i>KLASSE 2</i></span></span>' in page
+    assert '<span class="ece"><span class="ece-in"><b>ECE-R10</b></span></span>' in page
+    assert "ECE-R65" in c.get(f"/datenblatt/{sid}/schritt/spez").text

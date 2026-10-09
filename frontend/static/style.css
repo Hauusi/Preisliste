@@ -485,3 +485,14 @@ table.ds-edit select { min-width: 92px; }
   .prop-add input[data-new-value], .prop-add button { grid-column: 2; }
 }
 .prop-del:hover { background: var(--err-soft); color: var(--err); border-color: transparent; }
+
+/* Zulassungslogos (Vorschau im Assistenten, wie im Druck): Außenrand, heller Innenring, Fläche. R65 blau mit Klasse in Orange, alle anderen schwarz. */
+.ece { display: inline-flex; border-radius: 1.9mm; padding: .35mm; background: #6d6e70; vertical-align: middle; }
+.ece-in { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 15mm; height: 8.2mm; padding: 0 2.2mm;
+  border-radius: 1.6mm; border: .35mm solid #d6e0e8; background: #1d1d1b; color: #fff; font-family: "Myriad Pro", Myriad, "Segoe UI", Arial, sans-serif;
+  line-height: 1.05; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.ece-in b { font-size: 7.6pt; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.ece-in i { font-style: normal; font-weight: 700; font-size: 6.4pt; color: #f39200; letter-spacing: .02em; white-space: nowrap; }
+.ece-r65 { background: #274492; }
+.ece-r65 .ece-in { background: #274492; }
+.ece-preview { display: flex; gap: 14px; flex-wrap: wrap; padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 12px; zoom: 1.6; }
