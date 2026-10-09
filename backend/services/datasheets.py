@@ -26,7 +26,7 @@ FOOTER = {
 
 STEPS = [
     ("kopf", "Kopfzeile"),
-    ("beschreibung", "Beschreibung"),
+    ("eigenschaften", "Eigenschaften"),
     ("bilder", "Produktbilder"),
     ("spez", "Spezifikationen"),
     ("zeichnungen", "Maßzeichnungen"),
@@ -46,6 +46,14 @@ COLOR_WORDS = {"gelb": "gelb", "amber": "gelb", "orange": "gelb", "blau": "blau"
                "white": "weiss", "klar": "klar", "clear": "klar"}
 DEFAULT_COLUMNS = ["Zulassung", "Montage"]
 
+# Vorbelegte Eigenschaften (nur Wert eintragen); je Produkt ein-/ausblenden, verschieben, eigene ergänzen
+DEFAULT_PROPERTIES = ["Spannung", "LED-Farbe", "Anzahl LEDs", "Schutzart", "Zulassung", "Montage", "Garantie"]
+# Vorschläge beim Hinzufügen
+PROPERTY_SUGGESTIONS = ["Länge", "Breite", "Höhe", "Leistung", "Lichtstrom", "Abstrahlwinkel", "Blitzfunktionen",
+                        "Synchronisierbar", "Gehäuse", "Material", "Gewicht", "Kabellänge", "Betriebstemperatur",
+                        "Stromaufnahme", "Linse", "Farbtemperatur"]
+MAX_PROPERTIES = 25
+
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_SPEC_ROWS, MAX_BADGES, MAX_COLUMNS = 20, 4, 3
 MAX_GROUPS, MAX_GROUP_ROWS, MAX_ACCESSORIES = 20, 80, 80
@@ -61,7 +69,7 @@ class ImageError(ValueError):
 def empty_content() -> dict:
     return {
         "kopf": {"titel": "", "untertitel": ""},
-        "beschreibung": {"text": "", "punkte": []},
+        "eigenschaften": [{"name": n, "wert": "", "sichtbar": True} for n in DEFAULT_PROPERTIES],
         "bilder_oben": [],
         "spez": {"zeichen": [], "zeilen": []},
         "zeichnungen": [],
@@ -78,7 +86,16 @@ def normalized(content: dict | None) -> dict:
     for key, value in (content or {}).items():
         if key in out:
             out[key] = value
+    # Ältere Datenblätter: Aufzählungspunkte der früheren Beschreibung als Eigenschaften ohne Namen übernehmen
+    old = (content or {}).get("beschreibung")
+    if "eigenschaften" not in (content or {}) and old and old.get("punkte"):
+        out["eigenschaften"] = [{"name": "", "wert": p, "sichtbar": True} for p in old["punkte"]] + out["eigenschaften"]
     return out
+
+
+def shown_properties(content: dict) -> list[dict]:
+    """Eigenschaften, die gedruckt werden: eingeblendet und mit Wert."""
+    return [e for e in normalized(content)["eigenschaften"] if e.get("sichtbar", True) and e.get("wert")]
 
 
 def title_of(content: dict) -> str:
@@ -214,9 +231,19 @@ async def apply_step(content: dict, step: str, form, store) -> tuple[dict, list[
 
     if step == "kopf":
         c["kopf"] = {"titel": _text(form, "titel", 60), "untertitel": _text(form, "untertitel", 80)}
-    elif step == "beschreibung":
-        punkte = [p.strip().lstrip("•-* ").strip()[:150] for p in _text(form, "punkte", 3000).split("\n")]
-        c["beschreibung"] = {"text": _text(form, "text", 4000), "punkte": [p for p in punkte if p][:15]}
+    elif step == "eigenschaften":
+        # Gleichnamige Felder in Reihenfolge der Seite (Drag & Drop ändert die Reihenfolge)
+        names, values, shown = form.getlist("e_name"), form.getlist("e_wert"), form.getlist("e_sichtbar")
+        props = []
+        for i, name in enumerate(names):
+            entry = {"name": str(name).strip()[:40], "wert": str(values[i] if i < len(values) else "").strip()[:150],
+                     "sichtbar": str(shown[i] if i < len(shown) else "1") != "0"}
+            if entry["name"] or entry["wert"]:
+                props.append(entry)
+        new = {"name": _text(form, "neu_name", 40), "wert": _text(form, "neu_wert", 150), "sichtbar": True}
+        if new["name"] or new["wert"]:
+            props.append(new)
+        c["eigenschaften"] = props[:MAX_PROPERTIES]
     elif step in IMAGE_SLOTS:
         key, n = IMAGE_SLOTS[step]
         old = c[key] + [None] * n
@@ -281,7 +308,7 @@ def step_done(content: dict, step: str) -> bool:
     c = normalized(content)
     return {
         "kopf": bool(c["kopf"]["titel"]),
-        "beschreibung": bool(c["beschreibung"]["text"] or c["beschreibung"]["punkte"]),
+        "eigenschaften": bool(shown_properties(c)),
         "bilder": bool(c["bilder_oben"]),
         "spez": bool(c["spez"]["zeilen"] or c["spez"]["zeichen"]),
         "zeichnungen": bool(c["zeichnungen"]),
@@ -312,7 +339,7 @@ def paginate(content: dict) -> list[dict]:
     """Inhalt auf A4-Seiten verteilen: Startseite, Artikelseiten (Gruppen ganz, zu große geteilt), Zubehörseiten."""
     c = normalized(content)
     pages: list[dict] = []
-    if any(step_done(c, s) for s in ("beschreibung", "bilder", "spez", "zeichnungen", "anwendung")):
+    if any(step_done(c, s) for s in ("eigenschaften", "bilder", "spez", "zeichnungen", "anwendung")):
         pages.append({"art": "start"})
 
     current, used = [], 0.0

@@ -11,7 +11,7 @@ PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 def _new(c, titel="LED Blitzmodule", untertitel="Serie Gecko") -> int:
     r = c.post("/datenblatt/neu", data={"csrf_token": c.csrf, "titel": titel, "untertitel": untertitel},
                follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"].endswith("/schritt/beschreibung")
+    assert r.status_code == 303 and r.headers["location"].endswith("/schritt/eigenschaften")
     return int(re.search(r"/datenblatt/(\d+)/", r.headers["location"]).group(1))
 
 
@@ -29,7 +29,12 @@ def test_portal_tile_opens_datasheet_module(admin_client):
 def test_full_wizard_and_print_layout(admin_client, settings):
     c = admin_client
     sid = _new(c)
-    r = _step(c, sid, "beschreibung", {"text": "Flaches Design.\n\nIP69k dicht.", "punkte": "2 Jahre Garantie\n• Synchronisierbar\n"})
+    # Vorbelegte Eigenschaften: Reihenfolge wie im Formular, ausgeblendete und leere werden nicht gedruckt
+    page = c.get(f"/datenblatt/{sid}/schritt/eigenschaften").text
+    assert 'value="Spannung"' in page and 'value="LED-Farbe"' in page
+    r = _step(c, sid, "eigenschaften", {"e_name": ["Garantie", "Spannung", "LED-Farbe", "Schutzart"],
+                                        "e_wert": ["2 Jahre", "11-30V", "gelb", "IP69k"], "e_sichtbar": ["1", "1", "1", "0"],
+                                        "neu_name": "Länge", "neu_wert": ""})
     assert r.headers["location"] == f"/datenblatt/{sid}/schritt/bilder"
     r = _step(c, sid, "bilder", {}, files={"bild_0": ("produkt.png", PNG, "image/png")})
     assert r.status_code == 303
@@ -56,7 +61,10 @@ def test_full_wizard_and_print_layout(admin_client, settings):
     page = c.get(f"/datenblatt/{sid}/vorschau").text
     assert page.count('class="page"') == 3  # Startseite, Artikel, Zubehör
     assert "<h1>LED Blitzmodule</h1>" in page and "Serie Gecko" in page
-    assert "<p>Flaches Design.</p>" in page and "<li>Synchronisierbar</li>" in page
+    assert "<li><b>Garantie:</b> 2 Jahre</li><li><b>Spannung:</b> 11-30V</li><li><b>LED-Farbe:</b> gelb</li></ul>" in page
+    assert "IP69k" not in page and "Länge" not in page  # ausgeblendet bzw. ohne Wert
+    form = c.get(f"/datenblatt/{sid}/schritt/eigenschaften").text
+    assert form.index('value="Garantie"') < form.index('value="Spannung"') and 'value="Länge"' in form
     assert "Spannungsbereich:" in page and "74 x 24 x 18mm (Gecko 3)<br>123 x 24 x 18mm (Gecko 6)" in page
     assert page.count('class="color ') == 3 and 'class="color blau"' in page and 'class="color klar"' in page
     assert "RTG3HSW0CB" in page and "Horizontal" in page and "RTSP_G3BK1" in page
@@ -91,8 +99,8 @@ def test_title_required_and_navigation(admin_client):
     r = c.post("/datenblatt/neu", data={"csrf_token": c.csrf, "titel": " "}, follow_redirects=False)
     assert r.status_code == 400 and "Titel" in r.text
     sid = _new(c)
-    assert _step(c, sid, "beschreibung", {"text": "x"}, aktion="zurueck").headers["location"].endswith("/schritt/kopf")
-    assert _step(c, sid, "beschreibung", {"text": "x"}, aktion="gehe:zubehoer").headers["location"].endswith("/schritt/zubehoer")
+    assert _step(c, sid, "eigenschaften", {}, aktion="zurueck").headers["location"].endswith("/schritt/kopf")
+    assert _step(c, sid, "eigenschaften", {}, aktion="gehe:zubehoer").headers["location"].endswith("/schritt/zubehoer")
     r = _step(c, sid, "kopf", {"titel": "", "untertitel": "neu"})
     assert r.status_code == 400
     assert "LED Blitzmodule" in c.get("/datenblatt").text  # alter Titel bleibt
@@ -156,3 +164,9 @@ def test_guess_color_from_description():
     assert ds.guess_color("LED Blitzmodul Gecko 3, 11-30V, gelb") == "gelb"
     assert ds.guess_color("Blitzer, blau/weiß") == "weiss"
     assert ds.guess_color("Winkel für Gecko 3") == ""
+
+
+def test_old_bullet_points_become_properties():
+    c = ds.normalized({"kopf": {"titel": "A", "untertitel": ""}, "beschreibung": {"text": "x", "punkte": ["2 Jahre Garantie"]}})
+    assert c["eigenschaften"][0] == {"name": "", "wert": "2 Jahre Garantie", "sichtbar": True}
+    assert ds.shown_properties(c) == [c["eigenschaften"][0]]

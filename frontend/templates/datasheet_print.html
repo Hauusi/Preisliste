@@ -29,12 +29,10 @@
 
   <div class="page-body {{ page.art }}">
   {% if page.art == "start" %}
-    {% set b = c.beschreibung %}
-    {% if b.text or b.punkte or c.bilder_oben %}
+    {% if props or c.bilder_oben %}
     <div class="intro">
       <div class="intro-text">
-        {% for para in b.text.split("\n\n") if para.strip() %}<p>{{ para.strip() | replace("\n", " ") }}</p>{% endfor %}
-        {% if b.punkte %}<ul>{% for p in b.punkte %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
+        {% if props %}<ul class="props">{% for e in props %}<li>{% if e.name %}<b>{{ e.name }}:</b> {% endif %}{{ e.wert }}</li>{% endfor %}</ul>{% endif %}
       </div>
       <div class="intro-images">{% for name in c.bilder_oben %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
     </div>
