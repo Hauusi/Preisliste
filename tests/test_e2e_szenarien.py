@@ -630,3 +630,56 @@ def test_nordic_lights_manufacturer_list_net_msrp(admin_client, app, tmp_path):
     items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
     assert (items["984-9020"].final_ek, items["984-9020"].final_vk) == (D("84.00"), D("235.20"))
     assert (items["984-9023"].final_ek, items["984-9023"].final_vk) == (D("90.00"), D("252.00"))
+
+
+def test_kalk_column_overrides_standard_factor(admin_client, app, tmp_path):
+    """Spalte „Kalk“ in unserer Liste: VK = EK × Kalk je Artikel; leer = Standardregel. In der Herstellerliste wird
+    eine Kalk-Spalte nie gelesen. Rundung „auf 10 Cent aufrunden“ wie in der Nordic-Lights-Liste."""
+    c = admin_client
+    mid = new_manufacturer(c, "Nordic Lights", "NL", "2,8")
+    r = c.post("/hersteller", data={"csrf_token": c.csrf, "id": str(mid), "name": "Nordic Lights", "code": "NL",
+                                    "factor": "2,8", "vk_rounding": "0.10up", "list_basis": "EK",
+                                    "review_threshold": "10", "ignore_leading_zeros": "1", "list_currency": "EUR"})
+    assert "Gespeichert" in r.text
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Artikelnummer", "Bezeichnung", "Brutto EK", "Rabatt", "Netto EK", "Kalk", "Brutto VK gerundet"])
+    ws.append(["NL984-9020", "Standard 2,8", 204.0, -0.6, 81.6, 2.8, 228.5])
+    ws.append(["NL988-501B", "Kalk 2,7", 84.0, -0.6, 33.6, 2.7, 90.8])
+    ws.append(["NL984-9030", "ohne Kalk", 204.0, -0.6, 81.6, None, 228.5])
+    ws.append(["NL984-9031", "ohne Kalk, alter VK höher (Sonderpreis)", 204.0, -0.6, 81.6, None, 259.9])
+    ws.append(["NL988-301B", "Abverkauf", 0.01, 0, 0.01, None, 93.0])
+    wb.save(tmp_path / "Nordic Lights EK VK 2026_final.xlsx")
+    page = c.get(upload(c, tmp_path / "Nordic Lights EK VK 2026_final.xlsx").headers["location"]).text
+    assert "Kalk (Faktor je Artikel)" in page
+    start(c, app, page)
+    with session_scope() as db:
+        kalk = {a.article_number: a.calc_factor for a in db.scalars(select(Article))}
+        assert kalk == {"984-9020": D("2.8"), "988-501B": D("2.7"), "984-9030": None, "984-9031": None,
+                        "988-301B": None}
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Item #", "Description", "NET 2027", "Kalk"])  # Kalk in Herstellerliste: ignorieren
+    ws.append(["984-9020", "a", 84.0, 9])
+    ws.append(["988-501B", "b", 35.6, 9])
+    ws.append(["984-9030", "c", 84.0, 9])
+    ws.append(["984-9031", "d", 84.0, 9])
+    wb.save(tmp_path / "Nordic Lights Pricelist 2027.xlsx")
+    page = c.get(upload(c, tmp_path / "Nordic Lights Pricelist 2027.xlsx").headers["location"]).text
+    items = items_of(int(start(c, app, page).rsplit("/", 1)[1]))
+    a, b, n = items["984-9020"], items["988-501B"], items["984-9030"]
+    assert (a.final_ek, a.final_vk) == (D("84.00"), D("235.20"))      # 84 × 2,8 = 235,20
+    assert (b.final_ek, b.final_vk) == (D("35.60"), D("96.20"))       # 35,60 × 2,7 = 96,12 -> aufrunden 96,20
+    assert "Kalk aus unserer Liste: EK × 2,7" in b.rule_label and b.check_ok
+    assert (n.final_ek, n.final_vk) == (D("84.00"), D("235.20"))      # ohne Kalk: Standard 2,8
+    assert "Standard" in n.rule_label
+    s_ = items["984-9031"]  # kalkuliert 235,20 < alter VK 259,90: alter VK bleibt vorgeschlagen
+    assert s_.final_vk == D("259.90") and "SONDERPREIS" in s_.reasons
+    # Übernehmen: Kalk bleibt für das nächste Jahr erhalten
+    upd = int(a.update_id)
+    c.post(f"/aktualisierungen/{upd}/alle-bestaetigen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
+    c.post(f"/aktualisierungen/{upd}/uebernehmen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
+    with session_scope() as db:
+        new_list = db.scalar(select(PriceUpdate).where(PriceUpdate.id == upd)).adopted_list_id
+        kalk = {a.article_number: a.calc_factor for a in db.scalars(select(Article).where(Article.price_list_id == new_list))}
+        assert kalk["988-501B"] == D("2.7") and kalk["984-9030"] is None

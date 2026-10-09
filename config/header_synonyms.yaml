@@ -138,6 +138,16 @@ currency:
   - Waehrung
   - Currency
   - Whg
+calc_factor:
+  - Kalk
+  - Kalkulation
+  - Kalkfaktor
+  - Kalk.-Faktor
+  - Kalkulationsfaktor
+  - Faktor
+  - VK-Faktor
+  - Aufschlagsfaktor
+  - Multiplikator
 valid_from:
   - gültig ab
   - gueltig ab

@@ -89,6 +89,7 @@ class RowResult:
     prices: list[dict]
     quantity: Decimal | None
     messages: list[tuple[str, str, str, str | None]]  # (level, code, text, column)
+    calc_factor: Decimal | None = None
 
     @property
     def status(self) -> str:
@@ -251,6 +252,17 @@ def process_row(sheet: SheetData, row_idx: int, row: list, cfg: ImportConfig) ->
         else:
             messages.append(("FEHLER", "PREIS_FEHLT", "Kein Preis vorhanden", None))
 
+    calc_factor = None
+    if "calc_factor" in m and not is_empty(_get(row, m["calc_factor"])):
+        parsed = parse_amount(_get(row, m["calc_factor"]), cfg.decimal_separators.get(m["calc_factor"]))
+        if not parsed.ok or parsed.value is None:
+            messages.append(("FEHLER", "KALK_UNGUELTIG", f"Kalk ist keine Zahl: {_get(row, m['calc_factor'])!r}",
+                             FIELDS["calc_factor"]))
+        elif not Decimal(0) < parsed.value <= Decimal(100):
+            messages.append(("FEHLER", "KALK_UNGUELTIG", f"Kalk außerhalb 0–100: {parsed.value}", FIELDS["calc_factor"]))
+        else:
+            calc_factor = parsed.value
+
     manufacturer_raw = cell_text(_get(row, m.get("manufacturer"))) if "manufacturer" in m else None
     if "manufacturer" in m and manufacturer_raw is None and cfg.manufacturer_id is None:
         messages.append(("FEHLER", "HERSTELLER_FEHLT", "Kein Hersteller", FIELDS["manufacturer"]))
@@ -266,6 +278,7 @@ def process_row(sheet: SheetData, row_idx: int, row: list, cfg: ImportConfig) ->
         prices=prices,
         quantity=quantity,
         messages=messages,
+        calc_factor=calc_factor,
     )
 
 
@@ -370,6 +383,7 @@ def run_import(db: Session, price_list_id: int, sheet: SheetData, cfg: ImportCon
             "category": r.category,
             "unit": r.unit,
             "status": status,
+            "calc_factor": r.calc_factor,
         })
         for p in r.prices:
             price_rows.append({"id": next_price, "article_id": aid, **p})

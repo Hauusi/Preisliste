@@ -151,6 +151,7 @@ class Article(Base):
     category: Mapped[str | None] = mapped_column(String(200))
     unit: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(10))  # OK | WARNUNG | UNKLAR | FEHLER
+    calc_factor: Mapped[object | None] = mapped_column(DecimalText)  # „Kalk“ aus unserer Liste: VK = EK × Faktor
 
     prices: Mapped[list["ArticlePrice"]] = relationship(back_populates="article")
 

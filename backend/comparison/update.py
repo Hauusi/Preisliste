@@ -126,6 +126,7 @@ class _Ctx:
             ImportMessage.price_list_id == upd.source_price_list_id, ImportMessage.code == "ENTFALLEN")).all())
         self.discontinued = {a_id: rows[r] for a_id, r in db.execute(select(Article.id, Article.source_row).where(
             Article.price_list_id == upd.source_price_list_id, Article.source_row.in_(list(rows)))).all()} if rows else {}
+        self._kalk_rules: dict = {}
         self.exceptions = []
         for ex in upd.exceptions or []:
             erv = db.get(RuleVersion, ex["rule_version_id"])
@@ -145,9 +146,28 @@ class _Ctx:
                     or (ex["typ"] == "PREFIX" and number.startswith(ex["norm"]))]
         if len({ex["rule_version_id"] for ex in hits}) > 1:
             return None, None, "Mehrere Ausnahmen passen: " + "; ".join(ex["label"] for ex in hits)
+        if hits and hits[0]["typ"] == "ARTIKEL":
+            return hits[0]["rule"], hits[0]["label"], None
+        # „Kalk“ aus unserer Liste (Faktor je Artikel) geht vor Serie/Nummernanfang und Standardregel
+        if base.calc_factor is not None:
+            return self.kalk_rule(base.calc_factor)
         if hits:
             return hits[0]["rule"], hits[0]["label"], None
         return self.rule, self.rule_label, None
+
+    def kalk_rule(self, factor: Decimal):
+        """Standardregel mit dem Faktor aus der Spalte „Kalk“ (Rundung usw. wie Standard)."""
+        if factor not in self._kalk_rules:
+            label = f"Kalk aus unserer Liste: EK × {de(factor, 0)}"
+            steps = self.rule.steps if self.rule else []
+            if self.rule is None or self.rule.start_price != "EK" or not steps or steps[0].type != "multiply":
+                self._kalk_rules[factor] = (None, label, "Kalk aus der Liste kann nicht angewendet werden: "
+                                            "Standardregel ist kein „EK × Faktor“")
+            else:
+                data = self.rule.model_dump(mode="json")
+                data["steps"][0]["factor"] = str(factor)
+                self._kalk_rules[factor] = (RuleDefinition.model_validate(data), label, None)
+        return self._kalk_rules[factor]
 
 
 def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str | None,
@@ -485,7 +505,7 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
         art = Article(price_list_id=pl.id, source_row=old.source_row, article_number=old.article_number,
                       article_number_normalized=old.article_number_normalized, manufacturer_id=old.manufacturer_id,
                       manufacturer_raw=old.manufacturer_raw, description=old.description, category=old.category,
-                      unit=old.unit, status=old.status)
+                      unit=old.unit, status=old.status, calc_factor=old.calc_factor)
         db.add(art)
         db.flush()
         cur = item.currency or "EUR"

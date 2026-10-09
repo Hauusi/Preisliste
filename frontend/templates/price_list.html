@@ -44,7 +44,7 @@
       <td>{{ manufacturers.get(a.manufacturer_id, a.manufacturer_raw or "") }}</td>
       <td>{{ a.description or "" }}</td>
       <td>{{ a.category or "" }}</td>
-      <td>{% for p in a.prices %}<div class="price">{{ {"LISTE": "VK"}.get(p.price_type, p.price_type) }} {{ p.amount | money }} {{ p.currency }}{% if p.min_quantity is not none %} ab {{ p.min_quantity }}{% endif %}{% if p.discount_percent is not none %} · Rabatt {{ p.discount_percent }} %{% endif %}</div>{% endfor %}</td>
+      <td>{% for p in a.prices %}<div class="price">{{ {"LISTE": "VK"}.get(p.price_type, p.price_type) }} {{ p.amount | money }} {{ p.currency }}{% if p.min_quantity is not none %} ab {{ p.min_quantity }}{% endif %}{% if p.discount_percent is not none %} · Rabatt {{ p.discount_percent }} %{% endif %}</div>{% endfor %}{% if a.calc_factor is not none %}<div class="small">Kalk × {{ a.calc_factor | num }}</div>{% endif %}</td>
       <td><span class="badge {{ a.status }}">{{ a.status }}</span></td>
     </tr>
   {% else %}

@@ -30,6 +30,7 @@ FIELDS: dict[str, str] = {
     "unit": "Einheit",
     "currency": "Währung",
     "valid_from": "Gültig ab",
+    "calc_factor": "Kalk (Faktor je Artikel)",
 }
 PRICE_FIELDS = ("supplier_price", "list_price", "rrp")
 HEADER_SCAN_ROWS = 30
@@ -307,7 +308,7 @@ def detect_columns(
 
     seps = {}
     for g in guesses:
-        if g.field in PRICE_FIELDS + ("discount", "transport_cost", "quantity"):
+        if g.field in PRICE_FIELDS + ("discount", "transport_cost", "quantity", "calc_factor"):
             seps[g.index] = detect_column_separator(_column_values(sheet, header_row, g.index, 5000))
 
     return Detection(

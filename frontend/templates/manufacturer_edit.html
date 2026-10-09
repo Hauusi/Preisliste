@@ -33,7 +33,7 @@
       </div>
       <label>VK runden
         <select name="vk_rounding">{% for k, v in vk_roundings.items() %}<option value="{{ k }}" {% if k == vk_rounding %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
-      <p class="hint">Endungen (,90 / ,95 / ,99) runden immer auf, die Marge sinkt also nie. Einzelne Artikel mit anderem Faktor wählst du direkt im Jahresabgleich aus.</p>
+      <p class="hint">Endungen (,90 / ,95 / ,99) runden immer auf, die Marge sinkt also nie. Einzelne Artikel mit anderem Faktor: Spalte „Kalk“ in unserer Liste (gilt automatisch) oder direkt im Jahresabgleich auswählen.</p>
       <details {% if factor is none and m.default_rule_id %}open{% endif %}>
         <summary>Stattdessen eine eigene Regel verwenden (z. B. mit Rundung auf ,90)</summary>
         <label>Eigene Regel <small class="hint">nur wenn das Faktorfeld leer ist</small>

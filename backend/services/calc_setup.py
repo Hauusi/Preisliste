@@ -22,6 +22,7 @@ DEFAULT_ROUNDING = {"mode": "HALF_UP", "places": 2, "timing": "STEP"}
 VK_ROUNDINGS = {
     "": ("keine (auf Cent)", None),
     "0.10": ("auf 10 Cent", {"type": "round", "increment": "0.10", "mode": "HALF_UP"}),
+    "0.10up": ("auf 10 Cent (aufrunden)", {"type": "round", "increment": "0.10", "mode": "UP"}),
     "1": ("auf volle Euro", {"type": "round", "increment": "1", "mode": "HALF_UP"}),
     "e90": ("auf ,90 (aufrunden)", {"type": "round_ending", "ending": "0.90", "period": "1", "direction": "UP"}),
     "e95": ("auf ,95 (aufrunden)", {"type": "round_ending", "ending": "0.95", "period": "1", "direction": "UP"}),

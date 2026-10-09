@@ -244,6 +244,10 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     elif used_cur and currency not in used_cur:
         p.issues.append(f"Die Preisspalten sind in {used_cur.pop()}, gewählt ist {currency}")
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
+    if kind == "HERSTELLER" and "calc_factor" in mapping:
+        # „Kalk“ gilt nur in unserer Liste; in einer Herstellerliste wird sie nie gelesen
+        mapping.pop("calc_factor")
+        cols["assigned"].pop("calc_factor", None)
     if kind == "UNSERE" and "discount" in mapping:
         # Unsere Liste enthält den fertigen Netto-EK; eine Rabattspalte (z. B. „-60 %“ zwischen Brutto- und
         # Netto-EK) ist nur Information und darf den EK nicht verändern oder Fehler auslösen
