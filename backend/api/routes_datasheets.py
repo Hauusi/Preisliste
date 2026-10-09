@@ -27,7 +27,7 @@ def _step_page(request, sheet, step, content, errors=None, status_code=200):
         "portal": True, "sheet": sheet, "step": step, "step_label": dict(ds.STEPS)[step], "index": index,
         "steps": ds.STEPS, "done": {k: ds.step_done(content, k) for k in ds.STEP_KEYS}, "c": ds.normalized(content),
         "colors": ds.COLORS, "spare": ds.SPARE_ROWS, "max_badges": ds.MAX_BADGES, "max_columns": ds.MAX_COLUMNS,
-        "slots": ds.IMAGE_SLOTS, "footer": ds.FOOTER, "errors": errors or [],
+        "slots": ds.IMAGE_SLOTS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER, "errors": errors or [],
         "is_last": index == len(ds.STEPS) - 1,
     }, status_code=status_code)
 
@@ -115,7 +115,7 @@ def preview(request: Request, sheet_id: int, db: Session = Depends(get_db), user
     sheet = get_visible(db, Datasheet, sheet_id, user)
     content = ds.normalized(sheet.content)
     return render(request, "datasheet_print.html", {
-        "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER,
+        "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER, "props": ds.shown_properties(content),
     })
 
 

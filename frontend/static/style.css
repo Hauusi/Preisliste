@@ -456,3 +456,32 @@ table.ds-edit select { min-width: 92px; }
   border-radius: var(--radius-sm); border: 1px solid var(--line); }
 .ds-foot-row { display: flex; gap: 20px; flex-wrap: wrap; color: #213984; font-size: .9rem; }
 .ds-nav { justify-content: flex-start; }
+.props { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.prop { display: grid; grid-template-columns: 34px minmax(140px, 220px) 1fr 34px 34px; align-items: center; gap: 8px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); transition: opacity .15s, box-shadow .15s, border-color .15s; }
+.prop:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.prop input { border-color: transparent; background: transparent; }
+.prop input:focus { border-color: transparent; box-shadow: none; background: var(--surface); }
+.prop .prop-name { font-weight: 600; color: var(--fg-2); }
+.prop .prop-value { background: var(--surface); border-color: var(--line); }
+.prop-grip { width: 34px; height: 34px; padding: 0; background: transparent; border: 0; color: var(--muted); cursor: grab; }
+.prop-grip:hover { background: var(--surface-3); color: var(--fg); border: 0; }
+.prop.dragging { opacity: .5; border-style: dashed; border-color: var(--accent); }
+.prop.off { opacity: .5; }
+.prop.off .prop-name, .prop.off .prop-value { text-decoration: line-through; }
+.prop-eye .eye-off, .prop.off .prop-eye .eye-on { display: none; }
+.prop.off .prop-eye .eye-off { display: inline-flex; }
+.prop-eye .eye-on { display: inline-flex; color: var(--accent); }
+.prop-add { display: grid; grid-template-columns: 34px minmax(140px, 220px) 1fr auto; align-items: center; gap: 8px; padding: 6px 8px;
+  border: 1.5px dashed var(--line-2); border-radius: 10px; }
+.prop-add:focus-within { border-color: var(--accent); border-style: solid; }
+.prop-add-icon { display: grid; place-items: center; color: var(--accent); }
+.prop-add input { border-color: transparent; background: transparent; }
+.prop-add input:focus { box-shadow: none; border-color: transparent; }
+@media (max-width: 700px) {
+  .prop { grid-template-columns: 34px 1fr 34px 34px; }
+  .prop .prop-value { grid-column: 2 / 5; grid-row: 2; }
+  .prop-add { grid-template-columns: 34px 1fr; }
+  .prop-add input[data-new-value], .prop-add button { grid-column: 2; }
+}
+.prop-del:hover { background: var(--err-soft); color: var(--err); border-color: transparent; }

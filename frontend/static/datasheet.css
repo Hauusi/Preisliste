@@ -37,7 +37,9 @@ body.ds-print { margin: 0; background: #d9dce3; color: var(--ds-text);
 .intro { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
 .intro-text { font-size: 10pt; line-height: 1.45; text-align: justify; hyphens: auto; }
 .intro-text p { margin: 0 0 4mm; }
-.intro-text ul { margin: 5mm 0 0; padding-left: 6mm; }
+.intro-text ul { margin: 0; padding-left: 6mm; }
+.intro-text ul.props li { margin-bottom: 2mm; }
+.intro-text ul.props b { font-weight: 700; }
 .intro-text li { margin: 0 0 .6mm; text-align: left; padding-left: 2mm; }
 .intro-images { display: flex; flex-direction: column; gap: 5mm; }
 .intro-images img { width: 100%; max-height: 40mm; object-fit: contain; }

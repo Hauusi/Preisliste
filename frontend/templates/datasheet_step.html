@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, trash %}
 {% block title %}Datenblatt – {{ step_label }}{% endblock %}
 {% macro slot(field, name, label) -%}
 <div class="ds-slot">
@@ -45,11 +45,39 @@
     <label>Titel (Produktgruppe) <input name="titel" data-live="#ds-live-titel" data-live-default="LED BLITZMODULE" value="{{ c.kopf.titel }}" maxlength="60" required placeholder="z. B. LED Blitzmodule" autofocus></label>
     <label>Untertitel (Serie) <input name="untertitel" data-live="#ds-live-untertitel" data-live-default="SERIE GECKO" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie Gecko"></label>
 
-  {% elif step == "beschreibung" %}
-    <h2>Beschreibung</h2>
-    <p class="hint">Seite 1 oben links. Absätze mit einer Leerzeile trennen.</p>
-    <label>Beschreibungstext <textarea name="text" rows="10" maxlength="4000" class="prose" placeholder="Die LED Blitzmodule der Serie … besitzen …">{{ c.beschreibung.text }}</textarea></label>
-    <label>Aufzählungspunkte (einer pro Zeile) <textarea name="punkte" rows="6" class="prose" placeholder="2 Jahre Garantie&#10;Synchronisierbar">{{ c.beschreibung.punkte | join("\n") }}</textarea></label>
+  {% elif step == "eigenschaften" %}
+    <h2>Eigenschaften</h2>
+    <p class="hint">Seite 1 oben links als Aufzählung „<b>Name:</b> Wert“. Nur den Wert eintragen. Gedruckt werden eingeblendete Eigenschaften mit Wert.
+      Reihenfolge per Ziehen am Griff ändern, mit dem Auge ein- und ausblenden.</p>
+    <ul class="props" data-props>
+      {% for e in c.eigenschaften %}{% set on = e.sichtbar is not defined or e.sichtbar %}
+      <li class="prop{{ '' if on else ' off' }}" data-prop>
+        <button type="button" class="prop-grip" data-grip title="Ziehen zum Verschieben (oder Pfeiltasten)" aria-label="Verschieben">{{ icon("grip", 18) }}</button>
+        <input class="prop-name" name="e_name" value="{{ e.name }}" maxlength="40" placeholder="Eigenschaft" aria-label="Name der Eigenschaft">
+        <input class="prop-value" name="e_wert" value="{{ e.wert }}" maxlength="150" placeholder="Wert eintragen" aria-label="Wert für {{ e.name }}">
+        <input type="hidden" name="e_sichtbar" value="{{ 1 if on else 0 }}">
+        <button type="button" class="icon-btn prop-eye" data-toggle-visible aria-pressed="{{ 'true' if on else 'false' }}" title="{{ 'Ausblenden' if on else 'Einblenden' }}"><span class="eye-on">{{ icon("eye", 18) }}</span><span class="eye-off">{{ icon("eyeoff", 18) }}</span></button>
+        <button type="button" class="icon-btn prop-del" data-remove-prop title="Entfernen" aria-label="Entfernen">{{ trash() }}</button>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="prop-add">
+      <span class="prop-add-icon">{{ icon("plus", 18) }}</span>
+      <input name="neu_name" list="prop-suggestions" maxlength="40" placeholder="Neue Eigenschaft, z. B. Länge" data-new-name autocomplete="off">
+      <input name="neu_wert" maxlength="150" placeholder="Wert (optional)" data-new-value>
+      <button type="button" class="secondary" data-add-prop>Hinzufügen</button>
+    </div>
+    <datalist id="prop-suggestions">{% for n in suggestions %}<option value="{{ n }}">{% endfor %}</datalist>
+    <template data-prop-template>
+      <li class="prop" data-prop>
+        <button type="button" class="prop-grip" data-grip title="Ziehen zum Verschieben (oder Pfeiltasten)" aria-label="Verschieben">{{ icon("grip", 18) }}</button>
+        <input class="prop-name" name="e_name" maxlength="40" placeholder="Eigenschaft" aria-label="Name der Eigenschaft">
+        <input class="prop-value" name="e_wert" maxlength="150" placeholder="Wert eintragen" aria-label="Wert">
+        <input type="hidden" name="e_sichtbar" value="1">
+        <button type="button" class="icon-btn prop-eye" data-toggle-visible aria-pressed="true" title="Ausblenden"><span class="eye-on">{{ icon("eye", 18) }}</span><span class="eye-off">{{ icon("eyeoff", 18) }}</span></button>
+        <button type="button" class="icon-btn prop-del" data-remove-prop title="Entfernen" aria-label="Entfernen">{{ trash() }}</button>
+      </li>
+    </template>
 
   {% elif step in ("bilder", "zeichnungen", "anwendung") %}
     {% set key, n = slots[step] %}
