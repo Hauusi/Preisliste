@@ -548,6 +548,8 @@ def test_nordic_lights_our_list_brutto_rabatt_netto(admin_client, app, tmp_path)
     url = upload(c, tmp_path / "Nordic Lights EK VK 2025.xlsx").headers["location"]
     page = c.get(url).text
     assert "„Rabatt“ wird nicht verwendet" in page
+    # Saubere Prüfseite: keine gelben Hinweise, keine roten Punkte für MOQ / Brutto EK / Rabatt
+    assert 'class="msg UNKLAR"' not in page and 'class="msg FEHLER"' not in page
     start(c, app, page)
     with session_scope() as db:
         arts = {a.article_number: a for a in db.scalars(select(Article))}

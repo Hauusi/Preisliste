@@ -98,6 +98,8 @@
         {% if "supplier_price" in p.cols.mapping %}<td class="num">{{ r.ek | price }}</td>{% endif %}{% if "list_price" in p.cols.mapping %}<td class="num">{{ r.vk | price }}</td>{% endif %}{% if "rrp" in p.cols.mapping %}<td class="num">{{ r.uvp | price }}</td>{% endif %}</tr>{% endfor %}</tbody>
     </table></div>
     <p class="hint m0">Erkannte Spalten: {% for f, i in p.cols.mapping.items() %}{{ fields[f] }}{% if not loop.last %} · {% endif %}{% endfor %} · Kopfzeile in Excel-Zeile {{ p.cols.header_row }}</p>
+    {% if p.details %}<details class="detection-details"><summary>Weitere Spalten ({{ p.details | length }}) – nicht verwendet</summary>
+      <ul>{% for d in p.details %}<li>{{ d }}</li>{% endfor %}</ul></details>{% endif %}
   </section>
 
   <div class="actions sticky-actions">

@@ -416,3 +416,6 @@ select, input, textarea { max-width: 100%; }
 .calc-steps { border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: var(--radius-sm); padding: 12px 14px; margin: 12px 0; }
 .calc-steps legend { font-weight: 600; padding: 0 6px; }
 [hidden] { display: none !important; }
+.detection-details { margin-top: 8px; font-size: .9rem; color: var(--muted, inherit); }
+.detection-details summary { cursor: pointer; }
+.detection-details ul { margin: 6px 0 0 18px; }

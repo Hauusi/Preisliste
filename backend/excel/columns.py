@@ -33,6 +33,7 @@ FIELDS: dict[str, str] = {
     "calc_factor": "Kalk (Faktor je Artikel)",
 }
 PRICE_FIELDS = ("supplier_price", "list_price", "rrp")
+QUANTITY_TOKENS = {"moq", "menge", "mindestmenge", "staffel", "staffelmenge", "qty", "quantity"}
 HEADER_SCAN_ROWS = 30
 
 
@@ -92,6 +93,9 @@ def match_label(label: str, synonyms: dict[str, list[str]]) -> list[tuple[str, f
             if syn_tokens and syn_tokens <= tokens:
                 # spezifischere Treffer (mehr Wörter) gewinnen: "Net price SEK" -> Net Price, nicht Price
                 best[fld] = max(best.get(fld, 0), 0.7 + 0.02 * min(len(syn_tokens), 5))
+    if tokens & QUANTITY_TOKENS and "quantity" in best:
+        for f in PRICE_FIELDS:
+            best.pop(f, None)
     return sorted(best.items(), key=lambda kv: -kv[1])
 
 

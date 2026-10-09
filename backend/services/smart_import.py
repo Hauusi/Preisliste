@@ -50,6 +50,7 @@ class Proposal:
     sample: list[dict] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
     hints: list[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)  # nur zur Info (eingeklappt): ignorierte Spalten usw.
     settings: dict = field(default_factory=dict)
     total_rows: int = 0
     prefix_share: float = 0.0
@@ -138,7 +139,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         idx = mapping.pop("manufacturer")
         cols["assigned"].pop("manufacturer", None)
         label = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
-        pending_hints.append(f"Die Spalte „{label}“ wird ignoriert – alle Artikel gehören zum gewählten Hersteller.")
+        pending_hints.append(f"„{label}“ wird ignoriert – alle Artikel gehören zum gewählten Hersteller.")
 
     has_ek, has_vk = "supplier_price" in mapping, "list_price" in mapping
     kind = o.get("kind") if o.get("kind") in ("UNSERE", "HERSTELLER") else ("UNSERE" if has_ek and has_vk else "HERSTELLER")
@@ -172,7 +173,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         for fld, idxs in candidates.items():
             used = by_index[mapping[fld]]
             for i in sorted(idxs - {mapping[fld]}):
-                pending_hints.append(f"Spalte „{by_index[i].label}“ ({by_index[i].currency}) wird nicht verwendet – "
+                pending_hints.append(f"„{by_index[i].label}“ ({by_index[i].currency}) wird nicht verwendet – "
                                      f"es gilt „{used.label}“ ({used.currency})." + ("" if kind == "UNSERE" else " Andere Spalte: Währung oben umstellen."))
     used_cur = {by_index[i].currency for f, i in mapping.items() if f in PRICE_KEYS and by_index.get(i)}
 
@@ -254,7 +255,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
         idx = mapping.pop("discount")
         cols["assigned"].pop("discount", None)
         label = next((c.label for c in pv.detection.columns if c.index == idx), None) or f"Spalte {idx + 1}"
-        p.hints.append(f"Die Spalte „{label}“ wird nicht verwendet – unsere Liste enthält den fertigen EK.")
+        p.details.append(f"„{label}“ wird nicht verwendet – unsere Liste enthält den fertigen EK.")
     if kind == "UNSERE":
         if currency != "EUR":
             p.issues.append(f"Unsere EK/VK-Liste wird in Euro geführt (EK und VK in €). "
@@ -312,7 +313,7 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
     if remapped:
         p.hints.append(f"Die Spalte „{remapped[0]}“ wird als {remapped[1]} gelesen "
                        f"(laut Einstellung schickt {m.name} {remapped[1]}-Preise).")
-    p.hints.extend(pending_hints)
+    p.details.extend(pending_hints)
     # Unklare Spalten nie still übergehen: mehrdeutige Preisspalten blockieren, Rest als Hinweis
     if stored_cols is None:
         for c in pv.detection.columns:
@@ -325,8 +326,8 @@ def build_proposal(db: Session, pl: PriceList, settings: Settings, overrides: di
             if open_price and ("mehreren Spalten" in c.note or "Mehrdeutige" in c.note):
                 p.issues.append(f"Spalte „{label}“: {c.note} – unter „Spalten anpassen“ festlegen")
             else:
-                p.hints.append(f"Spalte „{label}“: {c.note}")
-        p.hints.extend(n for n in pv.detection.notes if n not in p.hints)
+                p.details.append(f"„{label}“: {c.note}")
+        p.details.extend(n for n in pv.detection.notes if n not in p.details)
     if cols.get("split"):
         p.hints.append("Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch "
                        "verglichen (älteres Jahr bzw. linke Spalte = alt).")
