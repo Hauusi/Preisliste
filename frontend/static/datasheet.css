@@ -1,0 +1,93 @@
+/* Datenblatt: festes A4-Layout nach Vorlage (Kopfbalken, Spezifikationen, Artikeltabellen, Fußzeile). */
+:root { color-scheme: light; --ds-blue: #213984; --ds-grey: #918f8f; --ds-line: #a6a6a6; --ds-text: #1d1d1b; }
+* { box-sizing: border-box; }
+body.ds-print { margin: 0; background: #d9dce3; color: var(--ds-text);
+  font-family: "Myriad Pro", Myriad, "Segoe UI", "Helvetica Neue", Arial, sans-serif; overflow-x: auto; }
+
+/* Bildschirm: Werkzeugleiste und Seiten als Blätter */
+.ds-toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; padding: 10px 20px;
+  background: #0f172a; color: #e5e7eb; font: 14px/1.4 system-ui, sans-serif; }
+.ds-toolbar a { color: #c7d2fe; text-decoration: none; }
+.ds-toolbar a:hover { text-decoration: underline; }
+.ds-toolbar .grow { flex: 1; }
+.ds-toolbar button { font: 600 14px system-ui, sans-serif; padding: 8px 16px; border-radius: 8px; border: 0; background: #4f46e5; color: #fff; cursor: pointer; }
+.ds-toolbar button:hover { background: #4338ca; }
+.ds-pages { color: #94a3b8; }
+.ds-toolbar-hint { margin: 10px auto 0; width: 210mm; max-width: 100%; color: #475569; font: 13px system-ui, sans-serif; }
+.ds-overflow { margin: 10px auto 0; width: 210mm; max-width: 100%; padding: 10px 14px; border-radius: 8px; background: #fee2e2; color: #7f1d1d;
+  font: 14px system-ui, sans-serif; border: 1px solid #fca5a5; }
+[hidden] { display: none !important; }
+
+.page { position: relative; width: 210mm; height: 297mm; margin: 8mm auto; background: #fff; overflow: hidden;
+  box-shadow: 0 2px 12px rgb(0 0 0 / .18); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page.too-full { outline: 3px solid #dc2626; }
+
+/* Kopfzeile: Balken von links bis zum Titel, Untertitel rechtsbündig */
+.page-head { position: absolute; top: 14mm; left: 2mm; right: 15mm; color: var(--ds-blue); }
+.head-row { display: flex; align-items: flex-end; gap: 1.6mm; }
+.head-bar { flex: 1; height: 5.6mm; background: var(--ds-blue); margin-bottom: .9mm; }
+.page-head h1 { margin: 0; font-size: 23pt; line-height: .95; font-weight: 700; text-transform: uppercase; white-space: nowrap; letter-spacing: -.005em; }
+.head-sub { text-align: right; font-size: 10pt; text-transform: uppercase; letter-spacing: .05em; margin-top: 1.4mm; }
+
+.page-body { position: absolute; top: 40mm; left: 15mm; right: 15mm; bottom: 31mm; overflow: hidden; }
+
+/* Seite 1 */
+.intro { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+.intro-text { font-size: 10pt; line-height: 1.45; text-align: justify; hyphens: auto; }
+.intro-text p { margin: 0 0 4mm; }
+.intro-text ul { margin: 5mm 0 0; padding-left: 6mm; }
+.intro-text li { margin: 0 0 .6mm; text-align: left; padding-left: 2mm; }
+.intro-images { display: flex; flex-direction: column; gap: 5mm; }
+.intro-images img { width: 100%; max-height: 40mm; object-fit: contain; }
+.intro-images img + img { object-fit: cover; height: 48mm; max-height: none; }
+
+.spec { margin-top: 7mm; }
+.spec-title { margin: 0; font-size: 12.5pt; font-weight: 400; color: var(--ds-blue); text-transform: uppercase; line-height: 1.15; }
+.spec-title small { display: block; font-size: 8.5pt; letter-spacing: .14em; margin-top: .4mm; }
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 5mm; }
+.badges { display: flex; gap: 3mm; margin-bottom: 3mm; }
+.badges img { height: 8.5mm; width: auto; }
+.spec-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.spec-table th, .spec-table td { padding: 1.3mm 0; border-bottom: .25mm solid var(--ds-line); vertical-align: middle; }
+.spec-table th { text-align: left; font-weight: 700; white-space: nowrap; padding-right: 4mm; }
+.spec-table td { text-align: right; }
+.drawings { display: flex; flex-direction: column; gap: 4mm; align-items: center; }
+.drawings img { max-width: 100%; max-height: 40mm; object-fit: contain; }
+/* Startseite: die Anwendungsbilder füllen den Rest der Seite (zwischen 35 und 62 mm hoch) */
+.page-body.start { display: flex; flex-direction: column; }
+.photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 7mm; flex: 1 1 0; min-height: 35mm; max-height: 62mm; }
+.photos-1 { grid-template-columns: 1fr; }
+.photos img { width: 100%; height: 100%; min-height: 0; object-fit: cover; display: block; }
+
+/* Artikel- und Zubehörtabellen */
+.group { margin-bottom: 11mm; }
+.group-title { margin: 0 0 3mm; font-size: 11.5pt; font-weight: 700; color: var(--ds-blue); text-transform: uppercase; }
+.group-title .cont { font-weight: 400; font-size: 9pt; text-transform: none; }
+.art-table, .acc-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
+.art-table th, .acc-table th { background: var(--ds-grey); color: #fff; font-weight: 700; font-size: 9pt; padding: 1.3mm 1.5mm; text-align: center; }
+.art-table td, .acc-table td { padding: 1.5mm; text-align: center; vertical-align: middle; border-bottom: .25mm solid var(--ds-line); overflow-wrap: anywhere; }
+.art-table td.nr, .acc-table td.nr { font-weight: 700; }
+.art-table col.c-img { width: 26mm; } .art-table col.c-nr { width: 29mm; } .art-table col.c-dot { width: 9mm; } .art-table col.c-val { width: 31mm; }
+.art-table td.img img { max-width: 22mm; max-height: 28mm; object-fit: contain; }
+.color { display: inline-block; width: 3.2mm; height: 3.2mm; border-radius: 50%; vertical-align: middle; }
+.color.gelb { background: #f46e23; } .color.blau { background: #2aabe8; } .color.rot { background: #e30613; }
+.color.gruen { background: #2fa84f; } .color.weiss { background: #fff; border: .3mm solid #888; } .color.klar { background: #fff; border: .3mm solid #666; }
+.acc-table col.c-accimg { width: 44mm; } .acc-table col.c-accnr { width: 38mm; }
+.acc-table th.small-th { font-size: 7.5pt; }
+.acc-table td { height: 17mm; }
+.acc-table td.img img { max-width: 38mm; max-height: 14mm; object-fit: contain; }
+
+/* Fußzeile */
+.page-foot { position: absolute; left: 15mm; right: 15mm; bottom: 9mm; display: flex; align-items: center; gap: 6mm; }
+.page-foot .logo { height: 13mm; width: auto; }
+.foot-text { flex: 1; }
+.foot-row { display: flex; justify-content: space-between; gap: 4mm; font-size: 9pt; color: var(--ds-blue); }
+.foot-small { font-size: 6.8pt; margin-top: 1.6mm; }
+
+@page { size: A4; margin: 0; }
+@media print {
+  body.ds-print { background: #fff; }
+  .ds-toolbar, .ds-toolbar-hint, .ds-overflow { display: none !important; }
+  .page { margin: 0; box-shadow: none; break-after: page; outline: 0; }
+  .page:last-child { break-after: auto; }
+}

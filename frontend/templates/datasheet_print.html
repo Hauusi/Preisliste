@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ sheet.title }}</title>
+  <link rel="stylesheet" href="/static/datasheet.css">
+</head>
+<body class="ds-print">
+{% set img = "/datenblatt/%d/bild/" % sheet.id %}
+{% set titel = c.kopf.titel %}{% set untertitel = c.kopf.untertitel %}
+<div class="ds-toolbar">
+  <a href="/datenblatt/{{ sheet.id }}/schritt/kopf">← Bearbeiten</a>
+  <a href="/datenblatt">Alle Datenblätter</a>
+  <span class="grow"></span>
+  <span class="ds-pages">{{ pages | length }} {{ "Seite" if pages | length == 1 else "Seiten" }}</span>
+  <button type="button" data-print>Drucken / als PDF speichern</button>
+</div>
+<p class="ds-toolbar-hint">Im Druckdialog „Als PDF speichern“ wählen, Format A4, Ränder „Keine“, „Hintergrundgrafiken“ einschalten.</p>
+<div class="ds-overflow" data-overflow-msg hidden>Achtung: Seite <b data-overflow-pages></b> ist zu voll und wird abgeschnitten. Text kürzen oder weniger Bilder bzw. Zeilen verwenden.</div>
+
+{% for page in pages %}
+<section class="page" data-page="{{ loop.index }}">
+  <header class="page-head">
+    <div class="head-row"><span class="head-bar"></span><h1>{{ titel }}</h1></div>
+    {% if untertitel %}<div class="head-sub">{{ untertitel }}</div>{% endif %}
+  </header>
+
+  <div class="page-body {{ page.art }}">
+  {% if page.art == "start" %}
+    {% set b = c.beschreibung %}
+    {% if b.text or b.punkte or c.bilder_oben %}
+    <div class="intro">
+      <div class="intro-text">
+        {% for para in b.text.split("\n\n") if para.strip() %}<p>{{ para.strip() | replace("\n", " ") }}</p>{% endfor %}
+        {% if b.punkte %}<ul>{% for p in b.punkte %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="intro-images">{% for name in c.bilder_oben %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+    </div>
+    {% endif %}
+    {% if c.spez.zeilen or c.spez.zeichen or c.zeichnungen %}
+    <div class="spec">
+      <h2 class="spec-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
+      <div class="spec-grid">
+        <div>
+          {% if c.spez.zeichen %}<div class="badges">{% for name in c.spez.zeichen %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>{% endif %}
+          {% if c.spez.zeilen %}
+          <table class="spec-table">
+            {% for z in c.spez.zeilen %}<tr><th>{{ z.merkmal }}{% if z.merkmal and not z.merkmal.endswith(":") %}:{% endif %}</th><td>{% for line in z.wert.split("\n") %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
+          </table>
+          {% endif %}
+        </div>
+        <div class="drawings">{% for name in c.zeichnungen %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if c.bilder_unten %}
+    <div class="photos photos-{{ c.bilder_unten | length }}">{% for name in c.bilder_unten %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+    {% endif %}
+
+  {% elif page.art == "artikel" %}
+    {% for g in page.gruppen %}
+    {% set dots = g.zeilen | selectattr("farbe") | list | length > 0 %}
+    <div class="group">
+      <h2 class="group-title">{{ g.titel }}{% if g.fortsetzung %} <span class="cont">(Fortsetzung)</span>{% endif %}</h2>
+      <table class="art-table">
+        <colgroup><col class="c-img"><col class="c-nr">{% if dots %}<col class="c-dot">{% endif %}<col>{% for s in g.spalten %}<col class="c-val">{% endfor %}</colgroup>
+        <thead><tr><th colspan="{{ 3 if dots else 2 }}">Artikel</th><th>Beschreibung</th>{% for s in g.spalten %}<th>{{ s }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for r in g.zeilen %}
+          <tr>
+            {% if loop.first %}<td class="img" rowspan="{{ g.zeilen | length }}">{% if g.bild %}<img src="{{ img ~ g.bild }}" alt="">{% endif %}</td>{% endif %}
+            <td class="nr">{{ r.artnr }}</td>
+            {% if dots %}<td class="dot">{% if r.farbe %}<span class="color {{ r.farbe }}" title="{{ r.farbe }}"></span>{% endif %}</td>{% endif %}
+            <td>{{ r.beschreibung }}</td>
+            {% for s in g.spalten %}<td>{{ r.werte[loop.index0] if loop.index0 < r.werte | length }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+
+  {% elif page.art == "zubehoer" %}
+    <h2 class="group-title">Zubehör{% if page.fortsetzung %} <span class="cont">(Fortsetzung)</span>{% endif %}</h2>
+    <table class="acc-table">
+      <colgroup><col class="c-accimg"><col class="c-accnr"><col></colgroup>
+      <thead><tr><th class="small-th">Artikel</th><th></th><th>Beschreibung</th></tr></thead>
+      <tbody>
+      {% for z in page.zeilen %}
+        <tr><td class="img">{% if z.bild %}<img src="{{ img ~ z.bild }}" alt="">{% endif %}</td><td class="nr">{{ z.artnr }}</td>
+          <td>{% for line in z.beschreibung.split("\n") %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+  </div>
+
+  <footer class="page-foot">
+    <img class="logo" src="/static/bb-logo.png" alt="Braun &amp; Braun">
+    <div class="foot-text">
+      <div class="foot-row"><span>{{ footer.firma }}</span><span>{{ footer.web }}</span><span>{{ footer.mail }}</span><span>{{ footer.tel }}</span></div>
+      <div class="foot-small">{{ footer.hinweis }}{% if c.fuss.version %} Version {{ c.fuss.version }}{% endif %}</div>
+    </div>
+  </footer>
+</section>
+{% endfor %}
+<script src="/static/datasheet.js"></script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Datenblatt – {{ step_label }}{% endblock %}
+{% macro slot(field, name, label) -%}
+<div class="ds-slot">
+  <span class="ds-slot-label">{{ label }}</span>
+  {% if name %}
+  <img class="ds-thumb" src="/datenblatt/{{ sheet.id }}/bild/{{ name }}" alt="">
+  <label class="inline-label"><input type="checkbox" name="{{ field }}_weg" value="ja"> Bild entfernen</label>
+  {% endif %}
+  <label class="dropzone ds-drop"><input type="file" name="{{ field }}" accept="image/png,image/jpeg,image/gif,image/webp" data-file-input>
+    {{ icon("upload", 18) }}<span data-file-label>{{ "Bild ersetzen" if name else "Bild wählen oder hierher ziehen" }}</span></label>
+</div>
+{%- endmacro %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/datenblatt">Datenblätter</a>{% if sheet %} · {{ sheet.title }}{% endif %}</div>
+    <h1>Schritt {{ index + 1 }} von {{ steps | length }}: {{ step_label }}</h1>
+  </div>
+  {% if sheet %}<a class="button secondary" href="/datenblatt/{{ sheet.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 18) }} Vorschau</a>{% endif %}
+</div>
+
+{% for e in errors %}<p class="msg FEHLER">{{ e }}</p>{% endfor %}
+
+<form id="ds-form" method="post" enctype="multipart/form-data" action="{{ '/datenblatt/%d/schritt/%s' % (sheet.id, step) if sheet else '/datenblatt/neu' }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# Enter im Eingabefeld = Weiter (erste Schaltfläche im Formular) #}
+  <button type="submit" name="aktion" value="weiter" class="sr" tabindex="-1" aria-hidden="true">Weiter</button>
+
+  <ol class="steps-bar ds-steps">
+    {% for key, label in steps %}
+    <li class="{% if loop.index0 == index %}current{% elif done[key] %}done{% endif %}">
+      {% if sheet and loop.index0 != index %}<button type="submit" name="aktion" value="gehe:{{ key }}" class="link" title="Speichern und zu „{{ label }}“"><span>{{ loop.index }}</span>{{ label }}</button>
+      {% else %}<span>{{ loop.index }}</span>{{ label }}{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  <section class="card">
+  {% if step == "kopf" %}
+    <h2>Kopfzeile</h2>
+    <p class="hint">Steht oben rechts auf jeder Seite neben dem blauen Balken. Wird automatisch in Großbuchstaben gesetzt.</p>
+    <div class="ds-head-demo" aria-hidden="true"><span class="bar"></span><span class="t">{{ c.kopf.titel or "LED BLITZMODULE" }}</span><span class="s">{{ c.kopf.untertitel or "SERIE GECKO" }}</span></div>
+    <label>Titel (Produktgruppe) <input name="titel" value="{{ c.kopf.titel }}" maxlength="60" required placeholder="z. B. LED Blitzmodule" autofocus></label>
+    <label>Untertitel (Serie) <input name="untertitel" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie Gecko"></label>
+
+  {% elif step == "beschreibung" %}
+    <h2>Beschreibung</h2>
+    <p class="hint">Seite 1 oben links. Absätze mit einer Leerzeile trennen.</p>
+    <label>Beschreibungstext <textarea name="text" rows="10" maxlength="4000" class="prose" placeholder="Die LED Blitzmodule der Serie … besitzen …">{{ c.beschreibung.text }}</textarea></label>
+    <label>Aufzählungspunkte (einer pro Zeile) <textarea name="punkte" rows="6" class="prose" placeholder="2 Jahre Garantie&#10;Synchronisierbar">{{ c.beschreibung.punkte | join("\n") }}</textarea></label>
+
+  {% elif step in ("bilder", "zeichnungen", "anwendung") %}
+    {% set key, n = slots[step] %}
+    {% if step == "bilder" %}<h2>Produktbilder</h2><p class="hint">Seite 1 oben rechts neben der Beschreibung, untereinander. Oben z. B. Freisteller, darunter Einbausituation.</p>
+    {% elif step == "zeichnungen" %}<h2>Maßzeichnungen</h2><p class="hint">Seite 1 rechts neben der Spezifikationstabelle, untereinander.</p>
+    {% else %}<h2>Anwendungsbilder</h2><p class="hint">Seite 1 unten, nebeneinander. Beide Bilder werden auf gleiche Höhe zugeschnitten (Bildmitte bleibt).</p>{% endif %}
+    <div class="ds-slots">
+      {% for i in range(n) %}{{ slot("bild_%d" % i, c[key][i] if i < c[key] | length else none, "Bild %d" % (i + 1)) }}{% endfor %}
+    </div>
+
+  {% elif step == "spez" %}
+    <h2>Spezifikationen</h2>
+    <p class="hint">Seite 1 Mitte. Überschrift kommt automatisch aus der Kopfzeile: „{{ c.kopf.titel | upper }}{% if c.kopf.untertitel %} - {{ c.kopf.untertitel | upper }}{% endif %} / SPEZIFIKATIONEN“.</p>
+    <h3>Prüfzeichen / Zulassungslogos (optional)</h3>
+    <div class="ds-slots ds-slots-small">
+      {% for i in range(max_badges) %}{{ slot("zeichen_%d" % i, c.spez.zeichen[i] if i < c.spez.zeichen | length else none, "Logo %d" % (i + 1)) }}{% endfor %}
+    </div>
+    <h3>Tabelle</h3>
+    <p class="hint">Leere Zeilen werden ignoriert. Zum Löschen einer Zeile beide Felder leeren. Mehr Zeilen: speichern, dann erscheinen neue leere Zeilen.</p>
+    <table class="ds-edit">
+      <thead><tr><th>Merkmal</th><th>Wert (mehrzeilig möglich)</th></tr></thead>
+      <tbody>
+      {% for i in range(c.spez.zeilen | length + spare) %}{% set z = c.spez.zeilen[i] if i < c.spez.zeilen | length else {} %}
+        <tr><td><input name="merkmal_{{ i }}" value="{{ z.merkmal }}" maxlength="60" placeholder="{{ 'z. B. Spannungsbereich' if i == 0 }}"></td>
+            <td><textarea name="wert_{{ i }}" rows="{{ 2 if z.wert and '\n' in z.wert else 1 }}" class="prose" maxlength="300" placeholder="{{ 'z. B. 11-30V' if i == 0 }}">{{ z.wert }}</textarea></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif step == "artikel" %}
+    <h2>Artikel</h2>
+    <p class="hint">Ab Seite 2. Jede Gruppe bekommt eine Überschrift, ein Bild links und eine Tabelle. Zusatzspalten frei benennbar (leer = Spalte entfällt).
+      Zeile löschen: Artikelnummer und Beschreibung leeren. Mehr Zeilen: speichern oder aus Excel einfügen.</p>
+  </section>
+    {% set groups = c.gruppen or [{"titel": "", "bild": none, "spalten": ["Zulassung", "Montage"], "zeilen": []}] %}
+    {% for g in groups %}{% set gi = loop.index0 %}
+    <section class="card ds-group"{% if loop.last %} id="neu"{% endif %}>
+      <div class="card-head"><h3>Gruppe {{ gi + 1 }}</h3>
+        {% if c.gruppen %}<label class="inline-label"><input type="checkbox" name="g{{ gi }}_weg" value="ja"> Gruppe entfernen</label>{% endif %}</div>
+      <div class="ds-group-head">
+        <div class="grow">
+          <label>Überschrift <input name="g{{ gi }}_titel" value="{{ g.titel }}" maxlength="80" placeholder="z. B. Gecko 3 - Horizontale Montage"></label>
+          <div class="row">
+            {% for k in range(max_columns) %}<label>Zusatzspalte {{ k + 1 }} <input name="g{{ gi }}_spalte{{ k }}" value="{{ g.spalten[k] if k < g.spalten | length else '' }}" maxlength="30" placeholder="leer = keine"></label>{% endfor %}
+          </div>
+        </div>
+        {{ slot("g%d_bild" % gi, g.bild, "Bild links neben der Tabelle") }}
+      </div>
+      <div class="scroll">
+      <table class="ds-edit">
+        <thead><tr><th>Artikelnr.</th><th>Farbe</th><th>Beschreibung</th>{% for k in range(max_columns) %}<th>{{ g.spalten[k] if k < g.spalten | length and g.spalten[k] else "Spalte %d" % (k + 1) }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for ri in range(g.zeilen | length + spare) %}{% set r = g.zeilen[ri] if ri < g.zeilen | length else {} %}{% set p = "g%d_r%d_" % (gi, ri) %}
+          <tr>
+            <td><input name="{{ p }}artnr" value="{{ r.artnr }}" maxlength="60" class="ds-artnr"></td>
+            <td><select name="{{ p }}farbe">{% for v, l in colors.items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+            <td><input name="{{ p }}beschreibung" value="{{ r.beschreibung }}" maxlength="200" class="ds-desc"></td>
+            {% for k in range(max_columns) %}<td><input name="{{ p }}w{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="ds-val"></td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <details class="ds-paste"><summary>Zeilen aus Excel einfügen</summary>
+        <p class="hint">Spalten in dieser Reihenfolge markieren und kopieren: Artikelnummer, Beschreibung, dann die Zusatzspalten. Die Farbe wird aus dem letzten Farbwort der Beschreibung übernommen (gelb, blau, klar …) und ist danach änderbar.</p>
+        <textarea name="g{{ gi }}_einfuegen" rows="4" placeholder="RTG3HSA0CB&#9;LED Blitzmodul Gecko 3, 11-30V, gelb&#9;ECE-R65 Klasse I&#9;Horizontal"></textarea>
+      </details>
+    </section>
+    {% endfor %}
+    <div class="actions"><button type="submit" name="aktion" value="gruppe" class="secondary">{{ icon("plus", 18) }} Weitere Artikelgruppe</button></div>
+  <section class="card">
+    <p class="hint m0">Die Aufteilung auf Seiten passiert automatisch. Passt eine Gruppe nicht mehr auf die Seite, beginnt sie auf der nächsten.</p>
+
+  {% elif step == "zubehoer" %}
+    <h2>Zubehör</h2>
+    <p class="hint">Eigene Seite(n) nach den Artikeln, Überschrift „ZUBEHÖR“. Zeile löschen: Häkchen „entfernen“. Mehr Zeilen: speichern.</p>
+  </section>
+    {% for i in range(c.zubehoer | length + spare) %}{% set z = c.zubehoer[i] if i < c.zubehoer | length else {} %}
+    <section class="card ds-acc">
+      {{ slot("z%d_bild" % i, z.bild, "Bild") }}
+      <div class="grow">
+        <label>Artikelnummer <input name="z{{ i }}_artnr" value="{{ z.artnr }}" maxlength="60" class="ds-artnr"></label>
+        <label>Beschreibung <textarea name="z{{ i }}_beschreibung" rows="2" maxlength="300" class="prose">{{ z.beschreibung }}</textarea></label>
+        {% if z %}<label class="inline-label"><input type="checkbox" name="z{{ i }}_weg" value="ja"> Zeile entfernen</label>{% endif %}
+      </div>
+    </section>
+    {% endfor %}
+  <section class="card">
+    <p class="hint m0">{{ c.zubehoer | length }} Zubehörteile erfasst.</p>
+
+  {% elif step == "fuss" %}
+    <h2>Fußzeile</h2>
+    <p class="hint">Die Fußzeile ist fest und auf jeder Seite gleich. Nur die Version ist änderbar (Vorschlag: heutiges Datum).</p>
+    <div class="ds-foot-demo">
+      <img src="/static/bb-logo.png" alt="Logo" width="56" height="39">
+      <div><div class="ds-foot-row"><span>{{ footer.firma }}</span><span>{{ footer.web }}</span><span>{{ footer.mail }}</span><span>{{ footer.tel }}</span></div>
+        <small>{{ footer.hinweis }} Version {{ c.fuss.version }}</small></div>
+    </div>
+    <label>Version <input name="version" value="{{ c.fuss.version }}" maxlength="30" placeholder="z. B. 18102022"></label>
+  {% endif %}
+  </section>
+
+  <div class="actions sticky-actions ds-nav">
+    {% if index > 0 %}<button type="submit" name="aktion" value="zurueck" class="secondary">Zurück</button>{% endif %}
+    {% if sheet %}<button type="submit" name="aktion" value="speichern" class="secondary">Speichern</button>{% endif %}
+    <span class="grow"></span>
+    {% if sheet %}<button type="submit" name="aktion" value="vorschau" class="secondary">{{ icon("doc", 18) }} Speichern und Vorschau</button>{% endif %}
+    {% if is_last %}<button type="submit" name="aktion" value="fertig">Fertig – zur Vorschau {{ icon("arrow", 18) }}</button>
+    {% else %}<button type="submit" name="aktion" value="weiter">Weiter {{ icon("arrow", 18) }}</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

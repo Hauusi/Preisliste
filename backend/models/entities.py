@@ -448,3 +448,19 @@ class PriceUpdateItem(Base):
     # KI-Einschätzung bei fehlenden/unklaren Artikeln, nur Vorschlag:
     # {status: TREFFER|KEIN_TREFFER|UNKLAR|ABGELEHNT, new_id, number, description, confidence, reason, model}
     ai_hint: Mapped[dict | None] = mapped_column(JSON)
+
+
+class Datasheet(Base):
+    """Produktdatenblatt: festes Layout, Inhalte (Texte, Tabellen, Bildnamen) als JSON.
+
+    Bilder liegen als Dateien unter uploads/datenblatt/<id>/, im JSON steht nur der Dateiname.
+    """
+
+    __tablename__ = "datasheets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheets_owner"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

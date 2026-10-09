@@ -419,3 +419,39 @@ select, input, textarea { max-width: 100%; }
 .detection-details { margin-top: 8px; font-size: .9rem; color: var(--muted, inherit); }
 .detection-details summary { cursor: pointer; }
 .detection-details ul { margin: 6px 0 0 18px; }
+/* ---------- Datenblatt-Assistent ---------- */
+.ds-steps li button.link { display: inline-flex; align-items: center; gap: 8px; color: inherit; font-weight: inherit; font-size: inherit; padding: 0; }
+.ds-steps li button.link:hover { color: var(--accent); background: none; }
+.ds-steps li button.link span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line-2);
+  background: var(--surface); font-weight: 700; font-size: .8rem; }
+.ds-steps li.done button.link span { background: var(--ok); border-color: var(--ok); color: #fff; }
+textarea.prose { font-family: inherit; font-size: .95rem; line-height: 1.5; }
+.ds-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.ds-slots-small { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.ds-slot { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); min-width: 0; }
+.ds-slot-label { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.ds-thumb { max-width: 100%; max-height: 150px; object-fit: contain; align-self: flex-start; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
+.dropzone.ds-drop { padding: 14px 10px; flex-direction: row; font-size: .88rem; }
+.ds-slot .inline-label { margin: 0; }
+table.ds-edit { box-shadow: none; }
+table.ds-edit td { padding: 6px; vertical-align: middle; }
+table.ds-edit input, table.ds-edit textarea, table.ds-edit select { width: 100%; padding: 6px 8px; }
+table.ds-edit .ds-artnr { min-width: 130px; font-weight: 600; }
+table.ds-edit .ds-desc { min-width: 260px; }
+table.ds-edit .ds-val { min-width: 110px; }
+table.ds-edit select { min-width: 92px; }
+.ds-group-head { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 10px; }
+.ds-group-head .ds-slot { width: 260px; }
+.ds-paste { margin-top: 10px; }
+.ds-acc { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.ds-acc .ds-slot { width: 240px; }
+.ds-acc .grow { min-width: 260px; }
+.ds-head-demo { display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 6px; margin: 6px 0 18px; padding: 14px 16px 12px 0;
+  background: #fff; border-radius: var(--radius-sm); border: 1px solid var(--line); color: #213984; text-transform: uppercase; overflow: hidden; }
+.ds-head-demo .bar { height: 14px; background: #213984; margin-bottom: 3px; }
+.ds-head-demo .t { font-weight: 800; font-size: 1.5rem; line-height: 1; white-space: nowrap; }
+.ds-head-demo .s { grid-column: 2; text-align: right; font-size: .8rem; letter-spacing: .05em; margin-top: 4px; }
+.ds-foot-demo { display: flex; align-items: center; gap: 16px; padding: 14px 16px; margin: 6px 0 16px; background: #fff; color: #1d1d1b;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); }
+.ds-foot-row { display: flex; gap: 20px; flex-wrap: wrap; color: #213984; font-size: .9rem; }
+.ds-nav { justify-content: flex-start; }

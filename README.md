@@ -41,6 +41,19 @@ Deckblätter werden übersprungen, eine allgemeine „Preis“-Spalte wird laut 
 Testdaten für den kompletten Ablauf: `beispiel-daten/` (erzeugt mit `python beispiel-daten/erzeuge_testdaten.py`),
 automatisch durchgespielt in `tests/test_e2e_szenarien.py`.
 
+## Datenblatt erstellen (Sales Assistant → Datenblatt erstellen)
+
+Baukasten mit festem Layout nach dem Muster „LED Blitzmodule – Serie Gecko“: blauer Kopfbalken mit Titel und Serie,
+Fußzeile mit Logo und Firmendaten (fest, nur die Version ist änderbar). Der Inhalt wird in 9 Schritten abgefragt:
+Kopfzeile, Beschreibung mit Aufzählung, Produktbilder, Spezifikationen (Prüfzeichen und Tabelle), Maßzeichnungen,
+Anwendungsbilder, Artikelgruppen (Bild, Tabelle, frei benennbare Zusatzspalten, Zeilen auch aus Excel einfügbar),
+Zubehör, Fußzeile. Leere Schritte entfallen im Datenblatt. Die Aufteilung auf A4-Seiten passiert automatisch
+(Startseite, Artikelseiten, Zubehörseiten); eine zu volle Seite wird in der Vorschau rot markiert.
+
+Ausgabe: Vorschau öffnen, „Drucken / als PDF speichern“ (A4, Ränder keine, Hintergrundgrafiken an). Bilder (JPG, PNG,
+GIF, WebP, max. 10 MB) liegen unter `data/uploads/datenblatt/<id>/` und sind in der Sicherung enthalten.
+Datenblätter lassen sich kopieren (Vorlage für die nächste Serie). Sichtbarkeit wie bei den Preislisten.
+
 ## Benutzer und Sichtbarkeit
 
 Jeder Benutzer sieht nur seine eigenen Hersteller, Regeln, Preislisten, Abgleiche und Vergleiche und pflegt sie
