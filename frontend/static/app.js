@@ -29,3 +29,13 @@
     update();
   });
 })();
+// Eingabe sofort in eine Vorschau übernehmen (z. B. Datenblatt-Kopfzeile), leer = Beispieltext
+(function () {
+  document.querySelectorAll("[data-live]").forEach(function (input) {
+    var target = document.querySelector(input.getAttribute("data-live"));
+    if (!target) { return; }
+    input.addEventListener("input", function () {
+      target.textContent = input.value.trim() || input.getAttribute("data-live-default") || "";
+    });
+  });
+})();
