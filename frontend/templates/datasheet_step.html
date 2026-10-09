@@ -41,7 +41,7 @@
   {% if step == "kopf" %}
     <h2>Kopfzeile</h2>
     <p class="hint">Steht oben rechts auf jeder Seite neben dem blauen Balken. Wird automatisch in Großbuchstaben gesetzt.</p>
-    <div class="ds-head-demo" aria-hidden="true"><span class="bar"></span><span class="t">{{ c.kopf.titel or "LED BLITZMODULE" }}</span><span class="s">{{ c.kopf.untertitel or "SERIE GECKO" }}</span></div>
+    <div class="ds-head-demo" aria-hidden="true"><div class="ds-head-row"><span class="ds-head-bar"></span><span class="t">{{ c.kopf.titel or "LED BLITZMODULE" }}</span></div><div class="s">{{ c.kopf.untertitel or "SERIE GECKO" }}</div></div>
     <label>Titel (Produktgruppe) <input name="titel" value="{{ c.kopf.titel }}" maxlength="60" required placeholder="z. B. LED Blitzmodule" autofocus></label>
     <label>Untertitel (Serie) <input name="untertitel" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie Gecko"></label>
 

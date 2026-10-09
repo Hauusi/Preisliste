@@ -11,6 +11,10 @@
       page.classList.toggle("too-full", !!over);
       if (over) { full.push(page.getAttribute("data-page")); }
     });
+    // Titel so lang, dass vom Balken kaum etwas bleibt (unter 10 mm): Text würde aus der Seite laufen
+    var bar = document.querySelector(".head-bar");
+    var long = document.querySelector("[data-title-msg]");
+    if (bar && long) { long.hidden = bar.getBoundingClientRect().width >= 10 * 96 / 25.4; }
     var msg = document.querySelector("[data-overflow-msg]");
     if (msg) {
       msg.hidden = !full.length;
