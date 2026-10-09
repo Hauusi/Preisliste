@@ -41,9 +41,9 @@
   {% if step == "kopf" %}
     <h2>Kopfzeile</h2>
     <p class="hint">Steht oben rechts auf jeder Seite neben dem blauen Balken. Wird automatisch in Großbuchstaben gesetzt.</p>
-    <div class="ds-head-demo" aria-hidden="true"><div class="ds-head-row"><span class="ds-head-bar"></span><span class="t">{{ c.kopf.titel or "LED BLITZMODULE" }}</span></div><div class="s">{{ c.kopf.untertitel or "SERIE GECKO" }}</div></div>
-    <label>Titel (Produktgruppe) <input name="titel" value="{{ c.kopf.titel }}" maxlength="60" required placeholder="z. B. LED Blitzmodule" autofocus></label>
-    <label>Untertitel (Serie) <input name="untertitel" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie Gecko"></label>
+    <div class="ds-head-demo" aria-hidden="true"><div class="ds-head-row"><span class="ds-head-bar"></span><span class="t" id="ds-live-titel">{{ c.kopf.titel or "LED BLITZMODULE" }}</span></div><div class="s" id="ds-live-untertitel">{{ c.kopf.untertitel or "SERIE GECKO" }}</div></div>
+    <label>Titel (Produktgruppe) <input name="titel" data-live="#ds-live-titel" data-live-default="LED BLITZMODULE" value="{{ c.kopf.titel }}" maxlength="60" required placeholder="z. B. LED Blitzmodule" autofocus></label>
+    <label>Untertitel (Serie) <input name="untertitel" data-live="#ds-live-untertitel" data-live-default="SERIE GECKO" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie Gecko"></label>
 
   {% elif step == "beschreibung" %}
     <h2>Beschreibung</h2>
@@ -161,4 +161,5 @@
     {% else %}<button type="submit" name="aktion" value="weiter">Weiter {{ icon("arrow", 18) }}</button>{% endif %}
   </div>
 </form>
+<script src="/static/app.js"></script>
 {% endblock %}
