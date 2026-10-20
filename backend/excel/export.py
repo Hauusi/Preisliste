@@ -34,6 +34,16 @@ DANGEROUS_PREFIX = ("=", "+", "-", "@", "\t", "\r")
 MONEY_FORMAT = "#,##0.00"
 PERCENT_FORMAT = '0.00" %"'
 BOLD = Font(bold=True)
+# EK 0,01 steht bei uns als Platzhalter für „kein Preis eingespielt“: keine Marge, keine EK-Änderung in %
+PLACEHOLDER_EK = Decimal("0.01")
+
+
+def compact(v: Decimal | None) -> Decimal | None:
+    """Ohne angehängte Nullen ins Excel (Standardformat): 2,8000 -> 2,8, 3,0000 -> 3."""
+    if v is None:
+        return None
+    v = v.normalize()
+    return v.quantize(Decimal(1)) if v == v.to_integral() else v
 
 
 class _Sheet:
@@ -236,12 +246,14 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     for i in items:
         hints = "; ".join([REASON_LABELS.get(r, r) for r in i.reasons or []] + ([i.note] if i.note else []))
         new = i.decision != "ALT"
-        ek_pct = percent_change(i.old_amount, i.final_ek) if new and i.old_amount and i.final_ek is not None else None
+        # EK 0,01 im Vorjahr = Preis fehlt: keine Änderung in % (wäre z. B. +471.900 %)
+        ek_pct = (percent_change(i.old_amount, i.final_ek)
+                  if new and i.old_amount and i.old_amount > PLACEHOLDER_EK and i.final_ek is not None else None)
         vk_pct = percent_change(i.vk_old, i.final_vk) if new and i.vk_old and i.final_vk is not None else None
         row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
                main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
-               main._cell(i.factor, "0.0000") if i.factor is not None and i.decision == "NEU" else None,
+               main._cell(compact(i.factor)) if i.factor is not None and i.decision == "NEU" else None,
                main.percent(margin(i.final_ek, i.final_vk)),
                i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision),
                i.rule_label, i.ek_text, checks.get(i.check_ok, "nicht prüfbar" if i.decision == "NEU" else ""), users.get(i.reviewed_by),
@@ -252,10 +264,6 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
-
-
-# EK 0,01 steht bei uns als Platzhalter für „kein Preis eingespielt“: dafür keine (scheinbar 100 %) Marge
-PLACEHOLDER_EK = Decimal("0.01")
 
 
 def margin(ek, vk):
@@ -347,7 +355,7 @@ def export_price_list(db: Session, pl: PriceList) -> bytes:
             if with_margin:
                 row.append(sh.percent(margin(amounts.get("EK"), amounts.get("LISTE"))))
             if has_kalk:
-                row.append(sh._cell(a.calc_factor))  # Standardformat: 2,8 bleibt 2,8 (nicht 2,80), 3 bleibt 3
+                row.append(sh._cell(compact(a.calc_factor)))  # 2,8 statt 2,80, 3 statt 3,0
             currency = next((p.currency for p in prices.values()), pl.currency)
             row += [currency, list_status(a.status, amounts.get("EK"), amounts.get("LISTE"))]
             sh.row(row)
