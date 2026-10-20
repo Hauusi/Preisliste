@@ -254,9 +254,13 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     return buf.getvalue()
 
 
+# EK 0,01 steht bei uns als Platzhalter für „kein Preis eingespielt“: dafür keine (scheinbar 100 %) Marge
+PLACEHOLDER_EK = Decimal("0.01")
+
+
 def margin(ek, vk):
-    """Rohertragsmarge in % vom VK: (VK − EK) / VK × 100."""
-    if ek is None or vk in (None, Decimal(0)):
+    """Rohertragsmarge in % vom VK: (VK − EK) / VK × 100. Leer ohne echten EK (fehlt oder Platzhalter 0,01)."""
+    if ek is None or ek <= PLACEHOLDER_EK or vk in (None, Decimal(0)):
         return None
     return ((vk - ek) / vk * 100).quantize(Decimal("0.1"))
 
@@ -334,7 +338,7 @@ def export_price_list(db: Session, pl: PriceList) -> bytes:
             if with_margin:
                 row.append(sh.percent(margin(amounts.get("EK"), amounts.get("LISTE"))))
             if has_kalk:
-                row.append(sh._cell(a.calc_factor, "0.00##") if a.calc_factor is not None else None)
+                row.append(sh._cell(a.calc_factor))  # Standardformat: 2,8 bleibt 2,8 (nicht 2,80), 3 bleibt 3
             currency = next((p.currency for p in prices.values()), pl.currency)
             row += [currency, a.status]
             sh.row(row)

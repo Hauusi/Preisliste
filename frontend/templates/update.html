@@ -121,7 +121,7 @@
       <td class="num"><span class="old">{{ i.vk_old | money }}</span> → <b>{{ i.final_vk | money }}</b>
         {% if i.decision == "MANUELL" %}<div class="small">von Hand</div>{% elif new and i.vk_difference_percent is not none %}<div class="delta {{ 'up' if i.vk_difference_percent > 0 else 'down' if i.vk_difference_percent < 0 else '' }}">{{ "+" if i.vk_difference_percent > 0 else "" }}{{ i.vk_difference_percent | money }} %</div>{% endif %}</td>
       <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "–" }}
-        {% if i.final_ek is not none and i.final_vk %}<div class="small">Marge {{ (((i.final_vk - i.final_ek) / i.final_vk) * 100) | round(1) | num }} %</div>{% endif %}</td>
+        {% if i.final_ek is not none and i.final_ek > 0.01 and i.final_vk %}<div class="small">Marge {{ (((i.final_vk - i.final_ek) / i.final_vk) * 100) | round(1) | num }} %</div>{% endif %}</td>
       <td class="hints"><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>
         {% if i.note %}<div class="small">{{ i.note }}</div>
         {% elif i.reasons %}<div class="small">{% for r in i.reasons %}{{ reasons[r] }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}

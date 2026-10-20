@@ -38,3 +38,25 @@ def test_adopted_list_can_be_downloaded_later(admin_client, user_client, tmp_pat
 
     # fremde Listen nicht abrufbar
     assert user_client.get(f"/listen/{adopted}/export").status_code == 404
+
+
+def test_placeholder_ek_has_no_margin_and_kalk_unformatted(admin_client, tmp_path, app):
+    from decimal import Decimal
+
+    from backend.excel.export import margin
+
+    assert margin(Decimal("0.01"), Decimal("273.40")) is None
+    assert margin(Decimal("84.80"), Decimal("237.44")) == Decimal("64.3")
+    c = admin_client
+    mid, _ = _setup(c)
+    lid = _import(c, app, tmp_path, "kalk", [["Artikelnummer", "Bezeichnung", "EK", "VK", "Kalk"],
+                                             ["A1", "ohne Preis", "0,01", "273,40", ""], ["A2", "x", "84,80", "237,44", "2,8"]],
+                  mid, "UNSERE", ("supplier_price", "list_price", "calc_factor"))
+    rows = _sheet(c.get(f"/listen/{lid}/export").content)
+    head = rows[0]
+    by_nr = {r[0]: r for r in rows[1:]}
+    assert by_nr["RAA1"][head.index("Marge %")] is None
+    assert by_nr["RAA2"][head.index("Marge %")] == 64.3
+    wb = openpyxl.load_workbook(io.BytesIO(c.get(f"/listen/{lid}/export").content))
+    kalk = [cell for cell in wb["Preisliste"][3] if cell.column == head.index("Kalk") + 1][0]
+    assert kalk.value == 2.8 and kalk.number_format == "General"
