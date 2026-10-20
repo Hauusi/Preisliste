@@ -286,3 +286,66 @@ def export_customer_changes(db: Session, upd) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def export_price_list(db: Session, pl: PriceList) -> bytes:
+    """Gespeicherte Liste als Excel (z. B. unsere aktuelle EK/VK-Liste, inkl. später aufgenommener neuer Artikel).
+
+    Eine Zeile je Artikel und Staffel; Preisspalten nur für Preisarten, die in der Liste vorkommen."""
+    from backend.models.entities import Article, ArticlePrice
+
+    codes = code_map(db)
+    mfr = {m.id: m.name for m in db.scalars(select(Manufacturer))}
+    articles = db.scalars(select(Article).where(Article.price_list_id == pl.id)
+                          .options(selectinload(Article.prices)).order_by(Article.source_row, Article.id)).all()
+    present = {p.price_type for a in articles for p in a.prices}
+    ours = pl.kind == "UNSERE"
+    labels = {"EK": "EK", "LISTE": "VK" if ours else "Listenpreis", "UVP": "UVP"}
+    types = [t for t in ("EK", "LISTE", "UVP") if t in present]
+    with_margin = "EK" in present and "LISTE" in present
+    has_scale = any(p.min_quantity is not None for a in articles for p in a.prices)
+    has_kalk = any(a.calc_factor is not None for a in articles)
+
+    header = ["Artikelnummer", "Original-Nr.", "Hersteller", "Bezeichnung", "Kategorie", "Einheit"]
+    widths = [18, 16, 18, 44, 18, 9]
+    if has_scale:
+        header, widths = header + ["Staffel ab"], widths + [10]
+    header += [labels[t] for t in types]
+    widths += [12] * len(types)
+    if with_margin:
+        header, widths = header + ["Marge %"], widths + [10]
+    if has_kalk:
+        header, widths = header + ["Kalk"], widths + [8]
+    header, widths = header + ["Währung", "Status"], widths + [9, 11]
+
+    wb = openpyxl.Workbook(write_only=True)
+    sh = _Sheet(wb, "Preisliste", header, widths)
+    for a in articles:
+        by_qty: dict = {}
+        for p in a.prices:
+            by_qty.setdefault(p.min_quantity, {})[p.price_type] = p
+        for qty, prices in sorted(by_qty.items(), key=lambda kv: (kv[0] is not None, kv[0] or 0)) or [(None, {})]:
+            amounts = {t: prices[t].amount if t in prices else None for t in types}
+            row = [with_code(a.article_number, codes.get(a.manufacturer_id)), a.article_number,
+                   mfr.get(a.manufacturer_id, a.manufacturer_raw), a.description, a.category, a.unit]
+            if has_scale:
+                row.append(sh._cell(qty, "0") if qty is not None else None)
+            row += [sh.money(amounts[t]) for t in types]
+            if with_margin:
+                row.append(sh.percent(margin(amounts.get("EK"), amounts.get("LISTE"))))
+            if has_kalk:
+                row.append(sh._cell(a.calc_factor, "0.00##") if a.calc_factor is not None else None)
+            currency = next((p.currency for p in prices.values()), pl.currency)
+            row += [currency, a.status]
+            sh.row(row)
+    info = _Sheet(wb, "Info", ["Angabe", "Wert"], [24, 70])
+    for label, value in [("Liste", pl.name), ("Art", {"UNSERE": "Unsere EK/VK-Liste", "HERSTELLER": "Herstellerliste"}
+                                                      .get(pl.kind or "", "Liste")),
+                         ("Hersteller", pl.manufacturer.name if pl.manufacturer else "mehrere/unbekannt"),
+                         ("Quelle", pl.source_file), ("Stand", pl.imported_at.strftime("%d.%m.%Y %H:%M") if pl.imported_at else ""),
+                         ("Gültig ab", ".".join(reversed(pl.valid_from.split("-"))) if pl.valid_from else "nicht angegeben"),
+                         ("Artikel", len(articles))]:
+        info.row([label, value])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

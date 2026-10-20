@@ -1,4 +1,4 @@
-{% from "_icons.html" import delete_link %}
+{% from "_icons.html" import delete_link, icon %}
 {% set status_labels = {"IMPORTIERT": "importiert", "ENTWURF": "Entwurf", "WARTESCHLANGE": "läuft", "FEHLGESCHLAGEN": "fehlgeschlagen"} %}
 <div class="scroll">
 <table>
@@ -15,7 +15,7 @@
       <td class="num">{{ pl.summary.articles if pl.summary and pl.summary.articles is defined else "" }}</td>
       <td class="small">{% if msgs.FEHLER %}<span class="FEHLER">{{ msgs.FEHLER }} Fehler</span> {% endif %}{% if msgs.UNKLAR %}<span class="UNKLAR">{{ msgs.UNKLAR }} unklar</span> {% endif %}{% if msgs.WARNUNG %}<span class="WARNUNG">{{ msgs.WARNUNG }} Warnungen</span>{% endif %}{% if not (msgs.FEHLER or msgs.UNKLAR or msgs.WARNUNG) %}<span class="hint">–</span>{% endif %}</td>
       <td class="small">{{ pl.uploaded_at | dt }}</td>
-      <td class="row-actions">{% if pl.status != "WARTESCHLANGE" and (user.role == "admin" or pl.uploaded_by == user.id) %}{{ delete_link("/listen/" ~ pl.id ~ "/loeschen", "Preisliste löschen") }}{% endif %}</td>
+      <td class="row-actions">{% if pl.status == "IMPORTIERT" %}<a class="icon-btn" href="/listen/{{ pl.id }}/export" title="Als Excel herunterladen" aria-label="Als Excel herunterladen">{{ icon("download", 18) }}</a>{% endif %}{% if pl.status != "WARTESCHLANGE" and (user.role == "admin" or pl.uploaded_by == user.id) %}{{ delete_link("/listen/" ~ pl.id ~ "/loeschen", "Preisliste löschen") }}{% endif %}</td>
     </tr>
   {% else %}
     <tr><td colspan="9"><div class="empty-state">Noch keine Preislisten.</div></td></tr>

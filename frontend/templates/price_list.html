@@ -6,6 +6,7 @@
   <div><h1>{{ pl.name }} {% if pl.kind == "UNSERE" %}<span class="badge NEUER_ARTIKEL">Unsere Liste</span>{% elif pl.kind == "HERSTELLER" %}<span class="badge">Herstellerliste</span>{% endif %}</h1>
     <p>{{ pl.source_file }}{% if pl.sheet %} · Blatt {{ pl.sheet }}{% endif %} · importiert {{ pl.imported_at | dt }}{% if pl.currency %} · {{ pl.currency }}{% endif %}</p></div>
   <div class="actions m0">
+    {% if pl.status == "IMPORTIERT" %}<a class="button secondary" href="/listen/{{ pl.id }}/export">{{ icon("download", 16) }} Als Excel herunterladen</a>{% endif %}
     {% if pl.kind == "UNSERE" %}<a class="button" href="/import">{{ icon("upload", 16) }} Neue Herstellerliste einspielen</a>
     {% else %}<a class="button" href="/listen/{{ pl.id }}/kalkulation">{{ "Abgleich starten" if pl.kind == "HERSTELLER" else "Kalkulieren" }}</a>{% endif %}
     {% if user.role == "admin" or pl.uploaded_by == user.id %}<a class="button danger-link" href="/listen/{{ pl.id }}/loeschen">{{ trash() }} Löschen</a>{% endif %}
