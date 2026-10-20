@@ -102,6 +102,27 @@ def price_list(request: Request, list_id: int, status: str | None = None, q: str
     })
 
 
+@router.get("/listen/{list_id}/export")
+def export_list(request: Request, list_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Liste jederzeit als Excel herunterladen (auch nach dem Abgleich, inkl. neu aufgenommener Artikel)."""
+    import re
+
+    from fastapi.responses import Response
+
+    from backend.api.deps import client_ip
+    from backend.excel.export import export_price_list
+    from backend.services.audit import audit
+
+    pl = get_visible(db, PriceList, list_id, user)
+    if pl.status != "IMPORTIERT":
+        raise HTTPException(409, "Die Liste ist noch nicht fertig importiert")
+    data = export_price_list(db, pl)
+    audit(db, user, "export_liste", "price_list", pl.id, ip=client_ip(request))
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", pl.name)[:80].strip("_") or f"Liste_{pl.id}"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.xlsx"'})
+
+
 @router.get("/listen/{list_id}/meldungen")
 def messages(request: Request, list_id: int, level: str | None = None, page: int = 1,
              db: Session = Depends(get_db), settings: Settings = Depends(get_settings),
