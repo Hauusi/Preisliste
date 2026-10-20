@@ -292,6 +292,15 @@ def export_customer_changes(db: Session, upd) -> bytes:
     return buf.getvalue()
 
 
+def list_status(status: str, ek, vk) -> str:
+    """Status für den Listen-Export: Platzhalter-EK und unplausible VK deutlich benennen."""
+    if ek is not None and ek <= PLACEHOLDER_EK:
+        return "Preis fehlt (EK 0,01)"
+    if ek is not None and vk is not None and ek > 0 and vk > ek * 20:
+        return "VK unplausibel (über 20 × EK)"
+    return status
+
+
 def export_price_list(db: Session, pl: PriceList) -> bytes:
     """Gespeicherte Liste als Excel (z. B. unsere aktuelle EK/VK-Liste, inkl. später aufgenommener neuer Artikel).
 
@@ -340,7 +349,7 @@ def export_price_list(db: Session, pl: PriceList) -> bytes:
             if has_kalk:
                 row.append(sh._cell(a.calc_factor))  # Standardformat: 2,8 bleibt 2,8 (nicht 2,80), 3 bleibt 3
             currency = next((p.currency for p in prices.values()), pl.currency)
-            row += [currency, a.status]
+            row += [currency, list_status(a.status, amounts.get("EK"), amounts.get("LISTE"))]
             sh.row(row)
     info = _Sheet(wb, "Info", ["Angabe", "Wert"], [24, 70])
     for label, value in [("Liste", pl.name), ("Art", {"UNSERE": "Unsere EK/VK-Liste", "HERSTELLER": "Herstellerliste"}
