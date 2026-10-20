@@ -95,3 +95,20 @@ def test_abgleich_placeholder_and_absurd_old_vk(admin_client, tmp_path, app):
     assert p2.status == "PRUEFEN" and "VK_UNPLAUSIBEL" in p2.reasons and "SONDERPREIS" not in p2.reasons
     assert (p2.final_vk, p2.decision) == (D("169.60"), "NEU")
     assert (p3.status, p3.final_vk) == ("OK", D("169.60"))
+
+
+def test_abgleich_export_factor_compact_and_no_pct_for_placeholder(admin_client, tmp_path, app):
+    """Abgleich-Excel: Faktor VK/EK ohne angehängte Nullen (2,8 statt 2,8000), keine EK-Änderung % bei EK 0,01."""
+    c = admin_client
+    mid, _ = _setup(c, factor="2,8")
+    _ours(c, app, tmp_path, mid, [["P1", "ohne Vorjahrespreis", "0,01", "119,90"], ["P2", "normal", "81,60", "228,50"]])
+    _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["P1", "a", "47,20"], ["P2", "b", "84,80"]],
+            mid, "HERSTELLER")
+    url = c.post(f"/hersteller/{mid}/abgleich", data={"csrf_token": c.csrf}, follow_redirects=False).headers["location"]
+    wb = openpyxl.load_workbook(io.BytesIO(c.get(url + "/export?entwurf=1").content))
+    ws = wb["ENTWURF Neue Preisliste"]
+    head = [cell.value for cell in ws[1]]
+    rows = {r[0].value: r for r in ws.iter_rows(min_row=2)}
+    assert rows["RAP1"][head.index("EK Δ%")].value is None
+    f = rows["RAP2"][head.index("Faktor VK/EK")]
+    assert f.value == 2.8 and f.number_format == "General"
