@@ -583,7 +583,7 @@ def test_clearance_articles_keep_their_vk(admin_client, app, tmp_path):
                          .rsplit("/", 1)[1]))
     a, b = items["988-301B"], items["988-302B"]
     assert (a.status, a.final_ek, a.final_vk) == ("NICHT_IN_HERSTELLERLISTE", D("0.01"), D("93.00"))
-    assert (b.status, b.final_vk, b.decision) == ("PRUEFEN", D("90.60"), "MANUELL") and "SONDERPREIS" in b.reasons
+    assert (b.status, b.final_vk, b.decision) == ("PRUEFEN", D("90.60"), "MANUELL") and "VORJAHR_FEHLT" in b.reasons
     # Auch „alle bestätigen“ senkt den Abverkaufs-VK nicht
     upd = int(items["984-9020"].update_id)
     c.post(f"/aktualisierungen/{upd}/alle-bestaetigen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})

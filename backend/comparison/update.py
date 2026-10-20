@@ -37,6 +37,10 @@ from backend.models.entities import (
 )
 
 CENT = Decimal("0.01")
+# EK 0,01 in unserer Liste: Preis vom Vorjahr fehlt (oder Abverkauf) – wird immer zur Prüfung vorgelegt
+PLACEHOLDER_EK = CENT
+# VK über dem 20-fachen EK ist nie gewollt (Tippfehler/Importfehler): so ein alter VK wird nie beibehalten
+MAX_FACTOR = Decimal(20)
 STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "UNVERAENDERT", "FEHLER")
 STATUS_LABELS = {
     "OK": "in Ordnung", "PRUEFEN": "prüfen", "NICHT_EINDEUTIG": "Zuordnung unklar",
@@ -51,6 +55,8 @@ REASON_LABELS = {
     "PREIS_NULL": "Preis ist 0",
     "KEIN_ALTER_EK": "kein EK im Vorjahr",
     "KEIN_ALTER_VK": "kein VK im Vorjahr",
+    "VORJAHR_FEHLT": "Preis vom Vorjahr fehlt (EK 0,01) – Abverkauf? alter VK vorgeschlagen, kalkulierter daneben",
+    "VK_UNPLAUSIBEL": "VK unplausibel (mehr als 20 × EK)",
     "NICHT_GEGENGEPRUEFT": "Kalkulation nicht automatisch nachrechenbar",
     "UNKLAR": "Zuordnung unklar",
     "FEHLT": "fehlt in der Herstellerliste",
@@ -264,7 +270,8 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     row.update(calculated_amount=vk_new, final_ek=ek_new, final_vk=vk_new, decision="NEU")
     if ek_new > 0:
         row["factor"] = (vk_new / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-    if ek_old is not None:
+    placeholder = ek_old is not None and ek_old <= PLACEHOLDER_EK
+    if ek_old is not None and not placeholder:  # 0,01 -> 84,80 wäre +847.900 %: keine Änderung in % ausweisen
         row["difference"] = ek_new - ek_old
         row["difference_percent"] = _pct(ek_old, ek_new)
     if vk_old is not None:
@@ -279,7 +286,24 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     if pct is not None and vk_pct is not None and abs(vk_pct - pct) >= ctx.threshold:
         reasons.append("VK_ABWEICHUNG")
         notes.append(f"EK {de(pct)} %, VK {de(vk_pct)} %")
-    if ("VK_ABWEICHUNG" in reasons and vk_old is not None and vk_new < vk_old and vk_old >= ek_new
+    # Neuer EK selbst 0,01 (Hersteller führt Abverkauf mit 0,01): Faktor sagt nichts, alter VK bleibt möglich
+    old_vk_plausible = vk_old is not None and (ek_new <= PLACEHOLDER_EK or vk_old <= ek_new * MAX_FACTOR)
+    if vk_old is not None and not old_vk_plausible:
+        reasons.append("VK_UNPLAUSIBEL")
+        notes.append(f"Alter VK {de(vk_old)} ist mehr als 20 × EK {de(ek_new)} – nicht übernommen, "
+                     f"kalkulierter VK {de(vk_new)} vorgeschlagen")
+    if placeholder:
+        # Preis vom Vorjahr fehlt oder Abverkaufsartikel: kann nur der Mensch unterscheiden.
+        # Alter VK bleibt vorgeschlagen (wenn plausibel), „Zurücknehmen“ = kalkulierter VK.
+        reasons.append("VORJAHR_FEHLT")
+        if old_vk_plausible and vk_new != vk_old:
+            notes.append(f"EK Vorjahr 0,01: kalkuliert wären {de(vk_new)} – alter VK {de(vk_old)} bleibt vorgeschlagen")
+            row.update(final_vk=vk_old, decision="MANUELL", vk_difference=Decimal(0), vk_difference_percent=Decimal(0))
+            if ek_new > 0:
+                row["factor"] = (vk_old / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        else:
+            notes.append(f"EK Vorjahr 0,01: VK neu kalkuliert ({de(vk_new)})")
+    elif ("VK_ABWEICHUNG" in reasons and old_vk_plausible and vk_new < vk_old and vk_old >= ek_new
             and ek_old is not None and ek_new >= ek_old):
         # VK würde stark fallen, obwohl der EK nicht fällt: alter VK war ein Sonder-/Abverkaufspreis
         # (z. B. EK 0,01 / VK 93,00). Nie still senken – alter VK bleibt vorgeschlagen, „Zurücknehmen“ = kalkuliert.
