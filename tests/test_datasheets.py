@@ -66,7 +66,7 @@ def test_save_returns_live_preview_with_all_blocks(admin_client, settings):
     r = _save(c, sid, content)
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["ok"] and data["titel"] == "LED Leuchtbalken – Serie 12+" and data["seiten"] == 2
+    assert data["ok"] and data["titel"] == "LED Leuchtbalken – Serie 12+" and data["seiten"] == 1
     html = data["html"]
     assert "<li><b>Garantie:</b> 5 Jahre</li>" in html and "12-24V" not in html  # ausgeblendet
     assert html.count('class="ece-in"') == 3 and "CISPR 25" in html and 'class="ece cispr"' in html
@@ -101,7 +101,7 @@ def test_new_page_and_order_control_pagination():
     assert len(pages) == 2 and pages[1]["teile"][0]["titel"] == "Tabelle"
     # Reihenfolge der Bausteine bestimmt die Reihenfolge im Blatt
     c["bloecke"] = [{**table, "neue_seite": False}, {"typ": "intro", "neue_seite": False, "sichtbar": True}]
-    assert [t["typ"] for t in ds.paginate(c)[0]["teile"]] == ["tabelle", "intro"]
+    assert [t["typ"] for t in ds.paginate(c)[0]["teile"]] == ["tabelle", "kopfbereich"]
 
 
 def test_long_tables_are_split_with_continuation():
@@ -172,6 +172,7 @@ def test_old_format_is_migrated_to_blocks():
            "zubehoer": [{"bild": "z.png", "artnr": "Z1", "beschreibung": "Winkel"}]}
     c = ds.normalized(old)
     assert c["eigenschaften"][0] == {"name": "", "wert": "2 Jahre Garantie", "sichtbar": True}
+    assert c["einleitung"] == "x"  # früherer Beschreibungstext bleibt erhalten
     typs = [b["typ"] for b in c["bloecke"]]
     assert typs == ["intro", "spez", "anwendung", "tabelle", "tabelle"]
     gecko, acc = c["bloecke"][3], c["bloecke"][4]
@@ -218,3 +219,26 @@ def test_approval_badges_from_zulassung():
     c["eigenschaften"][0]["wert"] = "E-Prüfzeichen"
     c["spez"]["zeilen"] = [{"merkmal": "Zulassungen", "wert": "ECE R148"}, {"merkmal": "Spannung", "wert": "R12"}]
     assert ds.approval_badges(c) == [{"art": "ECE", "nr": "148", "klasse": None}]
+
+
+def test_intro_text_and_spec_share_head_area_like_standard(admin_client):
+    """Standard-Aufbau: links Beschreibungstext, Aufzählung, Spezifikation; rechts Bilder über die ganze Höhe."""
+    c = admin_client
+    sid = _new(c, "LED Leuchtbalken", "Serie 12+")
+    img = _upload(c, sid).json()["name"]
+    html = _save(c, sid, _content()).json()["html"]
+    assert 'class="placeholder"' in html  # leerer Text: Platz in der Live-Vorschau sichtbar
+    assert 'class="placeholder"' not in c.get(f"/datenblatt/{sid}/vorschau").text  # nicht im Druck
+    content = _content(einleitung="Die LED Leuchtbalken der Serie 12+ Vantage sind leistungsstark.\n\nZweiter Absatz.",
+                       eigenschaften=[{"name": "", "wert": "5 Jahre Garantie", "sichtbar": True}],
+                       bilder_oben=[img], spez={"zeilen": [{"merkmal": "Spannungsbereich", "wert": "12-24V"}]})
+    html = _save(c, sid, content).json()["html"]
+    assert html.count('class="part lead"') == 1 and 'class="placeholder"' not in html
+    left = html[html.index('class="lead-left"'):html.index('class="lead-right"')]
+    assert left.index("Vantage sind leistungsstark.</p>") < left.index("<li>5 Jahre Garantie</li>") < left.index("Spannungsbereich")
+    assert "<p>Zweiter Absatz.</p>" in left
+    assert img in html[html.index('class="lead-right"'):]
+    # Spezifikation mit „neue Seite“: eigener Kopfbereich auf Seite 2
+    content["bloecke"] = [{"typ": "intro"}, {"typ": "spez", "neue_seite": True}, {"typ": "anwendung"}]
+    data = _save(c, sid, content).json()
+    assert data["seiten"] == 2 and data["html"].count('class="part lead"') == 2

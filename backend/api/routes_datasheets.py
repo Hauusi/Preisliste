@@ -24,10 +24,10 @@ MAX_JSON_BYTES = 1024 * 1024
 
 
 def _pages_html(sheet: Datasheet, content: dict) -> tuple[str, int]:
-    """A4-Seiten als HTML (gleiche Vorlage wie die Druckansicht) und Seitenzahl."""
-    pages = ds.paginate(content)
+    """A4-Seiten für die Live-Vorschau (gleiche Vorlage wie die Druckansicht, plus Platzhalter) und Seitenzahl."""
+    pages = ds.paginate(content, editor=True)
     html = templates.get_template("_datasheet_pages.html").render(
-        sheet=sheet, c=ds.normalized(content), pages=pages, footer=ds.FOOTER)
+        sheet=sheet, c=ds.normalized(content), pages=pages, footer=ds.FOOTER, editor=True)
     return html, len(pages)
 
 

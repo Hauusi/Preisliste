@@ -35,6 +35,7 @@
     var content = {
       kopf: { titel: val(root, '[data-f="kopf.titel"]'), untertitel: val(root, '[data-f="kopf.untertitel"]') },
       fuss: { version: val(root, '[data-f="fuss.version"]') },
+      einleitung: $('[data-f="einleitung"]', intro).value.trim(),
       eigenschaften: own($('[data-list="eigenschaften"]', intro), "[data-row]").map(function (r) {
         return { name: val(r, '[data-f="name"]'), wert: val(r, '[data-f="wert"]'), sichtbar: visible(r) };
       }),
@@ -78,16 +79,21 @@
       if (typ === "intro") {
         var n = own($('[data-list="eigenschaften"]', c), "[data-row]").filter(function (r) {
           return visible(r) && val(r, '[data-f="wert"]'); }).length;
-        text = n + " Eigenschaften, " + slotNames($('[data-imgs="bilder_oben"]', c)).length + " Bilder";
+        var pics = slotNames($('[data-imgs="bilder_oben"]', c)).length;
+        text = ($('[data-f="einleitung"]', c).value.trim() ? "Text, " : "ohne Text, ") +
+          n + (n === 1 ? " Eigenschaft, " : " Eigenschaften, ") + pics + (pics === 1 ? " Bild" : " Bilder");
       } else if (typ === "spez") {
-        text = own($('[data-list="spez"]', c), "[data-row]").length + " Zeilen";
+        var rows = own($('[data-list="spez"]', c), "[data-row]").length;
+        text = rows + (rows === 1 ? " Zeile" : " Zeilen");
       } else if (typ === "anwendung") {
-        text = slotNames($('[data-imgs="bilder_unten"]', c)).length + " Bilder";
+        var n2 = slotNames($('[data-imgs="bilder_unten"]', c)).length;
+        text = n2 + (n2 === 1 ? " Bild" : " Bilder");
       } else if (typ === "bild") {
         text = slotNames($('[data-imgs="bild"]', c)).length ? "" : "noch kein Bild";
       } else if (typ === "tabelle") {
         var title = [val(c, '[data-f="titel"]'), val(c, '[data-f="zusatz"]')].filter(Boolean).join(" - ");
-        text = (title || "ohne Überschrift") + " · " + own($('[data-list="zeilen"]', c), "[data-row]").length + " Zeilen";
+        var tr = own($('[data-list="zeilen"]', c), "[data-row]").length;
+        text = (title || "ohne Überschrift") + " · " + tr + (tr === 1 ? " Zeile" : " Zeilen");
         // Wertefelder nur für benannte Zusatzspalten zeigen
         $$("[data-col]", c).forEach(function (input) {
           var k = input.getAttribute("data-col"), on = !!input.value.trim();

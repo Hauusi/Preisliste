@@ -42,3 +42,10 @@ Alle Lizenzen sind freizügig (MIT, BSD, Apache-2.0, PSF). Es gibt keine Copylef
 - **Modell `llama3.2:3b`:** Es gilt die Llama 3.2 Community License von Meta, keine Open-Source-Lizenz im engeren Sinn. Die Nutzung ist erlaubt, es gibt aber Bedingungen (u. a. Acceptable Use Policy). Vor dem produktiven Einsatz bitte selbst lesen. Austauschbar über `PREIS_AI_MODEL`. Die Lizenzen anderer Modelle unterscheiden sich, teils je nach Größe; vor einem Wechsel prüfen. Größere Modelle brauchen mehr RAM als die 4 GB Limit für Ollama.
 
 Nur für die Entwicklung (nicht im Image): pytest (MIT), httpx (BSD-3-Clause).
+
+## Mitgelieferte Schrift
+
+`frontend/static/fonts/SourceSans3-*.woff2`: **Source Sans 3** von Adobe (Version 3.052, aus dem offiziellen Release
+github.com/adobe-fonts/source-sans), Lizenz **SIL Open Font License 1.1** (`SourceSans3-LICENSE.md` liegt daneben).
+Wird nur für die Datenblätter verwendet, wenn Myriad Pro nicht installiert ist. Keine Netzwerkzugriffe: die Dateien
+werden von der App selbst ausgeliefert.
