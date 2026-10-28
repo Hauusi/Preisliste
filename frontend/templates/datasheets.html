@@ -6,10 +6,17 @@
   <div>
     <div class="eyebrow"><a href="/">Sales Assistant</a> · Datenblatt</div>
     <h1>Datenblätter</h1>
-    <p>Festes Layout mit Kopf- und Fußzeile, der Inhalt wird Schritt für Schritt abgefragt.</p>
+    <p>Festes Layout mit Kopf- und Fußzeile, Inhalt aus verschiebbaren Bausteinen mit Live-Vorschau.</p>
   </div>
-  <a class="button" href="/datenblatt/neu">{{ icon("plus", 18) }} Neues Datenblatt</a>
 </div>
+
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" action="/datenblatt/neu" class="card row dse-new">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="grow">Titel (Produktgruppe) <input name="titel" maxlength="60" required placeholder="z. B. LED Leuchtbalken"></label>
+  <label class="grow">Untertitel (Serie) <input name="untertitel" maxlength="80" placeholder="z. B. Serie 12+"></label>
+  <button type="submit">{{ icon("plus", 18) }} Neues Datenblatt</button>
+</form>
 
 {% if sheets %}
 <div class="scroll">
@@ -18,7 +25,7 @@
   <tbody>
   {% for s in sheets %}
     <tr>
-      <td><a href="/datenblatt/{{ s.id }}/schritt/kopf"><b>{{ s.title }}</b></a></td>
+      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a></td>
       {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
       <td>{{ s.updated_at | dt }}</td>
       <td class="row-actions">
@@ -35,6 +42,6 @@
 </table>
 </div>
 {% else %}
-<section class="card"><div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Datenblätter. <a href="/datenblatt/neu">Erstes Datenblatt erstellen →</a></div></section>
+<section class="card"><div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Datenblätter. Oben Titel eingeben und anlegen.</div></section>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, trash %}
+{% block title %}{{ sheet.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/datasheet.css">{% endblock %}
+
+{# Bildplatz: leer = klicken oder Datei hineinziehen; gefüllt = ziehen zum Tauschen, × zum Entfernen #}
+{% macro slot(name, label="Bild", small=false) -%}
+<div class="dse-slot{{ ' filled' if name }}{{ ' small' if small }}" data-slot data-name="{{ name or '' }}" tabindex="0"
+     title="{{ 'Ziehen zum Tauschen, × zum Entfernen' if name else 'Klicken oder Bild hierher ziehen' }}">
+  <img src="{{ '/datenblatt/%d/bild/%s' % (sheet.id, name) if name else '' }}" alt=""{% if not name %} hidden{% endif %}>
+  <span class="dse-slot-empty">{{ icon("upload", 16) }}{% if not small %}<span>{{ label }}</span>{% endif %}</span>
+  <button type="button" class="dse-slot-x" data-slot-remove title="Bild entfernen" aria-label="Bild entfernen">×</button>
+  <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+</div>
+{%- endmacro %}
+
+{% macro row_tools() -%}
+<button type="button" class="dse-grip" data-grip title="Ziehen zum Verschieben (oder Pfeiltasten)" aria-label="Verschieben">{{ icon("grip", 16) }}</button>
+{%- endmacro %}
+{% macro row_del() -%}
+<button type="button" class="icon-btn dse-del" data-remove title="Entfernen" aria-label="Entfernen">{{ trash() }}</button>
+{%- endmacro %}
+
+{% macro prop_row(e) -%}
+<div class="dse-row prop{{ '' if e.sichtbar is not defined or e.sichtbar else ' off' }}" data-row data-prop>
+  {{ row_tools() }}
+  <input class="prop-name" data-f="name" value="{{ e.name }}" maxlength="40" placeholder="Eigenschaft" list="dse-suggestions">
+  <input class="prop-value" data-f="wert" value="{{ e.wert }}" maxlength="150" placeholder="Wert eintragen">
+  <button type="button" class="icon-btn dse-eye" data-visible aria-pressed="{{ 'true' if e.sichtbar is not defined or e.sichtbar else 'false' }}" title="Ein-/ausblenden"><span class="eye-on">{{ icon("eye", 16) }}</span><span class="eye-off">{{ icon("eyeoff", 16) }}</span></button>
+  {{ row_del() }}
+</div>
+{%- endmacro %}
+
+{% macro spec_row(z) -%}
+<div class="dse-row spec" data-row>
+  {{ row_tools() }}
+  <input data-f="merkmal" value="{{ z.merkmal }}" maxlength="60" placeholder="Merkmal, z. B. Spannungsbereich">
+  <textarea data-f="wert" rows="1" maxlength="300" placeholder="Wert">{{ z.wert }}</textarea>
+  {{ row_del() }}
+</div>
+{%- endmacro %}
+
+{% macro table_row(r) -%}
+<div class="dse-row trow" data-row>
+  {{ row_tools() }}
+  {{ slot(r.bild, small=true) }}
+  <input data-f="artnr" value="{{ r.artnr }}" maxlength="60" placeholder="Artikelnr." class="t-nr">
+  <select data-f="farbe" title="Farbpunkt">{% for v, l in colors.items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <input data-f="beschreibung" value="{{ r.beschreibung }}" maxlength="300" placeholder="Beschreibung" class="t-desc">
+  {% for k in range(max_columns) %}<input data-w="{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="t-val">{% endfor %}
+  {{ row_del() }}
+</div>
+{%- endmacro %}
+
+{% macro card(b) -%}
+{% set t = b.typ %}
+<section class="dse-card{{ ' hidden-block' if not b.sichtbar }}" data-row data-card data-typ="{{ t }}">
+  <header class="dse-card-head">
+    {{ row_tools() }}
+    <button type="button" class="dse-card-title" data-collapse aria-expanded="false">
+      <span class="dse-card-name">{{ {"intro": "Eigenschaften & Produktbilder", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder", "tabelle": "Tabelle", "bild": "Bild"}[t] }}</span>
+      <span class="dse-card-sub" data-sub></span>
+    </button>
+    <label class="dse-newpage" title="Baustein beginnt auf einer neuen Seite"><input type="checkbox" data-f="neue_seite"{% if b.neue_seite %} checked{% endif %}> neue Seite</label>
+    <button type="button" class="icon-btn dse-eye" data-visible aria-pressed="{{ 'true' if b.sichtbar else 'false' }}" title="Im Datenblatt ein-/ausblenden"><span class="eye-on">{{ icon("eye", 16) }}</span><span class="eye-off">{{ icon("eyeoff", 16) }}</span></button>
+    {% if t in ("tabelle", "bild") %}{{ row_del() }}{% endif %}
+  </header>
+  <div class="dse-card-body">
+  {% if t == "intro" %}
+    <h4>Eigenschaften <small>Aufzählung „Name: Wert“, nur Zeilen mit Wert werden gedruckt</small></h4>
+    <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften %}{{ prop_row(e) }}{% endfor %}</div>
+    <button type="button" class="dse-add-row" data-add-row="prop">{{ icon("plus", 16) }} Eigenschaft</button>
+    <h4>Produktbilder <small>rechts, untereinander</small></h4>
+    <div class="dse-slots" data-imgs="bilder_oben">{% for i in range(2) %}{{ slot(c.bilder_oben[i] if i < c.bilder_oben | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
+  {% elif t == "spez" %}
+    <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassung“.</p>
+    <div class="dse-list" data-sortable data-list="spez">{% for z in c.spez.zeilen %}{{ spec_row(z) }}{% endfor %}</div>
+    <button type="button" class="dse-add-row" data-add-row="spec">{{ icon("plus", 16) }} Zeile</button>
+    <h4>Bilder rechts daneben <small>z. B. Maßzeichnungen</small></h4>
+    <div class="dse-slots" data-imgs="zeichnungen">{% for i in range(2) %}{{ slot(c.zeichnungen[i] if i < c.zeichnungen | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
+  {% elif t == "anwendung" %}
+    <p class="hint">Zwei Bilder nebeneinander (auf gleiche Höhe zugeschnitten) oder ein Bild über die ganze Breite.</p>
+    <div class="dse-slots" data-imgs="bilder_unten">{% for i in range(2) %}{{ slot(c.bilder_unten[i] if i < c.bilder_unten | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
+  {% elif t == "bild" %}
+    <div class="dse-inline">
+      <div class="dse-slots one" data-imgs="bild">{{ slot(b.bild, "Bild") }}</div>
+      <label>Höhe <select data-f="hoehe">{% for k, (l, mm) in heights.items() %}<option value="{{ k }}"{% if b.hoehe == k %} selected{% endif %}>{{ l }} ({{ mm }} mm)</option>{% endfor %}</select></label>
+    </div>
+  {% elif t == "tabelle" %}
+    <div class="dse-grid2">
+      <label>Überschrift (fett) <input data-f="titel" value="{{ b.titel }}" maxlength="80" placeholder="z. B. Bestellinformationen"></label>
+      <label>Zusatz (normal) <input data-f="zusatz" value="{{ b.zusatz }}" maxlength="80" placeholder="z. B. Serie 12+ Standard Version"></label>
+    </div>
+    <div class="dse-inline">
+      <div class="dse-slots one" data-imgs="bild">{{ slot(b.bild, "Gruppenbild") }}</div>
+      <label>Gruppenbild <select data-f="bild_pos">{% for k, l in image_pos.items() %}<option value="{{ k }}"{% if b.bild_pos == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+      <label>Bilder je Zeile <select data-f="zeilenbilder">{% for k, l in row_images.items() %}<option value="{{ k }}"{% if b.zeilenbilder == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="dse-cols">
+      <span>Zusatzspalten</span>
+      {% for k in range(max_columns) %}<input data-col="{{ k }}" value="{{ b.spalten[k] if k < b.spalten | length else '' }}" maxlength="30" placeholder="Spalte {{ k + 1 }} (leer = keine)">{% endfor %}
+    </div>
+    <div class="dse-list" data-sortable data-list="zeilen">{% for r in b.zeilen %}{{ table_row(r) }}{% endfor %}</div>
+    <div class="dse-row-actions">
+      <button type="button" class="dse-add-row" data-add-row="trow">{{ icon("plus", 16) }} Zeile</button>
+      <details class="dse-paste"><summary>Aus Excel einfügen</summary>
+        <p class="hint">Spalten markieren und kopieren: Artikelnummer, Beschreibung, dann die Zusatzspalten. Die Farbe wird aus dem letzten Farbwort der Beschreibung übernommen.</p>
+        <textarea rows="3" data-paste-text placeholder="RTG3HSA0CB&#9;LED Blitzmodul Gecko 3, 11-30V, gelb&#9;ECE-R65 Klasse I"></textarea>
+        <button type="button" class="secondary" data-paste>Zeilen übernehmen</button>
+      </details>
+    </div>
+  {% endif %}
+  </div>
+</section>
+{%- endmacro %}
+
+{% block content %}
+<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}">
+  <div class="dse-top">
+    <div>
+      <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
+      <h1 data-live-title>{{ sheet.title }}</h1>
+    </div>
+    <div class="dse-top-actions">
+      <span class="dse-status" data-status>Alle Änderungen gespeichert</span>
+      <a class="button" href="/datenblatt/{{ sheet.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 18) }} Drucken / PDF</a>
+    </div>
+  </div>
+
+  <div class="dse-grid">
+    <div class="dse-edit">
+      <section class="dse-card fixed open" data-card data-typ="kopf">
+        <header class="dse-card-head"><span class="dse-lock" title="Kopfzeile ist fest">{{ icon("shield", 16) }}</span>
+          <button type="button" class="dse-card-title" data-collapse aria-expanded="true"><span class="dse-card-name">Kopfzeile</span><span class="dse-card-sub">auf jeder Seite gleich</span></button></header>
+        <div class="dse-card-body dse-grid2">
+          <label>Titel (Produktgruppe) <input data-f="kopf.titel" value="{{ c.kopf.titel }}" maxlength="60" placeholder="z. B. LED Leuchtbalken" required></label>
+          <label>Untertitel (Serie) <input data-f="kopf.untertitel" value="{{ c.kopf.untertitel }}" maxlength="80" placeholder="z. B. Serie 12+"></label>
+        </div>
+      </section>
+
+      <div class="dse-blocks" data-sortable data-blocks>
+        {% for b in c.bloecke %}{{ card(b) }}{% endfor %}
+      </div>
+
+      <div class="dse-add">
+        <span>Baustein hinzufügen:</span>
+        <button type="button" class="secondary" data-add-block="tabelle">{{ icon("list", 16) }} Artikeltabelle</button>
+        <button type="button" class="secondary" data-add-block="zubehoer">{{ icon("box", 16) }} Zubehör</button>
+        <button type="button" class="secondary" data-add-block="bild">{{ icon("upload", 16) }} Bild</button>
+      </div>
+
+      <section class="dse-card fixed" data-card data-typ="fuss">
+        <header class="dse-card-head"><span class="dse-lock" title="Fußzeile ist fest">{{ icon("shield", 16) }}</span>
+          <button type="button" class="dse-card-title" data-collapse aria-expanded="false"><span class="dse-card-name">Fußzeile</span><span class="dse-card-sub">fest, nur Version änderbar</span></button></header>
+        <div class="dse-card-body">
+          <label>Version <input data-f="fuss.version" value="{{ c.fuss.version }}" maxlength="30" placeholder="z. B. 29052024"></label>
+        </div>
+      </section>
+    </div>
+
+    <div class="dse-preview">
+      <div class="dse-preview-bar"><b>Live-Vorschau</b> <span data-page-count>{{ page_count }} {{ "Seite" if page_count == 1 else "Seiten" }}</span>
+        <span class="hint">Klick auf einen Bereich öffnet die Eingabe</span></div>
+      <div class="ds-warnings" data-warnings hidden></div>
+      <div class="dse-preview-scroll" data-preview-scroll>
+        <div class="ds-doc" data-preview>{{ pages_html | safe }}</div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="dse-suggestions">{% for n in suggestions %}<option value="{{ n }}">{% endfor %}</datalist>
+  <template data-tpl="prop">{{ prop_row({"name": "", "wert": "", "sichtbar": true}) }}</template>
+  <template data-tpl="spec">{{ spec_row({"merkmal": "", "wert": ""}) }}</template>
+  <template data-tpl="trow">{{ table_row({"bild": none, "artnr": "", "farbe": "", "beschreibung": "", "werte": []}) }}</template>
+  <template data-tpl="tabelle">{{ card(new_table) }}</template>
+  <template data-tpl="zubehoer">{{ card(new_accessories) }}</template>
+  <template data-tpl="bild">{{ card(new_image) }}</template>
+</div>
+<script src="/static/datasheet.js"></script>
+<script src="/static/datasheet_editor.js"></script>
+{% endblock %}

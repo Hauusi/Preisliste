@@ -9,7 +9,7 @@
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="{{ ('portal' if portal else 'app') if user else 'public' }}">
+<body class="{{ ('portal' if portal else 'app') if user else 'public' }}{{ ' wide' if wide }}">
 {% if user and portal %}
 <header class="portal-bar">
   <a href="/" class="brand"><span class="brand-mark">SA</span><span>Sales Assistant</span></a>
