@@ -72,17 +72,22 @@ def calc_form(request: Request, list_id: int, db: Session = Depends(get_db), use
     pl = get_visible(db, PriceList, list_id, user)
     if pl.status != "IMPORTIERT":
         raise HTTPException(404, "Preisliste nicht gefunden")
-    runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == list_id)
+    return _calc_page(request, db, pl)
+
+
+def _calc_page(request: Request, db: Session, pl: PriceList, error: str | None = None, status_code: int = 200):
+    """Kalkulationsseite; auch nach einem Eingabefehler mit vollständigem Inhalt (Schrittleiste, Vorauswahl)."""
+    runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == pl.id)
                       .options(selectinload(CalculationRun.rule_version)).order_by(CalculationRun.id.desc())).all()
     rule_names = {r.id: r.name for r in db.scalars(select(Rule))}
     preselect, hint = default_rule_for_list(db, pl)
     mid = list_manufacturer(db, pl)
     return render(request, "calc_form.html", {
-        "pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": rule_names, "error": None,
+        "pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": rule_names, "error": error,
         "preselect": preselect, "preselect_hint": hint, "step": 3, "list_manufacturer": db.get(Manufacturer, mid) if mid else None,
         "article_count": db.scalar(select(func.count(Article.id)).where(Article.price_list_id == pl.id)),
         **_update_defaults(db, pl, mid),
-    })
+    }, status_code=status_code)
 
 
 def _update_defaults(db: Session, pl: PriceList, mid: int | None) -> dict:
@@ -138,9 +143,7 @@ async def calc_run(request: Request, list_id: int, db: Session = Depends(get_db)
         rule = None  # nur Regeln des Listen-Besitzers
     qty = _positive(form.get("quantity"))
     if rule is None or rule.deleted or qty is None:
-        runs = db.scalars(select(CalculationRun).where(CalculationRun.price_list_id == list_id)).all()
-        return render(request, "calc_form.html", {"pl": pl, "rules": _rules(db, pl.uploaded_by), "runs": runs, "rule_names": {},
-                                                  "error": "Regel wählen und Menge > 0 angeben"}, status_code=400)
+        return _calc_page(request, db, pl, "Regel wählen und Menge > 0 angeben", 400)
     rv = current_version(db, rule)
     run = run_calculation(db, pl.id, rv, qty, user)
     run.created_by = pl.uploaded_by  # gehört dem Besitzer der Liste

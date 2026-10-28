@@ -25,15 +25,15 @@ Installationsort: `/root/apps/preisliste`, Docker-Dateien in `deploy/`.
 
 ## Nur Daten löschen (Benutzer und Regeln bleiben)
 
-Löscht Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Uploads. Vorher wird automatisch gesichert.
-Regeln bleiben erhalten, verlieren aber die Zuordnung zum Hersteller.
+Löscht Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Excel-Uploads. Vorher wird automatisch gesichert.
+Regeln und Datenblätter bleiben erhalten; Regeln verlieren aber die Zuordnung zum Hersteller.
 
 ```
 cd /root/apps/preisliste/deploy
 docker compose exec app python -m backend.cli clear-data --ja
 ```
 
-Mit `--alles` werden zusätzlich alle Regeln und alle Benutzer außer Administratoren gelöscht:
+Mit `--alles` werden zusätzlich alle Regeln und alle Benutzer außer Administratoren gelöscht (samt deren Datenblättern):
 
 ```
 docker compose exec app python -m backend.cli clear-data --ja --alles
@@ -41,7 +41,7 @@ docker compose exec app python -m backend.cli clear-data --ja --alles
 
 ## Alle Daten löschen (Neustart)
 
-Löscht Listen, Hersteller, Regeln, Vergleiche, Benutzer und Uploads. Vorher wird automatisch eine Sicherung angelegt.
+Löscht Listen, Hersteller, Regeln, Vergleiche, Datenblätter, Benutzer und Uploads. Vorher wird automatisch eine Sicherung angelegt.
 Die App muss dabei gestoppt sein, sonst arbeitet sie mit der gelöschten Datei weiter.
 
 ```
@@ -56,7 +56,7 @@ docker compose exec app python -m backend.cli create-admin <name>
 
 - Täglich 02:17 Uhr per `/etc/cron.d/preisliste-backup`, Log `/var/log/preisliste-backup.log`.
 - Ablage: `deploy/data/backups/preisliste-JJJJMMTT-HHMMSS.tar.gz`, die letzten 14 bleiben.
-- Inhalt: konsistente Kopie der Datenbank (SQLite-Backup-API, mit Integritätsprüfung) und alle hochgeladenen Excel-Dateien.
+- Inhalt: konsistente Kopie der Datenbank (SQLite-Backup-API, mit Integritätsprüfung) und der Ordner `uploads/` (hochgeladene Excel-Dateien und Datenblatt-Bilder).
 - **Einschränkung:** Die Sicherungen liegen auf demselben Server. Sie schützen vor Bedienfehlern und kaputten Updates, nicht vor Plattendefekt, Serververlust oder Einbruch. Für mehr Sicherheit den Ordner `deploy/data/backups` regelmäßig woandershin kopieren (z. B. `scp` auf den eigenen Rechner oder eine Hetzner Storage Box).
 
 ### Wiederherstellen

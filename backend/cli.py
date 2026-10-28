@@ -5,14 +5,16 @@
   reset-password <benutzername> Passwort setzen, Sperre aufheben, Sessions beenden
   backup [anzahl]               Sicherung (Datenbank + Uploads) nach data/backups, behält die letzten N (Standard 14)
   clear-data --ja               Hersteller, Preislisten, Artikel, Kalkulationen, Vergleiche und Uploads löschen.
-                                Benutzer, Regeln und Protokoll bleiben. Vorher automatische Sicherung.
+                                Benutzer, Regeln, Datenblätter und Protokoll bleiben. Vorher automatische Sicherung.
   clear-data --ja --regeln      Zusätzlich alle Regeln löschen. Alle Benutzer bleiben.
-  clear-data --ja --alles       Zusätzlich alle Regeln und alle Benutzer außer Administratoren löschen.
-  reset-data --ja               ALLE Daten löschen (Listen, Hersteller, Regeln, Vergleiche, Benutzer, Uploads).
+  clear-data --ja --alles       Zusätzlich alle Regeln und alle Benutzer außer Administratoren löschen
+                                (mit deren Datenblättern).
+  reset-data --ja               ALLE Daten löschen (Listen, Hersteller, Regeln, Vergleiche, Datenblätter, Benutzer, Uploads).
                                 Vorher wird automatisch eine Sicherung erstellt. Danach create-admin ausführen.
 """
 
 import getpass
+import shutil
 import sys
 from pathlib import Path
 
@@ -46,6 +48,7 @@ def reset_data(settings) -> str:
         for f in settings.upload_dir.iterdir():
             if f.is_file():
                 f.unlink()
+        shutil.rmtree(settings.upload_dir / "datenblatt", ignore_errors=True)  # Bilder der Datenblätter
     return str(backup)
 
 
@@ -84,6 +87,10 @@ def clear_data(settings, everything: bool = False, rules: bool = False) -> tuple
         if everything:
             counts["Benutzer (ohne Admins)"] = db.scalar(select(func.count(e.User.id)).where(e.User.role != "admin"))
             others = select(e.User.id).where(e.User.role != "admin")
+            # Datenblätter der gelöschten Benutzer mit löschen (sonst verhindert der Fremdschlüssel das Löschen)
+            gone_sheets = list(db.scalars(select(e.Datasheet.id).where(e.Datasheet.owner_id.in_(others))))
+            counts["Datenblätter (der gelöschten Benutzer)"] = len(gone_sheets)
+            db.execute(delete(e.Datasheet).where(e.Datasheet.id.in_(gone_sheets)))
             db.execute(delete(e.UserSession).where(e.UserSession.user_id.in_(others)))
             db.execute(update(e.AuditLog).where(e.AuditLog.user_id.in_(others)).values(user_id=None))
             db.execute(delete(e.User).where(e.User.role != "admin"))
@@ -97,6 +104,11 @@ def clear_data(settings, everything: bool = False, rules: bool = False) -> tuple
         for f in settings.upload_dir.iterdir():
             if f.is_file():
                 f.unlink()
+    if everything:
+        from backend.services.datasheets import delete_images
+
+        for sid in gone_sheets:
+            delete_images(settings, sid)
     return str(backup), counts
 
 
