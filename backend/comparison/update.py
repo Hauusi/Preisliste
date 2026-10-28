@@ -513,9 +513,11 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
         raise ValueError(f"Noch {upd.summary['offen']} Positionen ungeprüft")
     base = upd.base_list
     stem = base.name.split(" – Stand ")[0]
+    # Die neue Liste gehört dem Besitzer des Abgleichs, auch wenn ein Administrator übernimmt –
+    # sonst findet der Benutzer seine aktuelle Liste nicht und gleicht künftig gegen die alte ab.
     pl = PriceList(name=f"{stem} – Stand {utcnow():%d.%m.%Y}"[:255], source_file=f"Jahresabgleich #{upd.id}",
                    stored_file=base.stored_file, file_sha256=base.file_sha256, manufacturer_id=base.manufacturer_id,
-                   currency=base.currency, status="IMPORTIERT", kind="UNSERE", uploaded_by=user_id,
+                   currency=base.currency, status="IMPORTIERT", kind="UNSERE", uploaded_by=upd.created_by,
                    valid_from=upd.valid_from,
                    imported_at=utcnow(),
                    summary={"aus_abgleich": upd.id, "basis_liste": base.id, "herstellerliste": upd.source_price_list_id,
@@ -524,7 +526,7 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
     db.flush()
     items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
                        .order_by(PriceUpdateItem.id)).all()
-    for n, item in enumerate(items, start=1):
+    for item in items:
         old = db.get(Article, item.base_article_id)
         art = Article(price_list_id=pl.id, source_row=old.source_row, article_number=old.article_number,
                       article_number_normalized=old.article_number_normalized, manufacturer_id=old.manufacturer_id,
@@ -536,7 +538,23 @@ def adopt_as_current(db: Session, upd: PriceUpdate, user_id: int) -> PriceList:
         for ptype, amount in (("EK", item.final_ek), ("LISTE", item.final_vk)):
             if amount is not None:
                 db.add(ArticlePrice(article_id=art.id, price_type=ptype, amount=amount, currency=cur))
-    pl.summary = {**pl.summary, "articles": len(items)}
+    # Artikel, die nach dem Start des Abgleichs über „Neue Artikel“ in unsere Liste kamen, gehen nicht verloren:
+    # sie werden mit ihren Preisen unverändert übernommen.
+    covered = {item.base_article_id for item in items}
+    later = db.scalars(select(Article).where(Article.price_list_id == base.id, Article.id.not_in(covered))
+                       .options(selectinload(Article.prices)).order_by(Article.source_row, Article.id)).all()
+    for old in later:
+        art = Article(price_list_id=pl.id, source_row=old.source_row, article_number=old.article_number,
+                      article_number_normalized=old.article_number_normalized, manufacturer_id=old.manufacturer_id,
+                      manufacturer_raw=old.manufacturer_raw, description=old.description, category=old.category,
+                      unit=old.unit, status=old.status, calc_factor=old.calc_factor)
+        db.add(art)
+        db.flush()
+        for p in old.prices:
+            db.add(ArticlePrice(article_id=art.id, price_type=p.price_type, amount=p.amount, currency=p.currency,
+                                min_quantity=p.min_quantity, discount_percent=p.discount_percent,
+                                transport_cost=p.transport_cost, valid_from=p.valid_from))
+    pl.summary = {**pl.summary, "articles": len(items) + len(later), "nachtraeglich_aufgenommen": len(later)}
     upd.adopted_list_id = pl.id
     db.flush()
     return pl

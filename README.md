@@ -2,6 +2,7 @@
 
 Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfung, Kalkulation, Vorjahresvergleich, Export. Läuft auf dem eigenen Server unter `https://salesassistent.duckdns.org`, mit Anmeldung. Die KI (Ollama) ist optional und läuft auf demselben Server.
 
+- **Handbuch (Bedienung, Betrieb, Technik): `docs/HANDBUCH.md`**
 - Anforderungen: `docs/anforderungen-v2.md`
 - Architektur und Plan (Phase 1, freigegeben): `docs/phase1-architektur.md`
 - Betrieb, Backup, Wiederherstellung: `docs/betrieb.md`
