@@ -35,7 +35,7 @@ CHANGE_FIELDS = {"description": "Bezeichnung", "category": "Kategorie", "unit": 
 
 
 def percent_change(old: Decimal, new: Decimal) -> Decimal:
-    return ((new - old) / old * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return ((new - old) / old * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
 
 
 def _norm_text(v: str | None) -> str:

@@ -46,6 +46,18 @@ def num(value) -> str:
 templates.env.filters["num"] = num
 
 
+def pct(value) -> str:
+    """Prozent mit einer Nachkommastelle: 4.5 -> 4,5, 12 -> 12,0."""
+    if value is None:
+        return ""
+    value = (value if isinstance(value, Decimal) else Decimal(str(value))).quantize(Decimal("0.1"))
+    sign = "-" if value < 0 else ""
+    return sign + f"{abs(value):,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+templates.env.filters["pct"] = pct
+
+
 def price(value) -> str:
     """Zellwert als Preis anzeigen: Zahlen deutsch formatiert, Text unverändert (z. B. „auf Anfrage“)."""
     if value is None:

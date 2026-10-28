@@ -128,7 +128,7 @@ def test_exceptions_on_manufacturer_page(admin_client, tmp_path, app):
 
 def test_partial_list_keeps_others_unchanged(admin_client, tmp_path, app):
     c = admin_client
-    mid, rule_id = _setup(c)
+    mid, rule_id = _setup(c, review_threshold="10")
     ours = _ours(c, app, tmp_path, mid, [["LED1", "a", "10,00", "20,00"], ["LED2", "b", "10,00", "20,00"]])
     new = _import(c, app, tmp_path, "teil", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "10,50"]],
                   mid, "HERSTELLER")
@@ -142,7 +142,7 @@ def test_partial_list_keeps_others_unchanged(admin_client, tmp_path, app):
 
 def test_adopt_as_current_list(admin_client, tmp_path, app):
     c = admin_client
-    mid, rule_id = _setup(c)
+    mid, rule_id = _setup(c, review_threshold="10")
     ours = _ours(c, app, tmp_path, mid, [["LED1", "a", "10,00", "20,00"], ["LED2", "b", "10,00", "20,00"]])
     new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "10,50"]],
                   mid, "HERSTELLER")

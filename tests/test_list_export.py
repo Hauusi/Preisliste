@@ -80,7 +80,7 @@ def test_abgleich_placeholder_and_absurd_old_vk(admin_client, tmp_path, app):
     from tests.test_price_update import _items
 
     c = admin_client
-    mid, _ = _setup(c)  # Standard EK × 2
+    mid, _ = _setup(c, review_threshold="10")  # Standard EK × 2
     _ours(c, app, tmp_path, mid, [["P1", "ohne Vorjahrespreis", "0,01", "200,00"],
                                   ["P2", "absurder VK", "80,00", "45766674,00"],
                                   ["P3", "normal", "80,00", "160,00"]])

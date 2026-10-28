@@ -106,7 +106,7 @@ def test_calculation_and_comparison_flow(admin_client, tmp_path):
         assert label in page
     with session_scope() as db:
         items = {i.article_number: i for i in db.scalars(select(ComparisonItem).where(ComparisonItem.comparison_id == cmp_id))}
-    assert items["A-1"].status == "PREIS_ERHOEHT" and str(items["A-1"].difference_percent) == "10.00"
+    assert items["A-1"].status == "PREIS_ERHOEHT" and str(items["A-1"].difference_percent) == "10.0"
     assert items["a2"].status == "UNVERAENDERT" and items["a2"].match_method == "NORMALISIERT"
     assert items["NEW"].status == "NEUER_ARTIKEL" and items["GONE"].status == "ENTFALLENER_ARTIKEL"
     unclear = items["ABC-1001"]

@@ -80,7 +80,7 @@ def file_prices(file: str, header_row: int, col: int, strip: str = "") -> dict:
 
 def test_raphi_led_full_year(admin_client, app):
     c = admin_client
-    mid = new_manufacturer(c, "Raphi LED", "RA", "2,6")
+    mid = new_manufacturer(c, "Raphi LED", "RA", "2,6", review_threshold="10")  # Testdaten: +5 % sind dort Normalfall
 
     # 1) Unsere Liste 2026: alles automatisch erkannt
     url, page = smart_page(c, "RaphiLED_Preisliste_2026.xlsx")
@@ -231,7 +231,7 @@ def test_lumatec_messy_real_world_list(admin_client, app):
     """Deckblatt, Titelzeilen, Warengruppen-Zwischenzeilen, Preise als Text, EAN/VPE/Staffel-Spalten,
     'entfällt', doppelte Zeile, Fußnoten – so wie Listen wirklich ankommen."""
     c = admin_client
-    mid = new_manufacturer(c, "Lumatec Fahrzeugtechnik", "LT", "2,5")
+    mid = new_manufacturer(c, "Lumatec Fahrzeugtechnik", "LT", "2,5", review_threshold="10")
     url, page = smart_page(c, "Lumatec_unsere_Liste_2026.xlsx")
     assert '<option value="UNSERE" selected>' in page and "EK-Preis" not in page.split("Erkannte Spalten")[0][-50:]
     start(c, app, page)

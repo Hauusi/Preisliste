@@ -93,7 +93,7 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
     ignore = form.get("ignore_leading_zeros") == "1" if full or "ignore_leading_zeros" in form else True
     list_basis = str(form.get("list_basis") or "EK")
     discount = _amount(form, "dealer_discount")
-    threshold = _amount(form, "review_threshold") or parse_amount("10", ",")
+    threshold = _amount(form, "review_threshold") or parse_amount("5", ",")
     list_currency = str(form.get("list_currency") or "EUR")
     rate = _amount(form, "exchange_rate")
     factor = _amount(form, "factor")  # Kalkulationsfaktor: VK = EK × Faktor (legt die Standardregel an)

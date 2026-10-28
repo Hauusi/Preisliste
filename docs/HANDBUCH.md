@@ -95,7 +95,7 @@ Menü **Hersteller** → Name und Kürzel eingeben → „Anlegen“, danach die
 | **VK-Rundung** | keine (Cent) · auf 10 Cent · auf 10 Cent aufrunden · auf volle Euro · auf ,90 / ,95 / ,99 (Endungen runden immer **auf**, die Marge sinkt also nie) |
 | **Herstellerliste enthält** | **EK** (Einkaufspreis direkt) oder **UVP** (dann ist der **Händlerrabatt** Pflicht: EK = UVP − Rabatt %) |
 | **Währung der Herstellerliste** | EUR, USD, CHF, SEK, NOK, DKK, GBP, PLN, CZK. Bei Fremdwährung ist der **Umrechnungskurs** Pflicht (1 SEK = 0,095 EUR). Unsere eigene Liste ist immer in Euro. |
-| **Prüfschwelle %** | ab dieser EK-Änderung (Standard 10 %) muss ein Artikel im Abgleich geprüft werden |
+| **Prüfschwelle %** | ab dieser EK-Änderung (Standard 5 %, Erhöhung oder Senkung) muss ein Artikel im Abgleich geprüft werden |
 | **Führende Nullen ignorieren** | rein numerische Nummern: `00123` = `123` |
 
 **Ausnahmen (andere Kalkulation für einzelne Artikel):**
@@ -197,7 +197,7 @@ Artikel, die nur in der Herstellerliste stehen, werden ignoriert (sie gehören n
 
 | Grund | Bedeutung | Was das Tool vorschlägt |
 |---|---|---|
-| EK-Änderung über Prüfschwelle | EK ändert sich um mehr als die Schwelle des Herstellers | neuer EK und VK |
+| EK-Änderung über Prüfschwelle | EK ändert sich um mindestens die Schwelle des Herstellers (EK-Änderung in % auf eine Nachkommastelle gerundet) | neuer EK und VK |
 | VK-Änderung passt nicht zur EK-Änderung | Vorjahr war anders kalkuliert | neuer VK |
 | alter VK passt nicht zur Kalkulation (**Sonderpreis**) | kalkulierter VK wäre niedriger als der alte, obwohl der EK nicht fällt | **alter VK bleibt** vorgeschlagen; „zurücknehmen“ setzt den kalkulierten |
 | **Preis vom Vorjahr fehlt (EK 0,01)** | EK 0,01 in unserer Liste = kein Preis eingespielt oder Abverkauf | alter VK vorgeschlagen, kalkulierter VK im Hinweis; keine EK-Änderung in % |

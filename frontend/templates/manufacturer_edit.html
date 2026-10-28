@@ -58,7 +58,7 @@
       <label id="edit-rate">Kurs <small class="hint">1 Einheit = ? EUR</small>
         <input name="exchange_rate" value="{{ m.exchange_rate | num }}" size="8" placeholder="z. B. 0,095"></label>
       <label>Prüfschwelle % <small class="hint">EK-Änderung</small>
-        <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '10' }}" size="6"></label>
+        <input name="review_threshold" value="{{ m.review_threshold | money if m.review_threshold is not none else '5' }}" size="6"></label>
     </div>
     <p class="hint">UVP-Liste: EK = UVP − Händlerrabatt. Fremdwährung: EK × Kurs = EK in €, auf Cent gerundet (z. B. 100,00 SEK × 0,095 = 9,50 €). Ab der Prüfschwelle muss eine Preisänderung bestätigt werden.</p>
   </section>
