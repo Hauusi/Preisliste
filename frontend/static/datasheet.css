@@ -1,7 +1,15 @@
+/* Schrift: Myriad Pro, wenn auf dem Rechner installiert; sonst die mitgelieferte Source Sans 3 (Adobe, gleiche Familie,
+   SIL Open Font License 1.1, siehe /static/fonts/SourceSans3-LICENSE.md). So sieht das Blatt überall gleich aus. */
+@font-face { font-family: "DS Source Sans 3"; font-weight: 400; font-style: normal; font-display: block;
+  src: url("/static/fonts/SourceSans3-Regular.ttf.woff2") format("woff2"); }
+@font-face { font-family: "DS Source Sans 3"; font-weight: 700; font-style: normal; font-display: block;
+  src: url("/static/fonts/SourceSans3-Bold.ttf.woff2") format("woff2"); }
+@font-face { font-family: "DS Source Sans 3"; font-weight: 400; font-style: italic; font-display: block;
+  src: url("/static/fonts/SourceSans3-It.ttf.woff2") format("woff2"); }
 /* Datenblatt: festes A4-Layout nach Vorlage (Kopfbalken, Bausteine, Fußzeile).
    Alle Regeln unter .ds-doc, damit sie im Editor nicht mit dem App-Design kollidieren. */
 .ds-doc { --ds-blue: #213984; --ds-grey: #918f8f; --ds-line: #a6a6a6; --ds-text: #1d1d1b;
-  color: var(--ds-text); font-family: "Myriad Pro", Myriad, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  color: var(--ds-text); font-family: "Myriad Pro", Myriad, "DS Source Sans 3", "Segoe UI", Arial, sans-serif; }
 .ds-doc *, .ds-doc *::before, .ds-doc *::after { box-sizing: border-box; }
 /* App-Stile im Editor zurücksetzen, damit die Live-Vorschau exakt wie der Druck aussieht und gleich hoch ist */
 .ds-doc { font-size: 16px; line-height: normal; -webkit-font-smoothing: auto; }
@@ -36,24 +44,28 @@
 .ds-doc .part-title small { display: block; font-size: 8.5pt; letter-spacing: .14em; margin-top: .4mm; }
 .ds-doc .part-title .cont { font-weight: 400; font-size: 9pt; text-transform: none; }
 
-/* Eigenschaften + Produktbilder */
-.ds-doc .intro { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
-.ds-doc .intro-text { font-size: 10pt; line-height: 1.45; }
-.ds-doc .intro-text ul { margin: 0; padding-left: 6mm; }
-.ds-doc .intro-text li { margin: 0 0 2mm; padding-left: 2mm; }
-.ds-doc .intro-images { display: flex; flex-direction: column; gap: 5mm; }
-.ds-doc .intro-images img { width: 100%; max-height: 40mm; object-fit: contain; }
-.ds-doc .intro-images img + img { object-fit: cover; height: 48mm; max-height: none; }
+/* Kopfbereich (Standard): links Beschreibung, Aufzählung, Spezifikation; rechts Bilder über die ganze Höhe */
+.ds-doc .lead { display: grid; grid-template-columns: 92mm minmax(0, 1fr); gap: 9mm; align-items: start; }
+.ds-doc .lead-left { min-width: 0; }
+.ds-doc .lead-intro { font-size: 11pt; line-height: 1.2; }
+.ds-doc .lead-intro p { margin: 0 0 4mm; text-align: justify; hyphens: auto; }
+.ds-doc .lead-intro p.placeholder { text-align: left; color: #94a3b8; font-style: italic; border: .3mm dashed #cbd5e1; padding: 3mm; }
+.ds-doc .lead-intro ul { margin: 6mm 0 0; padding-left: 6mm; }
+.ds-doc .lead-intro p + ul { margin-top: 6mm; }
+.ds-doc .lead-intro ul:first-child { margin-top: 0; }
+.ds-doc .lead-intro li { margin: 0 0 .6mm; padding-left: 2mm; }
+.ds-doc .lead-spec { margin-top: 0; }
+.ds-doc .lead-intro + .lead-spec { margin-top: 9mm; }
+.ds-doc .lead-right { display: flex; flex-direction: column; gap: 5mm; align-items: center; min-width: 0; }
+.ds-doc .lead-img { width: 100%; max-height: 56mm; object-fit: contain; }
+.ds-doc .lead-drawing { max-width: 100%; max-height: 40mm; object-fit: contain; }
 
-/* Spezifikationen */
-.ds-doc .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 2mm; }
-.ds-doc .badges { display: flex; gap: 3.5mm; margin-bottom: 4mm; flex-wrap: wrap; }
-.ds-doc .spec-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-.ds-doc .spec-table th, .ds-doc .spec-table td { padding: 1.3mm 0; border-bottom: .25mm solid var(--ds-line); vertical-align: middle; }
+/* Spezifikation */
+.ds-doc .badges { display: flex; gap: 3.5mm; margin: 2mm 0 4mm; flex-wrap: wrap; }
+.ds-doc .spec-table { width: 100%; border-collapse: collapse; font-size: 10pt; line-height: 1.2; }
+.ds-doc .spec-table th, .ds-doc .spec-table td { padding: 1mm 0; border-bottom: .25mm solid var(--ds-line); vertical-align: middle; }
 .ds-doc .spec-table th { text-align: left; font-weight: 700; white-space: nowrap; padding-right: 4mm; }
 .ds-doc .spec-table td { text-align: right; }
-.ds-doc .drawings { display: flex; flex-direction: column; gap: 4mm; align-items: center; }
-.ds-doc .drawings img { max-width: 100%; max-height: 40mm; object-fit: contain; }
 
 /* Anwendungsbilder und freie Bilder */
 .ds-doc .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
@@ -62,16 +74,16 @@
 .ds-doc .photos-1 img { object-fit: contain; }
 .ds-doc .free-img { text-align: center; }
 .ds-doc .free-img img { max-width: 100%; object-fit: contain; }
-.ds-doc .free-img.h-S img { height: 30mm; } .ds-doc .free-img.h-M img { height: 50mm; } .ds-doc .free-img.h-L img { height: 80mm; }
+.ds-doc .free-img.h-S img { height: 25mm; } .ds-doc .free-img.h-M img { height: 45mm; } .ds-doc .free-img.h-L img { height: 75mm; }
 
 /* Tabellen (Artikel, Zubehör) */
 .ds-doc .tbl { margin-bottom: 11mm; }
 .ds-doc .banner { text-align: center; margin: 1mm 0 4mm; }
 .ds-doc .banner img { max-width: 100%; height: 28mm; object-fit: contain; }
 .ds-doc .art-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
-.ds-doc .art-table th { background: var(--ds-grey); color: #fff; font-weight: 700; font-size: 9pt; padding: 1.3mm 1.5mm; text-align: center; }
+.ds-doc .art-table th { background: var(--ds-grey); color: #fff; font-weight: 700; font-size: 10pt; padding: 1.1mm 1.5mm; text-align: center; }
 .ds-doc .art-table td { padding: 1.5mm; text-align: center; vertical-align: middle; border-bottom: .25mm solid var(--ds-line); overflow-wrap: anywhere; }
-.ds-doc .art-table td.nr { font-weight: 700; font-size: 8.5pt; }
+.ds-doc .art-table td.nr { font-weight: 700; font-size: 10pt; }
 .ds-doc .art-table col.c-img { width: 26mm; } .ds-doc .art-table col.c-nr { width: 30mm; }
 .ds-doc .art-table col.c-dot { width: 9mm; } .ds-doc .art-table col.c-val { width: 27mm; }
 .ds-doc .art-table col.c-rowimg { width: 28mm; }
@@ -95,7 +107,7 @@
 /* Zulassungslogos: Außenrand, heller Innenring, Fläche. R65 blau (Klasse orange), ECE schwarz, CISPR gold. */
 .ece { display: inline-flex; border-radius: 1.9mm; padding: .35mm; background: #6d6e70; vertical-align: middle; }
 .ece-in { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 15mm; height: 8.2mm; padding: 0 2.2mm;
-  border-radius: 1.6mm; border: .35mm solid #d6e0e8; background: #282a17; color: #fff; font-family: "Myriad Pro", Myriad, "Segoe UI", Arial, sans-serif;
+  border-radius: 1.6mm; border: .35mm solid #d6e0e8; background: #282a17; color: #fff; font-family: "Myriad Pro", Myriad, "DS Source Sans 3", "Segoe UI", Arial, sans-serif;
   line-height: 1.05; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ece-in b { font-size: 7.6pt; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
 .ece-in i { font-style: normal; font-weight: 700; font-size: 6.4pt; color: #f39200; letter-spacing: .02em; white-space: nowrap; }

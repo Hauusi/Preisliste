@@ -13,27 +13,32 @@
 
   <div class="sheet-body">
   {% for t in page.teile %}
-    {% if t.typ == "intro" %}
-    <div class="part intro" data-block="{{ t.index }}">
-      <div class="intro-text">
-        {% if t.eigenschaften %}<ul class="props">{% for e in t.eigenschaften %}<li>{% if e.name %}<b>{{ e.name }}:</b> {% endif %}{{ e.wert }}</li>{% endfor %}</ul>{% endif %}
-      </div>
-      <div class="intro-images">{% for name in t.bilder %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
-    </div>
-
-    {% elif t.typ == "spez" %}
-    <div class="part spec" data-block="{{ t.index }}">
-      <h2 class="part-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
-      <div class="spec-grid">
-        <div>
-          {% if t.logos %}<div class="badges">{% for b in t.logos %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
-          {% if t.zeilen %}
+    {% if t.typ == "kopfbereich" %}
+    {# Wie im Standard: links Beschreibung, Aufzählung, Spezifikation – rechts die Bilder über die ganze Höhe #}
+    <div class="part lead" data-block="{{ t.intro_index if t.intro_index is not none else t.spez.index }}">
+      <div class="lead-left">
+        {% if t.intro_index is not none %}
+        <div class="lead-intro" data-block="{{ t.intro_index }}">
+          {% for par in t.einleitung.split("\n\n") if par.strip() %}<p>{{ par.strip() | replace("\n", " ") }}</p>
+          {% else %}{% if editor %}<p class="placeholder">Hier steht der Beschreibungstext. Links unter „Einleitung“ eintragen.</p>{% endif %}{% endfor %}
+          {% if t.eigenschaften %}<ul class="props">{% for e in t.eigenschaften %}<li>{% if e.name %}<b>{{ e.name }}:</b> {% endif %}{{ e.wert }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        {% endif %}
+        {% if t.spez %}
+        <div class="lead-spec" data-block="{{ t.spez.index }}">
+          <h2 class="part-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
+          {% if t.spez.logos %}<div class="badges">{% for b in t.spez.logos %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
+          {% if t.spez.zeilen %}
           <table class="spec-table">
-            {% for z in t.zeilen %}<tr><th>{{ z.merkmal }}{% if z.merkmal and not z.merkmal.endswith(":") %}:{% endif %}</th><td>{{ lines(z.wert) }}</td></tr>{% endfor %}
+            {% for z in t.spez.zeilen %}<tr><th>{{ z.merkmal }}{% if z.merkmal and not z.merkmal.endswith(":") %}:{% endif %}</th><td>{{ lines(z.wert) }}</td></tr>{% endfor %}
           </table>
           {% endif %}
         </div>
-        <div class="drawings">{% for name in t.zeichnungen %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+        {% endif %}
+      </div>
+      <div class="lead-right">
+        {% for name in t.bilder %}<img class="lead-img" src="{{ img ~ name }}" alt="" data-block="{{ t.intro_index }}">{% endfor %}
+        {% for name in t.zeichnungen %}<img class="lead-drawing" src="{{ img ~ name }}" alt="" data-block="{{ t.spez.index }}">{% endfor %}
       </div>
     </div>
 

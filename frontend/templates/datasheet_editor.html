@@ -58,7 +58,7 @@
   <header class="dse-card-head">
     {{ row_tools() }}
     <button type="button" class="dse-card-title" data-collapse aria-expanded="false">
-      <span class="dse-card-name">{{ {"intro": "Eigenschaften & Produktbilder", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder", "tabelle": "Tabelle", "bild": "Bild"}[t] }}</span>
+      <span class="dse-card-name">{{ {"intro": "Einleitung", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder", "tabelle": "Tabelle", "bild": "Bild"}[t] }}</span>
       <span class="dse-card-sub" data-sub></span>
     </button>
     <label class="dse-newpage" title="Baustein beginnt auf einer neuen Seite"><input type="checkbox" data-f="neue_seite"{% if b.neue_seite %} checked{% endif %}> neue Seite</label>
@@ -67,16 +67,18 @@
   </header>
   <div class="dse-card-body">
   {% if t == "intro" %}
+    <h4>Beschreibungstext <small>oben links, Blocksatz; Absätze mit einer Leerzeile trennen</small></h4>
+    <textarea data-f="einleitung" rows="4" maxlength="2000" class="dse-text" placeholder="z. B. Die LED Leuchtbalken der Serie 12+ Vantage sind leistungsstarke und vielseitige Warnbalken, die auf vielen Fahrzeugtypen einsetzbar sind.">{{ c.einleitung }}</textarea>
     <h4>Eigenschaften <small>Aufzählung „Name: Wert“, nur Zeilen mit Wert werden gedruckt</small></h4>
     <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften %}{{ prop_row(e) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="prop">{{ icon("plus", 16) }} Eigenschaft</button>
-    <h4>Produktbilder <small>rechts, untereinander</small></h4>
+    <h4>Produktbilder <small>rechts, untereinander, laufen neben der Spezifikation weiter</small></h4>
     <div class="dse-slots" data-imgs="bilder_oben">{% for i in range(2) %}{{ slot(c.bilder_oben[i] if i < c.bilder_oben | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "spez" %}
     <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassung“.</p>
     <div class="dse-list" data-sortable data-list="spez">{% for z in c.spez.zeilen %}{{ spec_row(z) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="spec">{{ icon("plus", 16) }} Zeile</button>
-    <h4>Bilder rechts daneben <small>z. B. Maßzeichnungen</small></h4>
+    <h4>Bilder rechts <small>z. B. Maßzeichnungen, unter den Produktbildern</small></h4>
     <div class="dse-slots" data-imgs="zeichnungen">{% for i in range(2) %}{{ slot(c.zeichnungen[i] if i < c.zeichnungen | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "anwendung" %}
     <p class="hint">Zwei Bilder nebeneinander (auf gleiche Höhe zugeschnitten) oder ein Bild über die ganze Breite.</p>

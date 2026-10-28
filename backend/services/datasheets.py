@@ -29,11 +29,11 @@ FOOTER = {
 
 # Bausteine zwischen Kopf- und Fußzeile (die beiden sind fest). Einleitung, Spezifikation und Anwendungsbilder gibt es
 # genau einmal; Tabellen (Artikel, Zubehör) und freie Bilder beliebig oft, in beliebiger Reihenfolge.
-BLOCKS = {"intro": "Eigenschaften & Produktbilder", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder",
+BLOCKS = {"intro": "Einleitung: Text, Eigenschaften, Produktbilder", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder",
           "tabelle": "Tabelle", "bild": "Bild"}
 SINGLE_BLOCKS = ("intro", "spez", "anwendung")
 MAX_BLOCKS = 40
-IMAGE_HEIGHTS = {"S": ("klein", 30), "M": ("mittel", 50), "L": ("groß", 80)}
+IMAGE_HEIGHTS = {"S": ("klein", 25), "M": ("mittel", 45), "L": ("groß", 75)}
 ROW_IMAGES = {"klein": "klein (Artikelliste)", "gross": "groß (Zubehör)"}
 GROUP_IMAGE_POS = {"links": "links neben der Tabelle", "oben": "über der Tabelle"}
 
@@ -85,6 +85,7 @@ class ImageError(ValueError):
 def empty_content() -> dict:
     return {
         "kopf": {"titel": "", "untertitel": ""},
+        "einleitung": "",
         "eigenschaften": [{"name": n, "wert": "", "sichtbar": True} for n in DEFAULT_PROPERTIES],
         "bilder_oben": [],
         "spez": {"zeichen": [], "zeilen": []},
@@ -104,6 +105,8 @@ def normalized(content: dict | None) -> dict:
             out[key] = value
     # Ältere Datenblätter: Aufzählungspunkte der früheren Beschreibung als Eigenschaften ohne Namen übernehmen
     old = content.get("beschreibung")
+    if "einleitung" not in content and old and old.get("text"):
+        out["einleitung"] = old["text"]
     if "eigenschaften" not in content and old and old.get("punkte"):
         out["eigenschaften"] = [{"name": "", "wert": p, "sichtbar": True} for p in old["punkte"]] + out["eigenschaften"]
     blocks = content.get("bloecke") if isinstance(content.get("bloecke"), list) else []
@@ -230,6 +233,7 @@ def sanitize(raw, valid_images: set[str]) -> dict:
     c = empty_content()
     kopf = raw.get("kopf") if isinstance(raw.get("kopf"), dict) else {}
     c["kopf"] = {"titel": _s(kopf.get("titel"), 60), "untertitel": _s(kopf.get("untertitel"), 80)}
+    c["einleitung"] = _s(raw.get("einleitung"), 2000)
     c["eigenschaften"] = [
         {"name": _s(e.get("name"), 40), "wert": _s(e.get("wert"), 150), "sichtbar": e.get("sichtbar") is not False}
         for e in _list(raw.get("eigenschaften"), MAX_PROPERTIES)
@@ -369,7 +373,8 @@ def parse_paste(text: str, n_columns: int) -> list[dict]:
 PAGE_BODY_MM = 224  # 2 mm Reserve
 GAP_MM = 8  # Abstand nach jedem Baustein (entfällt nach dem letzten einer Seite)
 TABLE_TITLE_MM, TABLE_HEAD_MM, TABLE_GAP_MM, BANNER_MM, TABLE_MIN_MM = 8, 6.6, 11, 30, 16
-ROW_MM, ROW_EXTRA_MM = {"": 6.9, "klein": 9.3, "gross": 17.2}, 3.8
+SPLIT_MIN_TABLE = 6  # Tabellen bis zu so vielen Zeilen werden nie auf zwei Seiten geteilt
+ROW_MM, ROW_EXTRA_MM = {"": 7.7, "klein": 9.3, "gross": 17.2}, 3.8
 
 
 def _lines(text: str, chars: int) -> int:
@@ -386,24 +391,27 @@ def _row_height(table: dict):
     return height
 
 
-def _intro_mm(props: list[dict], images: list[str]) -> float:
-    text = sum(2 + 5.1 * _lines(f"{e['name']}: {e['wert']}", 50) for e in props)
-    pics = {0: 0, 1: 40, 2: 93}[len(images)]
-    return max(text, pics)
+def _lead_mm(text: str, props: list[dict], spez: dict | None, images: list[str], drawings: list[str]) -> float:
+    """Kopfbereich wie im Standard: links Text, Aufzählung, Spezifikation; rechts die Bilder untereinander."""
+    # Absatzabstand 4 mm (nicht nach dem letzten Absatz), vor der Aufzählung 6 mm (Abstände fallen zusammen)
+    paragraphs = [par for par in text.split("\n\n") if par.strip()]
+    left = sum(4.67 * _lines(par, 47) for par in paragraphs) + 4 * max(0, len(paragraphs) - 1)
+    left += sum(0.6 + 4.7 * _lines(f"{e['name']}: {e['wert']}", 45) for e in props) + (6 if props and paragraphs else 0)
+    if spez is not None:
+        left += (9 if left else 0) + 11.7 + (13 if spez["logos"] else 0)
+        left += sum(6.6 + 4.2 * (_lines(r["wert"], 40) - 1) for r in spez["zeilen"])
+    right = 56 * len(images) + 40 * len(drawings)
+    right += 5 * max(0, len(images) + len(drawings) - 1)
+    return max(left, right)
 
 
-def _spez_mm(rows: list[dict], badges: list, drawings: list[str]) -> float:
-    left = (13 if badges else 0) + sum(6.9 + 4 * (_lines(r["wert"], 28) - 1) for r in rows)
-    right = 42 * len(drawings)
-    return 12 + 2 + max(left, right)
-
-
-def paginate(content: dict) -> list[dict]:
+def paginate(content: dict, editor: bool = False) -> list[dict]:
     """Bausteine in ihrer Reihenfolge auf A4-Seiten verteilen.
 
     Einleitung, Spezifikation, Anwendungsbilder und Bilder sind ganze Teile; passen sie nicht mehr, beginnen sie auf
     der nächsten Seite. Tabellen werden bei Bedarf zeilenweise geteilt („Fortsetzung“).
     Ergebnis: [{"teile": [{"typ": ..., "index": Baustein-Nr., ...}, ...]}, ...]
+    editor: Live-Vorschau – die Einleitung erscheint auch leer (Platzhalter zeigt, wo der Text hinkommt).
     """
     c = normalized(content)
     pages: list[list[dict]] = [[]]
@@ -440,6 +448,12 @@ def paginate(content: dict) -> list[dict]:
             while fit < len(rows) and height + row_mm(rows[fit]) <= PAGE_BODY_MM - used:
                 height += row_mm(rows[fit])
                 fit += 1
+            # Nicht zerreißen: kleine Tabellen (bis 6 Zeilen) ganz auf die nächste Seite, sonst mindestens
+            # 3 Zeilen auf jeder Seite – außer die Tabelle passt nicht einmal auf eine leere Seite
+            if pages[-1] and (len(rows) <= SPLIT_MIN_TABLE or fit < 3):
+                fit = 0
+            elif pages[-1] and len(rows) - fit < 3:
+                fit = len(rows) - 3 if len(rows) - 3 >= 3 else 0
             if fit >= 3 or (not pages[-1] and fit >= 1):
                 pages[-1].append({**part, "zeilen": rows[:fit], "fortsetzung": piece > 0})
                 rows, piece = rows[fit:], piece + 1
@@ -451,22 +465,36 @@ def paginate(content: dict) -> list[dict]:
                 return
 
     props, badges = shown_properties(c), approval_badges(c)
-    for index, block in enumerate(c["bloecke"]):
+    blocks = c["bloecke"]
+    has_intro = editor or bool(c["einleitung"] or props or c["bilder_oben"])
+    has_spez = bool(c["spez"]["zeilen"] or badges or c["zeichnungen"])
+    joined = set()  # Spezifikation, die schon im Kopfbereich mit der Einleitung steht
+    for index, block in enumerate(blocks):
         typ = block["typ"]
-        if not block["sichtbar"]:
+        if not block["sichtbar"] or index in joined:
             continue
         part, height = None, 0.0
-        if typ == "intro" and (props or c["bilder_oben"]):
-            part = {"typ": "intro", "eigenschaften": props, "bilder": c["bilder_oben"]}
-            height = _intro_mm(props, c["bilder_oben"])
-        elif typ == "spez" and (c["spez"]["zeilen"] or badges or c["zeichnungen"]):
-            part = {"typ": "spez", "zeilen": c["spez"]["zeilen"], "logos": badges, "zeichnungen": c["zeichnungen"]}
-            height = _spez_mm(c["spez"]["zeilen"], badges, c["zeichnungen"])
+        if (typ == "intro" and has_intro) or (typ == "spez" and has_spez):
+            # Kopfbereich wie im Standard-Datenblatt: folgt die Spezifikation direkt auf die Einleitung (ohne neue
+            # Seite), stehen beide links untereinander und die Bilder rechts über die ganze Höhe
+            nxt = index + 1
+            with_spez = typ == "spez" or (nxt < len(blocks) and blocks[nxt]["typ"] == "spez" and blocks[nxt]["sichtbar"]
+                                          and not blocks[nxt]["neue_seite"] and has_spez)
+            if typ == "intro" and with_spez:
+                joined.add(nxt)
+            spez = ({"zeilen": c["spez"]["zeilen"], "logos": badges, "index": index if typ == "spez" else nxt}
+                    if with_spez else None)
+            intro = typ == "intro"
+            part = {"typ": "kopfbereich", "intro_index": index if intro else None,
+                    "einleitung": c["einleitung"] if intro else "", "eigenschaften": props if intro else [],
+                    "bilder": c["bilder_oben"] if intro else [], "spez": spez,
+                    "zeichnungen": c["zeichnungen"] if with_spez else []}
+            height = _lead_mm(part["einleitung"], part["eigenschaften"], spez, part["bilder"], part["zeichnungen"])
         elif typ == "anwendung" and c["bilder_unten"]:
             part, height = {"typ": "anwendung", "bilder": c["bilder_unten"]}, 62
         elif typ == "bild" and block.get("bild"):
             part = {"typ": "bild", "bild": block["bild"], "hoehe": block.get("hoehe", "M")}
-            height = IMAGE_HEIGHTS[part["hoehe"]][1] + 1
+            height = IMAGE_HEIGHTS[part["hoehe"]][1] + 1.2
         elif typ == "tabelle" and block.get("zeilen"):
             part = {k: block[k] for k in ("titel", "zusatz", "bild", "spalten", "zeilenbilder")}
             part.update(typ="tabelle", bild_links=bool(block["bild"]) and block["bild_pos"] == "links",

@@ -320,8 +320,8 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 | Baustein | Inhalt |
 |---|---|
-| Eigenschaften & Produktbilder | Aufzählung „**Name:** Wert“ links (vorbelegt: Spannung, LED-Farbe, Anzahl LEDs, Schutzart, Zulassung, Montage, Garantie; eigene mit Vorschlägen), bis zu 2 Bilder rechts |
-| Spezifikationen | Tabelle Merkmal/Wert (mehrzeilig), Überschrift automatisch aus der Kopfzeile, **Zulassungslogos automatisch** aus dem Feld „Zulassung“, bis zu 2 Bilder rechts (z. B. Maßzeichnungen) |
+| Einleitung | **Beschreibungstext** oben links (Blocksatz, Absätze mit Leerzeile), darunter Aufzählung „**Name:** Wert“ (vorbelegt: Spannung, LED-Farbe, Anzahl LEDs, Schutzart, Zulassung, Montage, Garantie; Name leer lassen = nur der Text, z. B. „5 Jahre Garantie“), bis zu 2 Produktbilder rechts. In der Live-Vorschau zeigt ein Platzhalter, wo der Text hinkommt (wird nicht gedruckt). |
+| Spezifikationen | Tabelle Merkmal/Wert (mehrzeilig), Überschrift automatisch aus der Kopfzeile, **Zulassungslogos automatisch** aus dem Feld „Zulassung“, bis zu 2 Bilder rechts (z. B. Maßzeichnungen). Steht sie direkt nach der Einleitung, bilden beide den **Kopfbereich wie im Standard**: links Text, Aufzählung, Spezifikation untereinander, rechts alle Bilder über die ganze Höhe. |
 | Anwendungsbilder | 2 Bilder nebeneinander (gleiche Höhe zugeschnitten) oder 1 Bild über die ganze Breite |
 | **Tabelle** (beliebig oft) | Überschrift fett + Zusatz normal („**BESTELLINFORMATIONEN** - SERIE 12+ STANDARD VERSION“), Gruppenbild **links neben** der Tabelle (Gecko) oder **über** der Tabelle (Leuchtbalken), Bilder je Zeile klein (Artikelliste) oder groß (Zubehör), bis zu 3 frei benennbare Zusatzspalten (z. B. Länge, Zulassung, Brutto VK), Zeilen mit Bild, Artikelnr., Farbpunkt, Beschreibung, Werten. Zeilen auch **aus Excel einfügen** (Artikelnr. ⇥ Beschreibung ⇥ Zusatzspalten; Farbe aus dem letzten Farbwort der Beschreibung). |
 | **Zubehör** | eine Tabelle mit Überschrift „Zubehör“ und großen Zeilenbildern |
@@ -338,8 +338,8 @@ Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 - **Bilder:** Platz anklicken oder eine Datei hineinziehen. Gefüllte Bilder per Ziehen zwischen beliebigen Plätzen
   **tauschen**, × entfernt. JPG, PNG, GIF, WebP bis 10 MB; geprüft wird der Inhalt, nicht die Endung.
 - **Klick ins Live-Blatt** öffnet die passende Eingabe links.
-- **Seitenaufteilung** automatisch in der Reihenfolge der Bausteine; lange Tabellen werden mit „(Fortsetzung)“
-  geteilt. Eine zu volle Seite wird **rot umrandet** mit Hinweis, ebenso ein zu langer Titel.
+- **Seitenaufteilung** automatisch in der Reihenfolge der Bausteine. Tabellen bis 6 Zeilen werden nie geteilt, längere
+  nur mit mindestens 3 Zeilen je Seite („(Fortsetzung)“). Eine zu volle Seite wird **rot umrandet** mit Hinweis, ebenso ein zu langer Titel.
 - **Drucken / PDF:** Knopf oben rechts → Druckansicht → „Drucken / als PDF speichern“ → im Druckdialog
   **Als PDF speichern**, **A4**, Ränder **Keine**, **Hintergrundgrafiken** an.
 
@@ -350,7 +350,9 @@ erkannt. Die Eigenschaft „Zulassung“ kann ausgeblendet werden, die Logos ble
 
 **Weiteres:** „Kopieren“ in der Übersicht legt eine Kopie mit allen Bildern an (Vorlage für die nächste Serie).
 Löschen mit Bestätigung entfernt auch die Bilder. Datenblätter aus der früheren Schritt-Eingabe werden beim Öffnen
-automatisch in Bausteine übernommen. Schrift: Myriad Pro, falls auf dem Rechner installiert, sonst Segoe UI.
+automatisch in Bausteine übernommen. **Schrift:** Myriad Pro, falls auf dem Rechner installiert, sonst die mitgelieferte
+**Source Sans 3** (Adobe, gleiche Schriftfamilie, freie Lizenz SIL OFL 1.1) – damit sieht das Blatt auf jedem Rechner
+gleich aus und die Seitenaufteilung stimmt.
 
 ## 12. Verwaltung (Administratoren)
 
