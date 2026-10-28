@@ -1,16 +1,17 @@
-"""Modul „Datenblatt erstellen“: Liste, Schritt-für-Schritt-Eingabe, Vorschau/Druck, Bilder."""
+"""Modul „Datenblatt erstellen“: Liste, Editor mit Live-Vorschau, Druck/PDF, Bilder."""
 
 from __future__ import annotations
 
 import copy
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
+from backend.api.templating import templates
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import Datasheet, User, utcnow
@@ -19,95 +20,116 @@ from backend.services.access import get_visible, is_admin, visible
 from backend.services.audit import audit
 
 router = APIRouter()
+MAX_JSON_BYTES = 1024 * 1024
 
 
-def _step_page(request, sheet, step, content, errors=None, status_code=200):
-    index = ds.STEP_KEYS.index(step)
-    return render(request, "datasheet_step.html", {
-        "portal": True, "sheet": sheet, "step": step, "step_label": dict(ds.STEPS)[step], "index": index,
-        "steps": ds.STEPS, "done": {k: ds.step_done(content, k) for k in ds.STEP_KEYS}, "c": ds.normalized(content),
-        "colors": ds.COLORS, "spare": ds.SPARE_ROWS, "badges": ds.approval_badges(content), "max_columns": ds.MAX_COLUMNS,
-        "slots": ds.IMAGE_SLOTS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER, "errors": errors or [],
-        "is_last": index == len(ds.STEPS) - 1,
-    }, status_code=status_code)
+def _pages_html(sheet: Datasheet, content: dict) -> tuple[str, int]:
+    """A4-Seiten als HTML (gleiche Vorlage wie die Druckansicht) und Seitenzahl."""
+    pages = ds.paginate(content)
+    html = templates.get_template("_datasheet_pages.html").render(
+        sheet=sheet, c=ds.normalized(content), pages=pages, footer=ds.FOOTER)
+    return html, len(pages)
+
+
+async def _json(request: Request) -> dict:
+    if int(request.headers.get("content-length") or 0) > MAX_JSON_BYTES:
+        raise HTTPException(413, "Inhalt zu groß")
+    try:
+        data = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Ungültige Daten")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Ungültige Daten")
+    return data
 
 
 @router.get("/datenblatt")
-def overview(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def overview(request: Request, error: str | None = None, db: Session = Depends(get_db),
+             user: User = Depends(current_user)):
     sheets = db.scalars(visible(select(Datasheet).order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
     owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
-    return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners})
+    return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error})
 
 
 @router.get("/datenblatt/neu")
-def new_form(request: Request, _user: User = Depends(current_user)):
-    return _step_page(request, None, "kopf", ds.empty_content())
+def new_form():
+    return RedirectResponse("/datenblatt", status_code=303)
 
 
 @router.post("/datenblatt/neu", dependencies=[Depends(check_csrf)])
 async def create(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     form = await request.form()
-    content, _ = await ds.apply_step(ds.empty_content(), "kopf", form, None)
+    content = ds.empty_content()
+    content["kopf"] = {"titel": str(form.get("titel") or "").strip()[:60],
+                       "untertitel": str(form.get("untertitel") or "").strip()[:80]}
     if not content["kopf"]["titel"]:
-        return _step_page(request, None, "kopf", content, ["Bitte einen Titel für die Kopfzeile eingeben"], 400)
+        return RedirectResponse("/datenblatt?error=Titel+eingeben", status_code=303)
     sheet = Datasheet(owner_id=user.id, title=ds.title_of(content), content=content)
     db.add(sheet)
     db.flush()
     audit(db, user, "datenblatt_angelegt", "datasheet", sheet.id, {"titel": sheet.title}, client_ip(request))
-    return RedirectResponse(f"/datenblatt/{sheet.id}/schritt/{ds.STEP_KEYS[1]}", status_code=303)
+    return RedirectResponse(f"/datenblatt/{sheet.id}", status_code=303)
 
 
 @router.get("/datenblatt/{sheet_id}")
-def open_sheet(sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    get_visible(db, Datasheet, sheet_id, user)
-    return RedirectResponse(f"/datenblatt/{sheet_id}/schritt/kopf", status_code=303)
+def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    sheet = get_visible(db, Datasheet, sheet_id, user)
+    c = ds.normalized(sheet.content)
+    html, count = _pages_html(sheet, c)
+    return render(request, "datasheet_editor.html", {
+        "portal": True, "wide": True, "sheet": sheet, "c": c, "pages_html": html, "page_count": count,
+        "colors": ds.COLORS, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
+        "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,
+        "max_columns": ds.MAX_COLUMNS, "new_table": ds.new_table(), "new_accessories": ds.new_table(zubehoer=True),
+        "new_image": ds.new_image_block(),
+    })
 
 
 @router.get("/datenblatt/{sheet_id}/schritt/{step}")
-def step_form(request: Request, sheet_id: int, step: str, db: Session = Depends(get_db),
-              user: User = Depends(current_user)):
+def old_step_link(sheet_id: int):
+    """Frühere Schritt-Links führen in den Editor."""
+    return RedirectResponse(f"/datenblatt/{sheet_id}", status_code=303)
+
+
+@router.post("/datenblatt/{sheet_id}/inhalt", dependencies=[Depends(check_csrf)])
+async def save(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
+               settings: Settings = Depends(get_settings)):
+    """Automatisches Speichern aus dem Editor; Antwort enthält die neu berechneten Seiten für die Live-Vorschau."""
     sheet = get_visible(db, Datasheet, sheet_id, user)
-    if step not in ds.STEP_KEYS:
-        raise HTTPException(404, "Schritt nicht gefunden")
-    return _step_page(request, sheet, step, sheet.content)
-
-
-@router.post("/datenblatt/{sheet_id}/schritt/{step}", dependencies=[Depends(check_csrf)])
-async def step_save(request: Request, sheet_id: int, step: str, db: Session = Depends(get_db),
-                    user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
-    sheet = get_visible(db, Datasheet, sheet_id, user)
-    if step not in ds.STEP_KEYS:
-        raise HTTPException(404, "Schritt nicht gefunden")
-    form = await request.form()
-
-    async def store(upload):
-        return await ds.save_image(settings, sheet.id, upload)
-
-    content, errors = await ds.apply_step(sheet.content, step, form, store)
-    if step == "kopf" and not content["kopf"]["titel"]:
-        errors.append("Bitte einen Titel für die Kopfzeile eingeben")
-        content["kopf"]["titel"] = ds.normalized(sheet.content)["kopf"]["titel"]
+    data = await _json(request)
+    content = ds.sanitize(data.get("inhalt"), ds.image_names(settings, sheet.id))
     sheet.content = copy.deepcopy(content)
     sheet.title = ds.title_of(content)
     sheet.updated_at = utcnow()
     db.flush()
-    ds.remove_unused_images(settings, sheet.id, content)
-    if errors:
-        return _step_page(request, sheet, step, content, errors, 400)
+    ds.remove_unused_images(settings, sheet.id, content, grace=ds.UNUSED_IMAGE_GRACE_SECONDS)
+    html, count = _pages_html(sheet, content)
+    return {"ok": True, "titel": sheet.title, "html": html, "seiten": count,
+            "gespeichert": sheet.updated_at.strftime("%H:%M:%S")}
 
-    action = form.get("aktion")
-    index = ds.STEP_KEYS.index(step)
-    if action == "zurueck" and index > 0:
-        target = f"/datenblatt/{sheet.id}/schritt/{ds.STEP_KEYS[index - 1]}"
-    elif action == "weiter" and index < len(ds.STEP_KEYS) - 1:
-        target = f"/datenblatt/{sheet.id}/schritt/{ds.STEP_KEYS[index + 1]}"
-    elif action in ("weiter", "fertig", "vorschau"):
-        target = f"/datenblatt/{sheet.id}/vorschau"
-    elif isinstance(action, str) and action.startswith("gehe:") and action[5:] in ds.STEP_KEYS:
-        target = f"/datenblatt/{sheet.id}/schritt/{action[5:]}"
-    else:  # speichern, Gruppe hinzufügen: auf dem Schritt bleiben
-        target = f"/datenblatt/{sheet.id}/schritt/{step}" + ("#neu" if action == "gruppe" else "")
-    return RedirectResponse(target, status_code=303)
+
+@router.post("/datenblatt/{sheet_id}/bilder", dependencies=[Depends(check_csrf)])
+async def upload_image(request: Request, sheet_id: int, db: Session = Depends(get_db),
+                       user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
+    sheet = get_visible(db, Datasheet, sheet_id, user)
+    form = await request.form()
+    upload = form.get("datei")
+    if not ds.is_upload(upload):
+        return JSONResponse({"detail": "Keine Datei"}, status_code=400)
+    try:
+        name = await ds.save_image(settings, sheet.id, upload)
+    except ds.ImageError as e:
+        return JSONResponse({"detail": str(e)}, status_code=400)
+    return {"name": name, "url": f"/datenblatt/{sheet.id}/bild/{name}"}
+
+
+@router.post("/datenblatt/{sheet_id}/einfuegen", dependencies=[Depends(check_csrf)])
+async def paste_rows(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Aus Excel kopierte Zeilen in Tabellenzeilen umwandeln (Farbe aus der Beschreibung)."""
+    get_visible(db, Datasheet, sheet_id, user)
+    data = await _json(request)
+    columns = data.get("spalten") if isinstance(data.get("spalten"), int) else 0
+    return {"zeilen": ds.parse_paste(str(data.get("text") or "")[:100_000], max(0, min(columns, ds.MAX_COLUMNS)))}
 
 
 @router.get("/datenblatt/{sheet_id}/vorschau")
@@ -115,7 +137,7 @@ def preview(request: Request, sheet_id: int, db: Session = Depends(get_db), user
     sheet = get_visible(db, Datasheet, sheet_id, user)
     content = ds.normalized(sheet.content)
     return render(request, "datasheet_print.html", {
-        "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER, "props": ds.shown_properties(content), "badges": ds.approval_badges(content),
+        "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER,
     })
 
 
@@ -141,7 +163,7 @@ def duplicate(request: Request, sheet_id: int, db: Session = Depends(get_db), us
     ds.copy_images(settings, src.id, copy_.id)
     audit(db, user, "datenblatt_kopiert", "datasheet", copy_.id, {"von": src.id, "titel": src.title},
           client_ip(request))
-    return RedirectResponse(f"/datenblatt/{copy_.id}/schritt/kopf", status_code=303)
+    return RedirectResponse(f"/datenblatt/{copy_.id}", status_code=303)
 
 
 @router.get("/datenblatt/{sheet_id}/loeschen")

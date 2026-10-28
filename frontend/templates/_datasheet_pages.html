@@ -1,0 +1,82 @@
+{# A4-Seiten eines Datenblatts: feste Kopf- und Fußzeile, dazwischen die Bausteine.
+   Gemeinsam für Live-Vorschau im Editor und Druckansicht. Erwartet: sheet, c, pages, footer #}
+{% from "_ece_badge.html" import ece_badge %}
+{% set img = "/datenblatt/%d/bild/" % sheet.id %}
+{% set titel = c.kopf.titel %}{% set untertitel = c.kopf.untertitel %}
+{% macro lines(text) %}{% for line in (text or "").split("\n") %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endmacro %}
+{% for page in pages %}
+<section class="sheet" data-page="{{ loop.index }}">
+  <header class="sheet-head" data-block="kopf">
+    <div class="head-row"><span class="head-bar"></span><h1>{{ titel or "Titel" }}</h1></div>
+    {% if untertitel %}<div class="head-sub">{{ untertitel }}</div>{% endif %}
+  </header>
+
+  <div class="sheet-body">
+  {% for t in page.teile %}
+    {% if t.typ == "intro" %}
+    <div class="part intro" data-block="{{ t.index }}">
+      <div class="intro-text">
+        {% if t.eigenschaften %}<ul class="props">{% for e in t.eigenschaften %}<li>{% if e.name %}<b>{{ e.name }}:</b> {% endif %}{{ e.wert }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="intro-images">{% for name in t.bilder %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+    </div>
+
+    {% elif t.typ == "spez" %}
+    <div class="part spec" data-block="{{ t.index }}">
+      <h2 class="part-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
+      <div class="spec-grid">
+        <div>
+          {% if t.logos %}<div class="badges">{% for b in t.logos %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
+          {% if t.zeilen %}
+          <table class="spec-table">
+            {% for z in t.zeilen %}<tr><th>{{ z.merkmal }}{% if z.merkmal and not z.merkmal.endswith(":") %}:{% endif %}</th><td>{{ lines(z.wert) }}</td></tr>{% endfor %}
+          </table>
+          {% endif %}
+        </div>
+        <div class="drawings">{% for name in t.zeichnungen %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+      </div>
+    </div>
+
+    {% elif t.typ == "anwendung" %}
+    <div class="part photos photos-{{ t.bilder | length }}" data-block="{{ t.index }}">{% for name in t.bilder %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+
+    {% elif t.typ == "bild" %}
+    <div class="part free-img h-{{ t.hoehe }}" data-block="{{ t.index }}"><img src="{{ img ~ t.bild }}" alt=""></div>
+
+    {% elif t.typ == "tabelle" %}
+    {% set nr_span = (1 if t.bild_links else 0) + (1 if t.zeilen_bilder else 0) + 1 + (1 if t.farben else 0) %}
+    <div class="part tbl rows-{{ t.zeilenbilder }}" data-block="{{ t.index }}">
+      {% if t.titel or t.zusatz %}<h2 class="part-title">{% if t.titel %}<b>{{ t.titel }}</b>{% endif %}{% if t.titel and t.zusatz %} - {% endif %}{{ t.zusatz }}{% if t.fortsetzung %} <span class="cont">(Fortsetzung)</span>{% endif %}</h2>{% endif %}
+      {% if t.bild_oben and not t.fortsetzung %}<div class="banner"><img src="{{ img ~ t.bild }}" alt=""></div>{% endif %}
+      <table class="art-table">
+        <colgroup>{% if t.bild_links %}<col class="c-img">{% endif %}{% if t.zeilen_bilder %}<col class="c-rowimg">{% endif %}<col class="c-nr">{% if t.farben %}<col class="c-dot">{% endif %}<col>{% for s in t.spalten %}<col class="c-val">{% endfor %}</colgroup>
+        <thead><tr><th colspan="{{ nr_span }}">Artikel</th><th>Beschreibung</th>{% for s in t.spalten %}<th>{{ s }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for r in t.zeilen %}
+          <tr>
+            {% if t.bild_links and loop.first %}<td class="img" rowspan="{{ t.zeilen | length }}"><img src="{{ img ~ t.bild }}" alt=""></td>{% endif %}
+            {% if t.zeilen_bilder %}<td class="rowimg">{% if r.bild %}<img src="{{ img ~ r.bild }}" alt="">{% endif %}</td>{% endif %}
+            <td class="nr">{{ r.artnr }}</td>
+            {% if t.farben %}<td class="dot">{% if r.farbe %}<span class="color {{ r.farbe }}" title="{{ r.farbe }}"></span>{% endif %}</td>{% endif %}
+            <td>{{ lines(r.beschreibung) }}</td>
+            {% for s in t.spalten %}<td>{{ r.werte[loop.index0] if loop.index0 < r.werte | length }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  {% else %}
+    <p class="empty-sheet">Noch kein Inhalt. Links Eigenschaften, Spezifikationen, Bilder oder Tabellen eintragen.</p>
+  {% endfor %}
+  </div>
+
+  <footer class="sheet-foot" data-block="fuss">
+    <img class="logo" src="/static/bb-logo.png" alt="Braun &amp; Braun">
+    <div class="foot-text">
+      <div class="foot-row"><span>{{ footer.firma }}</span><span>{{ footer.web }}</span><span>{{ footer.mail }}</span><span>{{ footer.tel }}</span></div>
+      <div class="foot-small">{{ footer.hinweis }}{% if c.fuss.version %} Version {{ c.fuss.version }}{% endif %}</div>
+    </div>
+  </footer>
+</section>
+{% endfor %}

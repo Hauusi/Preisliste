@@ -7,7 +7,7 @@ from sqlalchemy import select
 from backend.database.engine import session_scope
 from backend.models.entities import Article, PriceList, PriceUpdate
 from backend.services import datasheets as ds
-from tests.test_datasheets import PNG, _new, _step
+from tests.test_datasheets import _new, _upload
 from tests.test_price_update import _import, _ours, _setup
 
 
@@ -65,7 +65,7 @@ def test_clear_data_alles_removes_datasheets_of_deleted_users(user_client, admin
     from backend.cli import clear_data
 
     sid = _new(user_client)
-    _step(user_client, sid, "bilder", {}, files={"bild_0": ("a.png", PNG, "image/png")})
+    _upload(user_client, sid)
     keep = _new(admin_client, "Admin-Blatt", "")
     _, counts = clear_data(settings, everything=True)
     assert counts["Datenblätter (der gelöschten Benutzer)"] == 1
@@ -77,6 +77,6 @@ def test_reset_data_removes_datasheet_images(user_client, settings, app):
     from backend.cli import reset_data
 
     sid = _new(user_client)
-    _step(user_client, sid, "bilder", {}, files={"bild_0": ("a.png", PNG, "image/png")})
+    _upload(user_client, sid)
     reset_data(settings)
     assert not (settings.upload_dir / "datenblatt").exists()

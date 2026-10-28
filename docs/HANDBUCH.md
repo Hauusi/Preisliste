@@ -308,37 +308,49 @@ Minute dauern.
 
 ## 11. Modul Datenblatt erstellen
 
-Startseite → **Datenblatt erstellen** → „Neues Datenblatt“. Das Layout ist fest (A4, Vorlage „LED Blitzmodule –
-Serie Gecko“), der Inhalt wird in 9 Schritten abgefragt. Schritte ohne Inhalt fehlen im Datenblatt einfach.
+Startseite → **Datenblatt erstellen** → Titel (Produktgruppe) und Untertitel (Serie) eingeben → „Neues Datenblatt“.
+Es öffnet sich der **Editor**: links die Eingabe, rechts das **Live-Blatt** im Druckformat A4. Jede Änderung wird
+nach einer kurzen Pause automatisch gespeichert („Gespeichert hh:mm:ss“ oben), das Blatt rechts aktualisiert sich
+sofort. Vorschau und Druck verwenden dieselbe Vorlage – was rechts steht, wird gedruckt.
 
-| Schritt | Inhalt | Wo im Datenblatt |
-|---|---|---|
-| 1 Kopfzeile | Titel (Produktgruppe), Untertitel (Serie). Vorschau aktualisiert sich beim Tippen. | jede Seite oben rechts, blauer Balken links davon (so hoch wie die Großbuchstaben, langer Titel = kürzerer Balken) |
-| 2 Eigenschaften | vorbelegt: Spannung, LED-Farbe, Anzahl LEDs, Schutzart, Zulassung, Montage, Garantie – nur Wert eintragen. Je Zeile: ziehen am Griff (oder Pfeiltasten) zum Sortieren, Auge zum Ein-/Ausblenden, Papierkorb. Neue Eigenschaft unten mit Vorschlägen (Länge, Leistung, Lichtstrom …). | Seite 1 oben links als Aufzählung „**Name:** Wert“; leere oder ausgeblendete entfallen |
-| 3 Produktbilder | 2 Bilder | Seite 1 oben rechts |
-| 4 Spezifikationen | Tabelle Merkmal/Wert (mehrzeilig möglich). **Zulassungslogos werden automatisch** aus dem Feld „Zulassung“ erzeugt (Eigenschaften oder Tabelle). | Seite 1 Mitte, Überschrift automatisch aus der Kopfzeile |
-| 5 Maßzeichnungen | 2 Bilder | rechts neben der Spezifikation |
-| 6 Anwendungsbilder | 2 Bilder, auf gleiche Höhe zugeschnitten | Seite 1 unten |
-| 7 Artikel | Gruppen mit Überschrift, Bild, bis zu 3 frei benennbaren Zusatzspalten (Standard Zulassung, Montage) und Zeilen (Artikelnr., Farbe, Beschreibung, Werte). Zeilen auch **aus Excel einfügen** (Artikelnr. ⇥ Beschreibung ⇥ Zusatzspalten); Farbe wird aus dem letzten Farbwort der Beschreibung übernommen. | ab Seite 2 |
-| 8 Zubehör | Bild, Artikelnummer, Beschreibung | eigene Seite(n) „ZUBEHÖR“ |
-| 9 Fußzeile | fest (Logo, Braun & Braun GmbH, Web, Mail, Telefon, Hinweis), nur die **Version** ist änderbar (Vorschlag: heutiges Datum) | jede Seite unten |
+**Kopf- und Fußzeile sind fest** und sehen immer gleich aus (blauer Balken mit Titel und Serie, Logo und
+Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußzeile.
 
-**Zulassungslogos:** „ECE-R65 Klasse II, ECE-R10“ ergibt ein blaues ECE-R65-Logo mit „KLASSE 2“ in Orange und ein
-schwarzes ECE-R10-Logo. Klasse wird erkannt als „Klasse I/II“, „Kl. 1/2“, „Class“. Mehrere R65-Klassen: ein Logo
-mit der höchsten. Andere Zeichen (E-Prüfzeichen, SAE) werden nicht erkannt.
+**Bausteine** dazwischen (jeweils eine Karte, aufklappbar):
 
-**Bilder:** JPG, PNG, GIF, WebP bis 10 MB. Geprüft wird der Inhalt, nicht die Endung. Ersetzte oder entfernte
-Bilder werden gelöscht.
+| Baustein | Inhalt |
+|---|---|
+| Eigenschaften & Produktbilder | Aufzählung „**Name:** Wert“ links (vorbelegt: Spannung, LED-Farbe, Anzahl LEDs, Schutzart, Zulassung, Montage, Garantie; eigene mit Vorschlägen), bis zu 2 Bilder rechts |
+| Spezifikationen | Tabelle Merkmal/Wert (mehrzeilig), Überschrift automatisch aus der Kopfzeile, **Zulassungslogos automatisch** aus dem Feld „Zulassung“, bis zu 2 Bilder rechts (z. B. Maßzeichnungen) |
+| Anwendungsbilder | 2 Bilder nebeneinander (gleiche Höhe zugeschnitten) oder 1 Bild über die ganze Breite |
+| **Tabelle** (beliebig oft) | Überschrift fett + Zusatz normal („**BESTELLINFORMATIONEN** - SERIE 12+ STANDARD VERSION“), Gruppenbild **links neben** der Tabelle (Gecko) oder **über** der Tabelle (Leuchtbalken), Bilder je Zeile klein (Artikelliste) oder groß (Zubehör), bis zu 3 frei benennbare Zusatzspalten (z. B. Länge, Zulassung, Brutto VK), Zeilen mit Bild, Artikelnr., Farbpunkt, Beschreibung, Werten. Zeilen auch **aus Excel einfügen** (Artikelnr. ⇥ Beschreibung ⇥ Zusatzspalten; Farbe aus dem letzten Farbwort der Beschreibung). |
+| **Zubehör** | eine Tabelle mit Überschrift „Zubehör“ und großen Zeilenbildern |
+| **Bild** (beliebig oft) | ein Bild über die volle Breite, Höhe klein/mittel/groß (30/50/80 mm), z. B. Seitenansicht unter der Spezifikation |
 
-**Seitenaufteilung:** automatisch. Artikelgruppen beginnen auf einer neuen Seite, wenn sie nicht mehr passen; zu
-lange Gruppen werden mit „(Fortsetzung)“ geteilt. Zubehör: bis 12 Zeilen je Seite. Eine zu volle Seite wird in der
-Vorschau **rot markiert** mit Hinweis; ebenso ein Titel, der keinen Platz mehr für den Balken lässt.
+Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 
-**PDF:** Vorschau → „Drucken / als PDF speichern“ → im Druckdialog **Als PDF speichern**, Format **A4**, Ränder
-**Keine**, **Hintergrundgrafiken** an.
+**Bedienung:**
 
-**Weiteres:** „Kopieren“ legt eine Kopie mit allen Bildern an (Vorlage für die nächste Serie). Löschen mit
-Bestätigung entfernt auch die Bilder. Schrift: Myriad Pro, falls auf dem Rechner installiert, sonst Segoe UI.
+- **Verschieben:** am Griff (⋮⋮) ziehen – Bausteine, Eigenschaften, Spezifikationszeilen und Tabellenzeilen.
+  Alternativ Griff anklicken und Pfeiltasten ↑/↓.
+- **Neue Seite:** Häkchen am Baustein – er beginnt auf einer neuen Seite.
+- **Ausblenden:** Auge am Baustein oder an einer Eigenschaft – bleibt gespeichert, wird aber nicht gedruckt.
+- **Bilder:** Platz anklicken oder eine Datei hineinziehen. Gefüllte Bilder per Ziehen zwischen beliebigen Plätzen
+  **tauschen**, × entfernt. JPG, PNG, GIF, WebP bis 10 MB; geprüft wird der Inhalt, nicht die Endung.
+- **Klick ins Live-Blatt** öffnet die passende Eingabe links.
+- **Seitenaufteilung** automatisch in der Reihenfolge der Bausteine; lange Tabellen werden mit „(Fortsetzung)“
+  geteilt. Eine zu volle Seite wird **rot umrandet** mit Hinweis, ebenso ein zu langer Titel.
+- **Drucken / PDF:** Knopf oben rechts → Druckansicht → „Drucken / als PDF speichern“ → im Druckdialog
+  **Als PDF speichern**, **A4**, Ränder **Keine**, **Hintergrundgrafiken** an.
+
+**Zulassungslogos:** „ECE-R65 Klasse II, ECE-R10, CISPR 25“ ergibt ECE-R65 (blau, „KLASSE 2“ in Orange), ECE-R10
+(schwarz) und CISPR 25 (gold), in der eingegebenen Reihenfolge. Klasse wird erkannt als „Klasse I/II“, „Kl. 1/2“,
+„Class“; mehrere R65-Klassen ergeben ein Logo mit der höchsten. Andere Zeichen (E-Prüfzeichen, SAE) werden nicht
+erkannt. Die Eigenschaft „Zulassung“ kann ausgeblendet werden, die Logos bleiben.
+
+**Weiteres:** „Kopieren“ in der Übersicht legt eine Kopie mit allen Bildern an (Vorlage für die nächste Serie).
+Löschen mit Bestätigung entfernt auch die Bilder. Datenblätter aus der früheren Schritt-Eingabe werden beim Öffnen
+automatisch in Bausteine übernommen. Schrift: Myriad Pro, falls auf dem Rechner installiert, sonst Segoe UI.
 
 ## 12. Verwaltung (Administratoren)
 
@@ -362,7 +374,7 @@ Bestätigung entfernt auch die Bilder. Schrift: Myriad Pro, falls auf dem Rechne
 | Liste in falscher Währung importiert | Liste löschen und mit richtiger Währung neu einspielen; das Tool blockiert den Abgleich vorher |
 | Excel zeigt alte Werte | Excel-Datei neu herunterladen; Downloads werden nicht nachträglich geändert |
 | Änderung am Server nicht sichtbar | Update ausführen (Teil B), danach im Browser Strg+F5 |
-| Datenblatt-Seite rot umrandet | zu viel Inhalt: Text kürzen, weniger Zeilen oder Bilder |
+| Datenblatt-Seite rot umrandet | zu viel Inhalt: Text kürzen, weniger Zeilen oder Bilder, oder einen Baustein mit „neue Seite“ beginnen |
 
 ---
 
@@ -418,7 +430,7 @@ liegen auf demselben Server – regelmäßig woandershin kopieren. Wiederherstel
 | Jobs | `backend/jobs/` | ein Worker-Thread im App-Prozess, Fortschritt im Speicher, Abbruch über DB-Flag |
 | KI | `backend/ai/` | Ollama / lokaler OpenAI-kompatibler Server / Mock, JSON-Schema, pydantic-Validierung |
 | Datenbank | `backend/database/`, `backend/models/entities.py` | SQLite (WAL), SQLAlchemy 2, Alembic-Migrationen `0001`–`0012` |
-| Frontend | `frontend/static/` | `style.css` (Hell/Dunkel über Tokens), `app.js` (Komfort, Drag & Drop), `datasheet.css/js` (A4-Druck) |
+| Frontend | `frontend/static/` | `style.css` (Hell/Dunkel über Tokens), `app.js` (Komfort, Drag & Drop), `datasheet.css/js` (A4-Blatt, Prüfung auf Überlauf), `datasheet_editor.js` (Editor: Autosave, Sortieren, Bilder) |
 
 Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess laufen.
 
@@ -435,7 +447,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `calculation_runs`, `calculation_results` | Kalkulationen mit Rechenweg |
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
-| `datasheets` | Datenblätter: Titel, Inhalt als JSON (Bilder nur als Dateiname) |
+| `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

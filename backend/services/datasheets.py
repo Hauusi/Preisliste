@@ -1,15 +1,18 @@
-"""Datenblätter: Baukasten mit festem Layout (Kopf, Beschreibung, Spezifikationen, Artikel, Zubehör, Fußzeile).
+"""Datenblätter: festes Firmenlayout (Kopf- und Fußzeile), Inhalt aus verschiebbaren Bausteinen.
 
-Der Inhalt wird Schritt für Schritt abgefragt und als JSON gespeichert. Bilder liegen als Dateien unter
-uploads/datenblatt/<id>/ (damit in der Sicherung enthalten), im JSON steht nur der Dateiname.
+Bausteine: Einleitung (Eigenschaften + Produktbilder), Spezifikationen (+ Zulassungslogos, Maßzeichnungen),
+Anwendungsbilder, Artikel (Gruppen), Zubehör. Reihenfolge, „neue Seite“ und „ausblenden“ je Baustein.
+Der Editor schickt den ganzen Inhalt als JSON; sanitize() prüft und begrenzt alles, bevor es gespeichert wird.
+Bilder liegen als Dateien unter uploads/datenblatt/<id>/ (damit in der Sicherung enthalten), im JSON steht nur
+der Dateiname.
 """
 
 from __future__ import annotations
 
-import copy
 import re
 import secrets
 import shutil
+import time
 from datetime import date
 from pathlib import Path
 
@@ -24,21 +27,31 @@ FOOTER = {
     "hinweis": "Preise exkl. MwSt. Technische Irrtümer und Änderungen vorbehalten.",
 }
 
-STEPS = [
-    ("kopf", "Kopfzeile"),
-    ("eigenschaften", "Eigenschaften"),
-    ("bilder", "Produktbilder"),
-    ("spez", "Spezifikationen"),
-    ("zeichnungen", "Maßzeichnungen"),
-    ("anwendung", "Anwendungsbilder"),
-    ("artikel", "Artikel"),
-    ("zubehoer", "Zubehör"),
-    ("fuss", "Fußzeile"),
-]
-STEP_KEYS = [k for k, _ in STEPS]
+# Bausteine zwischen Kopf- und Fußzeile (die beiden sind fest). Einleitung, Spezifikation und Anwendungsbilder gibt es
+# genau einmal; Tabellen (Artikel, Zubehör) und freie Bilder beliebig oft, in beliebiger Reihenfolge.
+BLOCKS = {"intro": "Eigenschaften & Produktbilder", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder",
+          "tabelle": "Tabelle", "bild": "Bild"}
+SINGLE_BLOCKS = ("intro", "spez", "anwendung")
+MAX_BLOCKS = 40
+IMAGE_HEIGHTS = {"S": ("klein", 30), "M": ("mittel", 50), "L": ("groß", 80)}
+ROW_IMAGES = {"klein": "klein (Artikelliste)", "gross": "groß (Zubehör)"}
+GROUP_IMAGE_POS = {"links": "links neben der Tabelle", "oben": "über der Tabelle"}
 
-# Bildplätze je Schritt (Schlüssel im Inhalt, Anzahl)
-IMAGE_SLOTS = {"bilder": ("bilder_oben", 2), "zeichnungen": ("zeichnungen", 2), "anwendung": ("bilder_unten", 2)}
+
+def new_table(titel: str = "", zubehoer: bool = False) -> dict:
+    """Leere Tabelle; Zubehör: Überschrift „Zubehör“, große Zeilenbilder, eigene Seite wie im Muster Gecko."""
+    return {"typ": "tabelle", "neue_seite": False, "sichtbar": True, "titel": titel or ("Zubehör" if zubehoer else ""),
+            "zusatz": "", "bild": None, "bild_pos": "links", "zeilenbilder": "gross" if zubehoer else "klein",
+            "spalten": [] if zubehoer else list(DEFAULT_COLUMNS), "zeilen": []}
+
+
+def new_image_block() -> dict:
+    return {"typ": "bild", "neue_seite": False, "sichtbar": True, "bild": None, "hoehe": "M"}
+
+
+DEFAULT_BLOCKS = [{"typ": "intro", "neue_seite": False, "sichtbar": True},
+                  {"typ": "spez", "neue_seite": False, "sichtbar": True},
+                  {"typ": "anwendung", "neue_seite": False, "sichtbar": True}]
 
 COLORS = {"": "keine", "gelb": "gelb", "blau": "blau", "rot": "rot", "gruen": "grün", "weiss": "weiß", "klar": "klar"}
 COLOR_WORDS = {"gelb": "gelb", "amber": "gelb", "orange": "gelb", "blau": "blau", "blue": "blau", "rot": "rot",
@@ -46,20 +59,23 @@ COLOR_WORDS = {"gelb": "gelb", "amber": "gelb", "orange": "gelb", "blau": "blau"
                "white": "weiss", "klar": "klar", "clear": "klar"}
 DEFAULT_COLUMNS = ["Zulassung", "Montage"]
 
+
 # Vorbelegte Eigenschaften (nur Wert eintragen); je Produkt ein-/ausblenden, verschieben, eigene ergänzen
 DEFAULT_PROPERTIES = ["Spannung", "LED-Farbe", "Anzahl LEDs", "Schutzart", "Zulassung", "Montage", "Garantie"]
 # Vorschläge beim Hinzufügen
 PROPERTY_SUGGESTIONS = ["Länge", "Breite", "Höhe", "Leistung", "Lichtstrom", "Abstrahlwinkel", "Blitzfunktionen",
                         "Synchronisierbar", "Gehäuse", "Material", "Gewicht", "Kabellänge", "Betriebstemperatur",
                         "Stromaufnahme", "Linse", "Farbtemperatur"]
-MAX_PROPERTIES = 25
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-MAX_SPEC_ROWS, MAX_COLUMNS = 20, 3
-MAX_GROUPS, MAX_GROUP_ROWS, MAX_ACCESSORIES = 20, 80, 80
-SPARE_ROWS = 3
+MAX_PROPERTIES, MAX_SPEC_ROWS, MAX_COLUMNS = 25, 20, 3
+MAX_ROWS = 80
+IMAGE_SLOTS = {"bilder_oben": 2, "zeichnungen": 2, "bilder_unten": 2}
 IMAGE_NAME = re.compile(r"^[0-9a-f]{16}\.(png|jpg|gif|webp)$")
 MEDIA_TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
+# Nicht mehr verwendete Bilder erst löschen, wenn sie so alt sind: ein gerade hochgeladenes Bild ist evtl. noch
+# nicht im gespeicherten Inhalt (Speichern und Hochladen laufen im Editor unabhängig voneinander)
+UNUSED_IMAGE_GRACE_SECONDS = 600
 
 
 class ImageError(ValueError):
@@ -74,51 +90,87 @@ def empty_content() -> dict:
         "spez": {"zeichen": [], "zeilen": []},
         "zeichnungen": [],
         "bilder_unten": [],
-        "gruppen": [],
-        "zubehoer": [],
         "fuss": {"version": date.today().strftime("%d%m%Y")},
+        "bloecke": [dict(b) for b in DEFAULT_BLOCKS],
     }
 
 
 def normalized(content: dict | None) -> dict:
-    """Fehlende Schlüssel (ältere Datenblätter) mit Standardwerten auffüllen."""
+    """Fehlende Schlüssel mit Standardwerten auffüllen und ältere Datenblätter ins Bausteinformat übernehmen."""
+    content = content or {}
     out = empty_content()
-    for key, value in (content or {}).items():
+    for key, value in content.items():
         if key in out:
             out[key] = value
     # Ältere Datenblätter: Aufzählungspunkte der früheren Beschreibung als Eigenschaften ohne Namen übernehmen
-    old = (content or {}).get("beschreibung")
-    if "eigenschaften" not in (content or {}) and old and old.get("punkte"):
+    old = content.get("beschreibung")
+    if "eigenschaften" not in content and old and old.get("punkte"):
         out["eigenschaften"] = [{"name": "", "wert": p, "sichtbar": True} for p in old["punkte"]] + out["eigenschaften"]
+    blocks = content.get("bloecke") if isinstance(content.get("bloecke"), list) else []
+    if "gruppen" in content or "zubehoer" in content:
+        # Format vor den Bausteinen: Artikelgruppen und Zubehör als Tabellen-Bausteine (Gecko-Aufbau)
+        tables = [{**new_table(), "titel": g.get("titel", ""), "bild": g.get("bild"), "spalten": g.get("spalten", []),
+                   "zeilen": [{**r, "bild": None} for r in g.get("zeilen", [])]}
+                  for g in content.get("gruppen") or []]
+        if tables:
+            tables[0]["neue_seite"] = True
+        if content.get("zubehoer"):
+            tables.append({**new_table(zubehoer=True), "neue_seite": True,
+                           "zeilen": [{"bild": z.get("bild"), "artnr": z.get("artnr", ""), "farbe": "",
+                                       "beschreibung": z.get("beschreibung", ""), "werte": []}
+                                      for z in content["zubehoer"]]})
+        blocks = [b for b in blocks if isinstance(b, dict) and b.get("typ") in SINGLE_BLOCKS] + tables
+    out["bloecke"] = _blocks(blocks)
     return out
+
+
+def _blocks(raw) -> list[dict]:
+    """Einleitung, Spezifikation und Anwendungsbilder genau einmal (fehlende vorne ergänzt), Rest wie gespeichert."""
+    out, seen = [], set()
+    for b in raw if isinstance(raw, list) else []:
+        if not isinstance(b, dict) or b.get("typ") not in BLOCKS:
+            continue
+        if b["typ"] in SINGLE_BLOCKS:
+            if b["typ"] in seen:
+                continue
+            seen.add(b["typ"])
+        out.append({**b, "neue_seite": b.get("neue_seite") is True, "sichtbar": b.get("sichtbar") is not False})
+    missing = [dict(b) for b in DEFAULT_BLOCKS if b["typ"] not in seen]
+    return (missing + out)[:MAX_BLOCKS]
+
+
+def tables(content: dict) -> list[dict]:
+    return [b for b in normalized(content)["bloecke"] if b["typ"] == "tabelle"]
 
 
 ECE_RX = re.compile(r"\b(?:ECE|UN)?[\s-]*R\s*-?\s*(\d{1,3})\b", re.IGNORECASE)
 CLASS_RX = re.compile(r"\b(?:Klasse|Kl\.?|Class)\s*(II|I|2|1)\b", re.IGNORECASE)
+CISPR_RX = re.compile(r"\bCISPR\s*-?\s*(\d{1,3})\b", re.IGNORECASE)
 
 
 def approval_badges(content: dict) -> list[dict]:
     """Zulassungslogos aus dem Feld „Zulassung“ (Eigenschaften und Spezifikationstabelle), z. B.
-    „ECE-R65 Klasse II, ECE-R10“ -> [{"nr": "65", "klasse": "2"}, {"nr": "10", "klasse": None}].
+    „ECE-R65 Klasse II, ECE-R10, CISPR 25“ -> ECE-R65 Klasse 2 (blau), ECE-R10 (schwarz), CISPR 25 (gold).
     Bei ECE-R65 wird die Klasse aus dem Text bis zur nächsten Regelung gelesen."""
     c = normalized(content)
     texts = [e.get("wert", "") for e in c["eigenschaften"] if e.get("name", "").lower().startswith("zulass")]
     texts += [z.get("wert", "") for z in c["spez"]["zeilen"] if z.get("merkmal", "").lower().startswith("zulass")]
-    found: dict[str, set] = {}
+    found: dict[tuple, set] = {}
     for text in texts:
-        matches = list(ECE_RX.finditer(text))
+        # „CISPR 25“ nicht zusätzlich als „R 25“ lesen
+        ece_text = CISPR_RX.sub(lambda m: " " * len(m.group(0)), text)
+        matches = list(ECE_RX.finditer(ece_text))
+        hits = [(m.start(), ("CISPR", str(int(m.group(1)))), None) for m in CISPR_RX.finditer(text)]
         for i, m in enumerate(matches):
-            nr = str(int(m.group(1)))
-            classes = found.setdefault(nr, set())
-            if nr == "65":
-                rest = text[m.end():matches[i + 1].start() if i + 1 < len(matches) else len(text)]
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(ece_text)
+            hits.append((m.start(), ("ECE", str(int(m.group(1)))), ece_text[m.end():end]))
+        for _, key, rest in sorted(hits, key=lambda h: h[0]):  # Reihenfolge wie eingegeben
+            classes = found.setdefault(key, set())
+            if key == ("ECE", "65"):
                 for k in CLASS_RX.findall(rest):
                     classes.add({"I": "1", "II": "2"}.get(k.upper(), k))
-    badges = []
-    for nr, classes in found.items():
-        # Mehrere Klassen (z. B. Gecko 3 Klasse I, Gecko 6 Klasse II): ein Logo mit der höchsten, wie im Muster
-        badges.append({"nr": nr, "klasse": max(classes) if classes else None})
-    return badges
+    # Mehrere Klassen (z. B. Gecko 3 Klasse I, Gecko 6 Klasse II): ein Logo mit der höchsten, wie im Muster
+    return [{"art": art, "nr": nr, "klasse": max(classes) if classes else None} for (art, nr), classes in found.items()]
 
 
 def shown_properties(content: dict) -> list[dict]:
@@ -131,10 +183,89 @@ def title_of(content: dict) -> str:
     return " – ".join(p for p in (k["titel"], k["untertitel"]) if p) or "Neues Datenblatt"
 
 
+# ---------- Eingaben aus dem Editor prüfen ----------
+
+def _s(value, limit: int) -> str:
+    """Text auf Länge begrenzen; alles, was kein Text/keine Zahl ist, wird leer."""
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return ""
+    return str(value).replace("\r\n", "\n").strip()[:limit]
+
+
+def _list(value, limit: int) -> list:
+    return [v for v in value if isinstance(v, dict)][:limit] if isinstance(value, list) else []
+
+
+def _images(value, valid: set[str], limit: int) -> list[str]:
+    names = value if isinstance(value, list) else []
+    return [n for n in names if isinstance(n, str) and n in valid][:limit]
+
+
+def _image(value, valid: set[str]) -> str | None:
+    return value if isinstance(value, str) and value in valid else None
+
+
+def _table(b: dict, valid: set[str]) -> dict:
+    spalten = [_s(x, 30) for x in (b.get("spalten") if isinstance(b.get("spalten"), list) else [])][:MAX_COLUMNS]
+    while spalten and not spalten[-1]:
+        spalten.pop()
+    zeilen = []
+    for r in _list(b.get("zeilen"), MAX_ROWS):
+        werte = r.get("werte") if isinstance(r.get("werte"), list) else []
+        row = {"bild": _image(r.get("bild"), valid), "artnr": _s(r.get("artnr"), 60),
+               "farbe": r.get("farbe") if r.get("farbe") in COLORS else "",
+               "beschreibung": _s(r.get("beschreibung"), 300),
+               "werte": [_s(werte[k] if k < len(werte) else "", 80) for k in range(len(spalten))]}
+        if row["bild"] or row["artnr"] or row["beschreibung"] or any(row["werte"]):
+            zeilen.append(row)
+    return {"titel": _s(b.get("titel"), 80), "zusatz": _s(b.get("zusatz"), 80), "bild": _image(b.get("bild"), valid),
+            "bild_pos": b.get("bild_pos") if b.get("bild_pos") in GROUP_IMAGE_POS else "links",
+            "zeilenbilder": b.get("zeilenbilder") if b.get("zeilenbilder") in ROW_IMAGES else "klein",
+            "spalten": spalten, "zeilen": zeilen}
+
+
+def sanitize(raw, valid_images: set[str]) -> dict:
+    """Inhalt aus dem Editor: nur bekannte Felder, Längen begrenzt, nur vorhandene Bilder dieses Datenblatts."""
+    raw = raw if isinstance(raw, dict) else {}
+    c = empty_content()
+    kopf = raw.get("kopf") if isinstance(raw.get("kopf"), dict) else {}
+    c["kopf"] = {"titel": _s(kopf.get("titel"), 60), "untertitel": _s(kopf.get("untertitel"), 80)}
+    c["eigenschaften"] = [
+        {"name": _s(e.get("name"), 40), "wert": _s(e.get("wert"), 150), "sichtbar": e.get("sichtbar") is not False}
+        for e in _list(raw.get("eigenschaften"), MAX_PROPERTIES)
+        if _s(e.get("name"), 40) or _s(e.get("wert"), 150)]
+    for key, n in IMAGE_SLOTS.items():
+        c[key] = _images(raw.get(key), valid_images, n)
+    spez = raw.get("spez") if isinstance(raw.get("spez"), dict) else {}
+    c["spez"] = {"zeichen": [], "zeilen": [
+        {"merkmal": _s(z.get("merkmal"), 60), "wert": _s(z.get("wert"), 300)}
+        for z in _list(spez.get("zeilen"), MAX_SPEC_ROWS) if _s(z.get("merkmal"), 60) or _s(z.get("wert"), 300)]}
+    fuss = raw.get("fuss") if isinstance(raw.get("fuss"), dict) else {}
+    c["fuss"] = {"version": _s(fuss.get("version"), 30)}
+    blocks = []
+    for b in _list(raw.get("bloecke"), MAX_BLOCKS):
+        base = {"typ": b.get("typ"), "neue_seite": b.get("neue_seite") is True, "sichtbar": b.get("sichtbar") is not False}
+        if base["typ"] in SINGLE_BLOCKS:
+            blocks.append(base)
+        elif base["typ"] == "tabelle":
+            # Leere Tabellen bleiben erhalten (gerade angelegt), gedruckt werden nur Tabellen mit Zeilen
+            blocks.append({**base, **_table(b, valid_images)})
+        elif base["typ"] == "bild":
+            blocks.append({**base, "bild": _image(b.get("bild"), valid_images),
+                           "hoehe": b.get("hoehe") if b.get("hoehe") in IMAGE_HEIGHTS else "M"})
+    c["bloecke"] = _blocks(blocks)
+    return c
+
+
 # ---------- Bilder ----------
 
 def image_dir(settings: Settings, sheet_id: int) -> Path:
     return settings.upload_dir / "datenblatt" / str(sheet_id)
+
+
+def image_names(settings: Settings, sheet_id: int) -> set[str]:
+    folder = image_dir(settings, sheet_id)
+    return {p.name for p in folder.iterdir() if p.is_file() and IMAGE_NAME.match(p.name)} if folder.is_dir() else set()
 
 
 def _image_type(head: bytes) -> str | None:
@@ -178,17 +309,21 @@ def image_path(settings: Settings, sheet_id: int, name: str) -> Path | None:
 def referenced_images(content: dict) -> set[str]:
     c = normalized(content)
     names = [*c["bilder_oben"], *c["spez"]["zeichen"], *c["zeichnungen"], *c["bilder_unten"]]
-    names += [g.get("bild") for g in c["gruppen"]] + [z.get("bild") for z in c["zubehoer"]]
+    for b in c["bloecke"]:
+        names.append(b.get("bild"))
+        names += [r.get("bild") for r in b.get("zeilen", [])]
     return {n for n in names if n}
 
 
-def remove_unused_images(settings: Settings, sheet_id: int, content: dict) -> None:
+def remove_unused_images(settings: Settings, sheet_id: int, content: dict, grace: float = 0) -> None:
+    """Nicht (mehr) verwendete Bilder löschen; grace: nur Dateien, die älter sind (Sekunden)."""
     folder = image_dir(settings, sheet_id)
     if not folder.is_dir():
         return
     keep = referenced_images(content)
+    limit = time.time() - grace
     for path in folder.iterdir():
-        if path.is_file() and path.name not in keep:
+        if path.is_file() and path.name not in keep and path.stat().st_mtime <= limit:
             path.unlink()
 
 
@@ -202,17 +337,7 @@ def delete_images(settings: Settings, sheet_id: int) -> None:
     shutil.rmtree(image_dir(settings, sheet_id), ignore_errors=True)
 
 
-# ---------- Formulare je Schritt ----------
-
-def _text(form, key: str, limit: int) -> str:
-    return str(form.get(key) or "").replace("\r\n", "\n").strip()[:limit]
-
-
-def _indices(form, pattern: str) -> list[int]:
-    """Alle Zeilennummern zu einem Feldmuster, z. B. r"merkmal_(\\d+)$"."""
-    rx = re.compile(pattern)
-    return sorted({int(m.group(1)) for key in form.keys() if (m := rx.match(key))})
-
+# ---------- Zeilen aus Excel einfügen ----------
 
 def guess_color(description: str) -> str:
     words = re.findall(r"[a-zäöüß]+", description.lower())
@@ -233,170 +358,128 @@ def parse_paste(text: str, n_columns: int) -> list[dict]:
         artnr, desc = cells[0][:60], cells[1][:200]
         if not artnr and not desc:
             continue
-        rows.append({"artnr": artnr, "farbe": guess_color(desc), "beschreibung": desc,
+        rows.append({"bild": None, "artnr": artnr, "farbe": guess_color(desc), "beschreibung": desc,
                      "werte": [c[:80] for c in cells[2:2 + n_columns]]})
-    return rows
-
-
-async def apply_step(content: dict, step: str, form, store) -> tuple[dict, list[str]]:
-    """Formular eines Schritts übernehmen. store(upload) speichert ein Bild und liefert den Namen.
-
-    Liefert den neuen Inhalt (Kopie) und Fehlermeldungen (z. B. ungültige Bilder); gültige Eingaben bleiben erhalten.
-    """
-    c = copy.deepcopy(normalized(content))
-    errors: list[str] = []
-
-    async def image(key: str, current: str | None) -> str | None:
-        if form.get(f"{key}_weg") == "ja":
-            current = None
-        upload = form.get(key)
-        if is_upload(upload):
-            try:
-                return await store(upload)
-            except ImageError as e:
-                errors.append(str(e))
-        return current
-
-    if step == "kopf":
-        c["kopf"] = {"titel": _text(form, "titel", 60), "untertitel": _text(form, "untertitel", 80)}
-    elif step == "eigenschaften":
-        # Gleichnamige Felder in Reihenfolge der Seite (Drag & Drop ändert die Reihenfolge)
-        names, values, shown = form.getlist("e_name"), form.getlist("e_wert"), form.getlist("e_sichtbar")
-        props = []
-        for i, name in enumerate(names):
-            entry = {"name": str(name).strip()[:40], "wert": str(values[i] if i < len(values) else "").strip()[:150],
-                     "sichtbar": str(shown[i] if i < len(shown) else "1") != "0"}
-            if entry["name"] or entry["wert"]:
-                props.append(entry)
-        new = {"name": _text(form, "neu_name", 40), "wert": _text(form, "neu_wert", 150), "sichtbar": True}
-        if new["name"] or new["wert"]:
-            props.append(new)
-        c["eigenschaften"] = props[:MAX_PROPERTIES]
-    elif step in IMAGE_SLOTS:
-        key, n = IMAGE_SLOTS[step]
-        old = c[key] + [None] * n
-        c[key] = [name for i in range(n) if (name := await image(f"bild_{i}", old[i]))]
-    elif step == "spez":
-        zeilen = []
-        for i in _indices(form, r"merkmal_(\d+)$"):
-            merkmal, wert = _text(form, f"merkmal_{i}", 60), _text(form, f"wert_{i}", 300)
-            if merkmal or wert:
-                zeilen.append({"merkmal": merkmal, "wert": wert})
-        c["spez"] = {"zeichen": [], "zeilen": zeilen[:MAX_SPEC_ROWS]}
-    elif step == "artikel":
-        old = c["gruppen"]
-        gruppen = []
-        for gi in _indices(form, r"g(\d+)_titel$"):
-            if form.get(f"g{gi}_weg") == "ja":
-                continue
-            prev = old[gi] if gi < len(old) else {}
-            spalten = [_text(form, f"g{gi}_spalte{k}", 30) for k in range(MAX_COLUMNS)]
-            n_cols = max((k + 1 for k, s in enumerate(spalten) if s), default=0)
-            spalten = spalten[:n_cols]
-            zeilen = []
-            for ri in _indices(form, rf"g{gi}_r(\d+)_artnr$"):
-                p = f"g{gi}_r{ri}_"
-                row = {"artnr": _text(form, p + "artnr", 60), "beschreibung": _text(form, p + "beschreibung", 200),
-                       "farbe": str(form.get(p + "farbe") or ""),
-                       "werte": [_text(form, f"{p}w{k}", 80) for k in range(n_cols)]}
-                if row["farbe"] not in COLORS:
-                    row["farbe"] = ""
-                if row["artnr"] or row["beschreibung"]:
-                    zeilen.append(row)
-            zeilen += parse_paste(str(form.get(f"g{gi}_einfuegen") or "")[:100_000], n_cols)
-            group = {"titel": _text(form, f"g{gi}_titel", 80), "bild": await image(f"g{gi}_bild", prev.get("bild")),
-                     "spalten": spalten, "zeilen": zeilen[:MAX_GROUP_ROWS]}
-            if group["titel"] or group["bild"] or group["zeilen"]:
-                gruppen.append(group)
-        if form.get("aktion") == "gruppe" and len(gruppen) < MAX_GROUPS:
-            gruppen.append({"titel": "", "bild": None, "spalten": list(DEFAULT_COLUMNS), "zeilen": []})
-        c["gruppen"] = gruppen[:MAX_GROUPS]
-    elif step == "zubehoer":
-        old = c["zubehoer"]
-        zeilen = []
-        for i in _indices(form, r"z(\d+)_artnr$"):
-            if form.get(f"z{i}_weg") == "ja":
-                continue
-            prev = old[i] if i < len(old) else {}
-            row = {"artnr": _text(form, f"z{i}_artnr", 60), "beschreibung": _text(form, f"z{i}_beschreibung", 300),
-                   "bild": await image(f"z{i}_bild", prev.get("bild"))}
-            if row["artnr"] or row["beschreibung"] or row["bild"]:
-                zeilen.append(row)
-        c["zubehoer"] = zeilen[:MAX_ACCESSORIES]
-    elif step == "fuss":
-        c["fuss"] = {"version": _text(form, "version", 30)}
-    else:
-        raise ValueError(f"Unbekannter Schritt {step}")
-    return c, errors
-
-
-def step_done(content: dict, step: str) -> bool:
-    c = normalized(content)
-    return {
-        "kopf": bool(c["kopf"]["titel"]),
-        "eigenschaften": bool(shown_properties(c)),
-        "bilder": bool(c["bilder_oben"]),
-        "spez": bool(c["spez"]["zeilen"]),
-        "zeichnungen": bool(c["zeichnungen"]),
-        "anwendung": bool(c["bilder_unten"]),
-        "artikel": any(g["zeilen"] for g in c["gruppen"]),
-        "zubehoer": bool(c["zubehoer"]),
-        "fuss": bool(c["fuss"]["version"]),
-    }[step]
+    return rows[:MAX_ROWS]
 
 
 # ---------- Seitenaufteilung für Vorschau und Druck ----------
-# Höhen in mm, abgeleitet vom Muster-Datenblatt (A4, Inhalt zwischen Kopf- und Fußzeile ca. 225 mm)
-PAGE_BODY_MM = 222
-GROUP_HEAD_MM, GROUP_GAP_MM, ROW_MM, ROW_EXTRA_MM, GROUP_MIN_MM = 17, 11, 6.5, 4, 16
-ACC_HEAD_MM, ACC_ROW_MM = 17, 17
+# Höhen in mm, im Browser an der Druckvorlage gemessen (Seitenkörper zwischen Kopf- und Fußzeile 226 mm).
+# Schätzwerte: Was trotzdem nicht passt, markiert die Vorschau rot (Messung im Browser).
+PAGE_BODY_MM = 224  # 2 mm Reserve
+GAP_MM = 8  # Abstand nach jedem Baustein (entfällt nach dem letzten einer Seite)
+TABLE_TITLE_MM, TABLE_HEAD_MM, TABLE_GAP_MM, BANNER_MM, TABLE_MIN_MM = 8, 6.6, 11, 30, 16
+ROW_MM, ROW_EXTRA_MM = {"": 6.9, "klein": 9.3, "gross": 17.2}, 3.8
 
 
-def _row_mm(row: dict) -> float:
-    longest = max([len(row.get("beschreibung", ""))] + [len(v) * 2.5 for v in row.get("werte", [])])
-    return ROW_MM + ROW_EXTRA_MM * (longest // 75)
+def _lines(text: str, chars: int) -> int:
+    return sum(max(1, -(-len(part) // chars)) for part in (text or "").split("\n"))
 
 
-def _group_mm(rows: list[dict]) -> float:
-    return GROUP_HEAD_MM + max(GROUP_MIN_MM, sum(_row_mm(r) for r in rows)) + GROUP_GAP_MM
+def _row_height(table: dict):
+    with_images = any(r.get("bild") for r in table["zeilen"])
+    base = ROW_MM[table["zeilenbilder"]] if with_images else ROW_MM[""]
+
+    def height(row: dict) -> float:
+        extra = max(_lines(row.get("beschreibung", ""), 70), *[_lines(v, 18) for v in row.get("werte", [])] or [1]) - 1
+        return max(base, ROW_MM[""] + ROW_EXTRA_MM * extra)
+    return height
+
+
+def _intro_mm(props: list[dict], images: list[str]) -> float:
+    text = sum(2 + 5.1 * _lines(f"{e['name']}: {e['wert']}", 50) for e in props)
+    pics = {0: 0, 1: 40, 2: 93}[len(images)]
+    return max(text, pics)
+
+
+def _spez_mm(rows: list[dict], badges: list, drawings: list[str]) -> float:
+    left = (13 if badges else 0) + sum(6.9 + 4 * (_lines(r["wert"], 28) - 1) for r in rows)
+    right = 42 * len(drawings)
+    return 12 + 2 + max(left, right)
 
 
 def paginate(content: dict) -> list[dict]:
-    """Inhalt auf A4-Seiten verteilen: Startseite, Artikelseiten (Gruppen ganz, zu große geteilt), Zubehörseiten."""
+    """Bausteine in ihrer Reihenfolge auf A4-Seiten verteilen.
+
+    Einleitung, Spezifikation, Anwendungsbilder und Bilder sind ganze Teile; passen sie nicht mehr, beginnen sie auf
+    der nächsten Seite. Tabellen werden bei Bedarf zeilenweise geteilt („Fortsetzung“).
+    Ergebnis: [{"teile": [{"typ": ..., "index": Baustein-Nr., ...}, ...]}, ...]
+    """
     c = normalized(content)
-    pages: list[dict] = []
-    if any(step_done(c, s) for s in ("eigenschaften", "bilder", "spez", "zeichnungen", "anwendung")) or approval_badges(c):
-        pages.append({"art": "start"})
+    pages: list[list[dict]] = [[]]
+    used = 0.0
 
-    current, used = [], 0.0
-    for group in (g for g in c["gruppen"] if g["zeilen"]):
-        rows, part = list(group["zeilen"]), 0
+    def new_page():
+        nonlocal used
+        if pages[-1]:
+            pages.append([])
+        used = 0.0
+
+    def place(part: dict, height: float):
+        nonlocal used
+        if used + height > PAGE_BODY_MM and pages[-1]:
+            new_page()
+        pages[-1].append(part)
+        used += height + GAP_MM
+
+    def place_table(part: dict, rows: list, row_mm):
+        """Zeilen so weit wie möglich auf die aktuelle Seite, Rest mit „Fortsetzung“ auf die nächsten."""
+        nonlocal used
+        rows, piece = list(rows), 0
         while True:
-            need = _group_mm(rows)
+            # Bild über der Tabelle nur beim ersten Teil
+            head = ((TABLE_TITLE_MM if part["titel"] or part["zusatz"] else 0) + TABLE_HEAD_MM
+                    + (BANNER_MM if part["bild_oben"] and piece == 0 else 0))
+            min_body = TABLE_MIN_MM if part["bild_links"] else 0
+            need = head + max(min_body, sum(row_mm(r) for r in rows))
             if need <= PAGE_BODY_MM - used:
-                current.append({**group, "zeilen": rows, "fortsetzung": part > 0})
-                used += need
-                break
-            # passt nicht: so viele Zeilen wie möglich hier, wenn es sich lohnt, sonst neue Seite
-            fit, height = 0, GROUP_HEAD_MM + GROUP_GAP_MM
-            while fit < len(rows) and height + _row_mm(rows[fit]) <= PAGE_BODY_MM - used:
-                height += _row_mm(rows[fit])
+                pages[-1].append({**part, "zeilen": rows, "fortsetzung": piece > 0})
+                used += need + TABLE_GAP_MM
+                return
+            fit, height = 0, head
+            while fit < len(rows) and height + row_mm(rows[fit]) <= PAGE_BODY_MM - used:
+                height += row_mm(rows[fit])
                 fit += 1
-            if fit >= 3 or (not current and fit >= 1):
-                current.append({**group, "zeilen": rows[:fit], "fortsetzung": part > 0})
-                rows, part = rows[fit:], part + 1
-            elif not current:  # nicht einmal eine Zeile passt auf eine leere Seite (sehr lange Texte)
-                current.append({**group, "zeilen": rows[:1], "fortsetzung": part > 0})
-                rows, part = rows[1:], part + 1
-            pages.append({"art": "artikel", "gruppen": current})
-            current, used = [], 0.0
+            if fit >= 3 or (not pages[-1] and fit >= 1):
+                pages[-1].append({**part, "zeilen": rows[:fit], "fortsetzung": piece > 0})
+                rows, piece = rows[fit:], piece + 1
+            elif not pages[-1]:  # nicht einmal eine Zeile passt auf eine leere Seite (sehr lange Texte)
+                pages[-1].append({**part, "zeilen": rows[:1], "fortsetzung": piece > 0})
+                rows, piece = rows[1:], piece + 1
+            new_page()
             if not rows:
-                break
-    if current:
-        pages.append({"art": "artikel", "gruppen": current})
+                return
 
-    per_page = int((PAGE_BODY_MM - ACC_HEAD_MM) // ACC_ROW_MM)
-    acc = c["zubehoer"]
-    for i in range(0, len(acc), per_page):
-        pages.append({"art": "zubehoer", "zeilen": acc[i:i + per_page], "fortsetzung": i > 0})
-    return pages or [{"art": "start"}]
+    props, badges = shown_properties(c), approval_badges(c)
+    for index, block in enumerate(c["bloecke"]):
+        typ = block["typ"]
+        if not block["sichtbar"]:
+            continue
+        part, height = None, 0.0
+        if typ == "intro" and (props or c["bilder_oben"]):
+            part = {"typ": "intro", "eigenschaften": props, "bilder": c["bilder_oben"]}
+            height = _intro_mm(props, c["bilder_oben"])
+        elif typ == "spez" and (c["spez"]["zeilen"] or badges or c["zeichnungen"]):
+            part = {"typ": "spez", "zeilen": c["spez"]["zeilen"], "logos": badges, "zeichnungen": c["zeichnungen"]}
+            height = _spez_mm(c["spez"]["zeilen"], badges, c["zeichnungen"])
+        elif typ == "anwendung" and c["bilder_unten"]:
+            part, height = {"typ": "anwendung", "bilder": c["bilder_unten"]}, 62
+        elif typ == "bild" and block.get("bild"):
+            part = {"typ": "bild", "bild": block["bild"], "hoehe": block.get("hoehe", "M")}
+            height = IMAGE_HEIGHTS[part["hoehe"]][1] + 1
+        elif typ == "tabelle" and block.get("zeilen"):
+            part = {k: block[k] for k in ("titel", "zusatz", "bild", "spalten", "zeilenbilder")}
+            part.update(typ="tabelle", bild_links=bool(block["bild"]) and block["bild_pos"] == "links",
+                        bild_oben=bool(block["bild"]) and block["bild_pos"] == "oben",
+                        zeilen_bilder=any(r.get("bild") for r in block["zeilen"]),
+                        farben=any(r.get("farbe") for r in block["zeilen"]))
+        if part is None:
+            continue
+        part["index"] = index
+        if block["neue_seite"]:
+            new_page()
+        if typ == "tabelle":
+            place_table(part, block["zeilen"], _row_height(block))
+        else:
+            place(part, height)
+    return [{"teile": p} for p in pages if p] or [{"teile": []}]

@@ -44,18 +44,11 @@ automatisch durchgespielt in `tests/test_e2e_szenarien.py`.
 
 ## Datenblatt erstellen (Sales Assistant → Datenblatt erstellen)
 
-Baukasten mit festem Layout nach dem Muster „LED Blitzmodule – Serie Gecko“: blauer Kopfbalken mit Titel und Serie,
-Fußzeile mit Logo und Firmendaten (fest, nur die Version ist änderbar). Der Inhalt wird in 9 Schritten abgefragt:
-Kopfzeile, Eigenschaften (vorbelegt wie Spannung, LED-Farbe; nur Wert eintragen, per Ziehen sortieren,
-ein-/ausblenden, eigene ergänzen), Produktbilder, Spezifikationen (Prüfzeichen und Tabelle), Maßzeichnungen,
-Anwendungsbilder (Zulassungslogos wie ECE-R65 Klasse 2 / ECE-R10 werden automatisch aus dem Feld „Zulassung“ erzeugt),
-Artikelgruppen (Bild, Tabelle, frei benennbare Zusatzspalten, Zeilen auch aus Excel einfügbar),
-Zubehör, Fußzeile. Leere Schritte entfallen im Datenblatt. Die Aufteilung auf A4-Seiten passiert automatisch
-(Startseite, Artikelseiten, Zubehörseiten); eine zu volle Seite wird in der Vorschau rot markiert.
-
-Ausgabe: Vorschau öffnen, „Drucken / als PDF speichern“ (A4, Ränder keine, Hintergrundgrafiken an). Bilder (JPG, PNG,
-GIF, WebP, max. 10 MB) liegen unter `data/uploads/datenblatt/<id>/` und sind in der Sicherung enthalten.
-Datenblätter lassen sich kopieren (Vorlage für die nächste Serie). Sichtbarkeit wie bei den Preislisten.
+Editor mit Live-Vorschau: links Bausteine (Eigenschaften & Produktbilder, Spezifikationen mit automatischen
+Zulassungslogos, Anwendungsbilder, beliebig viele Tabellen, Zubehör und Bilder), rechts das A4-Blatt, das sich bei
+jeder Eingabe aktualisiert. Bausteine und Zeilen per Ziehen sortieren, ausblenden, auf neuer Seite beginnen; Bilder
+hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speichern, Druck/PDF über den Browser.
+Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
 ## Benutzer und Sichtbarkeit
 
