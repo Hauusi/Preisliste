@@ -18,6 +18,9 @@
   // Bilder mit zwei Fassungen (freigestellt / Original mit Hintergrund)
   var twins = {};
   (root.getAttribute("data-twins") || "").split(" ").forEach(function (n) { if (n) { twins[n] = true; } });
+  // Versatz der Produktbilder oben rechts in mm, per Maus in der Vorschau verschoben: {Kennung: [x, y]}
+  var offsets = {};
+  try { offsets = JSON.parse(root.getAttribute("data-offsets") || "{}") || {}; } catch (e) { offsets = {}; }
 
   function $(sel, el) { return (el || root).querySelector(sel); }
   function $$(sel, el) { return Array.prototype.slice.call((el || root).querySelectorAll(sel)); }
@@ -43,6 +46,7 @@
         return { name: val(r, '[data-f="name"]'), wert: val(r, '[data-f="wert"]'), sichtbar: visible(r) };
       }),
       bilder_oben: slotNames($('[data-imgs="bilder_oben"]', intro)),
+      bild_versatz: offsets,
       spez: { zeilen: own($('[data-list="spez"]', spez), "[data-row]").map(function (r) {
         return { merkmal: val(r, '[data-f="merkmal"]'), wert: $('[data-f="wert"]', r).value.trim() };
       }) },
@@ -150,6 +154,7 @@
   });
 
   function afterRender() {
+    if (window.dsPlace) { window.dsPlace(preview); }
     fitPreview();
     if (window.dsCheck) { window.dsCheck(preview, warnBox); }
   }
@@ -187,7 +192,50 @@
     void c.offsetWidth;
     c.classList.add("flash");
   }
+  // ---------- Produktbilder in der Vorschau per Maus verschieben (Doppelklick = zurück an den Platz) ----------
+  var MM = 96 / 25.4, drag = null, justMoved = false;
+  function placeImg(img, xy) { img.style.transform = xy ? "translate(" + xy[0] + "mm, " + xy[1] + "mm)" : ""; }
+  preview.addEventListener("pointerdown", function (e) {
+    var img = e.target.closest("[data-move]");
+    if (!img || e.button !== 0) { return; }
+    e.preventDefault();
+    var key = img.getAttribute("data-move"), start = offsets[key] || [0, 0];
+    drag = { img: img, key: key, x0: e.clientX, y0: e.clientY, start: start, xy: start, moved: false };
+    img.setPointerCapture(e.pointerId);
+    img.classList.add("moving");
+  });
+  preview.addEventListener("pointermove", function (e) {
+    if (!drag) { return; }
+    var zoom = parseFloat(preview.style.zoom) || 1, k = 1 / (MM * zoom);
+    var dx = (e.clientX - drag.x0) * k, dy = (e.clientY - drag.y0) * k;
+    if (Math.abs(dx) + Math.abs(dy) > 0.5) { drag.moved = true; }
+    function r(v) { return Math.max(-150, Math.min(150, Math.round(v * 2) / 2)); }
+    drag.xy = [r(drag.start[0] + dx), r(drag.start[1] + dy)];
+    placeImg(drag.img, drag.xy);
+  });
+  function endDrag() {
+    if (!drag) { return; }
+    drag.img.classList.remove("moving");
+    if (drag.moved) {
+      if (drag.xy[0] || drag.xy[1]) { offsets[drag.key] = drag.xy; } else { delete offsets[drag.key]; }
+      justMoved = true;  // der folgende Klick soll nicht die Eingabe öffnen
+      setTimeout(function () { justMoved = false; }, 0);
+      changed();
+    }
+    drag = null;
+  }
+  preview.addEventListener("pointerup", endDrag);
+  preview.addEventListener("pointercancel", endDrag);
+  preview.addEventListener("dblclick", function (e) {
+    var img = e.target.closest("[data-move]");
+    if (!img) { return; }
+    delete offsets[img.getAttribute("data-move")];
+    placeImg(img, null);
+    changed();
+  });
+
   preview.addEventListener("click", function (e) {
+    if (justMoved) { return; }
     var hit = e.target.closest("[data-block]");
     if (!hit) { return; }
     var key = hit.getAttribute("data-block");

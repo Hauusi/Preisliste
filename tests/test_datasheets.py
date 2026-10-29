@@ -356,3 +356,31 @@ def test_empty_table_shows_in_live_preview_only(admin_client):
     assert "<b>Flashy 3</b> - Flashy 3" in html and "Noch keine Artikel" in html and img in html
     page = c.get(f"/datenblatt/{sid}/vorschau").text
     assert "Flashy 3" not in page and "Noch keine Artikel" not in page
+
+
+def test_product_images_can_be_moved_by_offset(admin_client):
+    """Produktbilder oben rechts: Versatz per Maus wird gespeichert, begrenzt und in Vorschau und Druck angewendet."""
+    c = admin_client
+    sid = _new(c)
+    a, b = _upload(c, sid).json()["name"], _upload(c, sid).json()["name"]
+    ka, kb = ds.image_key(a), ds.image_key(b)
+    r = _save(c, sid, _content(bilder_oben=[a, b], bild_versatz={ka: [12.26, -4], kb: [999, "x"],
+                                                                  "fremd": [1, 1]}))
+    assert r.status_code == 200
+    assert f'data-move="{ka}"' in r.json()["html"]  # Editor: Bild ist greifbar
+    assert 'data-offset="12.5 -4.0"' in r.json()["html"] and "style=" not in r.json()["html"]  # CSP: kein Inline-Style
+    saved = ds.normalized(_saved(c, sid))
+    assert saved["bild_versatz"] == {ka: [12.5, -4.0]}  # gerundet, ungültig und fremd verworfen
+    page = c.get(f"/datenblatt/{sid}/vorschau").text
+    assert 'data-offset="12.5 -4.0"' in page and "data-move" not in page  # Druck: verschoben, nicht greifbar
+    # Bild entfernt -> Versatz verschwindet
+    _save(c, sid, _content(bilder_oben=[b], bild_versatz={ka: [5, 5]}))
+    assert ds.normalized(_saved(c, sid))["bild_versatz"] == {}
+
+
+def _saved(c, sid):
+    from backend.database.engine import session_scope
+    from backend.models.entities import Datasheet
+
+    with session_scope() as db:
+        return db.get(Datasheet, sid).content

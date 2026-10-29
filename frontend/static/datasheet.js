@@ -31,6 +31,17 @@
   }
   window.dsCheck = check;
 
+  // Verschobene Produktbilder: Versatz aus data-offset (mm) anwenden. Per Script, weil die CSP
+  // Inline-Styles im HTML blockiert.
+  function place(doc) {
+    (doc || document).querySelectorAll("[data-offset]").forEach(function (img) {
+      var xy = img.getAttribute("data-offset").split(" ");
+      img.style.transform = "translate(" + xy[0] + "mm, " + xy[1] + "mm)";
+    });
+  }
+  window.dsPlace = place;
+  place(document);
+
   document.querySelectorAll("[data-print]").forEach(function (b) {
     b.addEventListener("click", function () { window.print(); });
   });

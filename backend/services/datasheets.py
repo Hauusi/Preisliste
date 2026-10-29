@@ -91,6 +91,7 @@ def empty_content() -> dict:
         "einleitung": "",
         "eigenschaften": [{"name": n, "wert": "", "sichtbar": True} for n in DEFAULT_PROPERTIES],
         "bilder_oben": [],
+        "bild_versatz": {},  # Produktbilder oben rechts per Maus verschoben: {Bild-Kennung: [x_mm, y_mm]}
         "spez": {"zeichen": [], "zeilen": []},
         "zeichnungen": [],
         "bilder_unten": [],
@@ -211,6 +212,31 @@ def _image(value, valid: set[str]) -> str | None:
     return value if isinstance(value, str) and value in valid else None
 
 
+MAX_OFFSET_MM = 150
+
+
+def image_key(name: str) -> str:
+    """Kennung eines Bilds, gleich für freigestellt und Original (Versatz bleibt beim Umschalten erhalten)."""
+    return _token(name)
+
+
+def _offsets(value, images: list[str]) -> dict:
+    """Versatz der Produktbilder in mm, nur für vorhandene Bilder, auf 0,5 mm gerundet und begrenzt."""
+    value = value if isinstance(value, dict) else {}
+    out = {}
+    for key in {image_key(n) for n in images}:
+        xy = value.get(key)
+        if not (isinstance(xy, list) and len(xy) == 2):
+            continue
+        try:
+            x, y = (max(-MAX_OFFSET_MM, min(MAX_OFFSET_MM, round(float(v) * 2) / 2)) for v in xy)
+        except (TypeError, ValueError):
+            continue
+        if x == x and y == y and (x or y):  # NaN und 0/0 weglassen
+            out[key] = [x, y]
+    return out
+
+
 def _table(b: dict, valid: set[str]) -> dict:
     spalten = [_s(x, 30) for x in (b.get("spalten") if isinstance(b.get("spalten"), list) else [])][:MAX_COLUMNS]
     while spalten and not spalten[-1]:
@@ -243,6 +269,7 @@ def sanitize(raw, valid_images: set[str]) -> dict:
         if _s(e.get("name"), 40) or _s(e.get("wert"), 150)]
     for key, n in IMAGE_SLOTS.items():
         c[key] = _images(raw.get(key), valid_images, n)
+    c["bild_versatz"] = _offsets(raw.get("bild_versatz"), c["bilder_oben"])
     spez = raw.get("spez") if isinstance(raw.get("spez"), dict) else {}
     c["spez"] = {"zeichen": [], "zeilen": [
         {"merkmal": _s(z.get("merkmal"), 60), "wert": _s(z.get("wert"), 300)}

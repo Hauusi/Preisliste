@@ -348,6 +348,8 @@ Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
   Alternativ Griff anklicken und Pfeiltasten ↑/↓.
 - **Neue Seite:** Häkchen am Baustein – er beginnt auf einer neuen Seite.
 - **Ausblenden:** Auge am Baustein oder an einer Eigenschaft – bleibt gespeichert, wird aber nicht gedruckt.
+- **Produktbilder oben rechts verschieben:** in der Live-Vorschau mit gedrückter Maustaste an die gewünschte
+  Stelle ziehen (gilt auch für den Druck). Doppelklick setzt das Bild an seinen Platz zurück.
 - **Bilder:** Platz anklicken oder eine Datei hineinziehen. Gefüllte Bilder per Ziehen zwischen beliebigen Plätzen
   **tauschen**, × entfernt. JPG, PNG, GIF, WebP bis 10 MB; geprüft wird der Inhalt, nicht die Endung.
 - **Klick ins Live-Blatt** öffnet die passende Eingabe links.

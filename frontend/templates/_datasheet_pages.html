@@ -37,7 +37,7 @@
         {% endif %}
       </div>
       <div class="lead-right">
-        {% for name in t.bilder %}<img class="lead-img" src="{{ img ~ name }}" alt="" data-block="{{ t.intro_index }}">{% endfor %}
+        {% for name in t.bilder %}{% set key = name.split(".")[0].removesuffix("-o") %}{% set xy = (c.bild_versatz or {}).get(key) %}<img class="lead-img" src="{{ img ~ name }}" alt="" data-block="{{ t.intro_index }}"{% if editor %} data-move="{{ key }}" draggable="false" title="Ziehen zum Verschieben, Doppelklick setzt zurück"{% endif %}{% if xy %} data-offset="{{ xy[0] }} {{ xy[1] }}"{% endif %}>{% endfor %}
         {% for name in t.zeichnungen %}<img class="lead-drawing" src="{{ img ~ name }}" alt="" data-block="{{ t.spez.index }}">{% endfor %}
       </div>
     </div>

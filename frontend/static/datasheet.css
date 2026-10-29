@@ -26,7 +26,7 @@
 .ds-doc .sheet.too-full { outline: 3px solid #dc2626; }
 
 /* Kopfzeile (fest): Balken auf der Grundlinie des Titels, so hoch wie die Großbuchstaben; langer Titel = kürzerer Balken */
-.ds-doc .sheet-head { position: absolute; top: 14mm; left: 2mm; right: 15mm; color: var(--ds-blue); }
+.ds-doc .sheet-head { position: absolute; top: 14mm; left: 0; right: 15mm; color: var(--ds-blue); }
 .ds-doc .head-row { display: flex; align-items: baseline; gap: 1.6mm; font-size: 23pt; }
 .ds-doc .head-bar { flex: 1 1 auto; min-width: 0; height: .7em; height: 1cap; background: var(--ds-blue); border-radius: 0; }
 .ds-doc .sheet-head h1 { flex: 0 0 auto; margin: 0; font-size: 1em; line-height: 1; font-weight: 700; text-transform: uppercase;
@@ -58,7 +58,9 @@
 .ds-doc .lead-spec { margin-top: 0; }
 .ds-doc .lead-intro + .lead-spec { margin-top: 9mm; }
 .ds-doc .lead-right { display: flex; flex-direction: column; gap: 5mm; align-items: center; min-width: 0; }
-.ds-doc .lead-img { width: 100%; max-height: 56mm; object-fit: contain; }
+.ds-doc .lead-img { width: 100%; max-height: 56mm; object-fit: contain; position: relative; z-index: 1; }
+.ds-doc .lead-img[data-move] { cursor: move; touch-action: none; user-select: none; }
+.ds-doc .lead-img.moving { outline: .4mm dashed var(--ds-blue); }
 .ds-doc .lead-drawing { max-width: 100%; max-height: 40mm; object-fit: contain; }
 
 /* Spezifikation */
