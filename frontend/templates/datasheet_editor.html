@@ -118,7 +118,7 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}">
+<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}" data-offsets='{{ c.bild_versatz | tojson }}'>
   <div class="dse-top">
     <div>
       <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
@@ -163,7 +163,7 @@
 
     <div class="dse-preview">
       <div class="dse-preview-bar"><b>Live-Vorschau</b> <span data-page-count>{{ page_count }} {{ "Seite" if page_count == 1 else "Seiten" }}</span>
-        <span class="hint">Klick auf einen Bereich öffnet die Eingabe</span></div>
+        <span class="hint">Klick auf einen Bereich öffnet die Eingabe · Produktbilder oben rechts mit der Maus verschieben</span></div>
       <div class="ds-warnings" data-warnings hidden></div>
       <div class="dse-preview-scroll" data-preview-scroll>
         <div class="ds-doc" data-preview>{{ pages_html | safe }}</div>
