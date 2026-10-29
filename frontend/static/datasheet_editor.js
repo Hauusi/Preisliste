@@ -15,6 +15,9 @@
   var pageCount = root.querySelector("[data-page-count]");
   var titleEl = root.querySelector("[data-live-title]");
   var OPEN_KEY = "ds-open-" + sheetId;
+  // Bilder mit zwei Fassungen (freigestellt / Original mit Hintergrund)
+  var twins = {};
+  (root.getAttribute("data-twins") || "").split(" ").forEach(function (n) { if (n) { twins[n] = true; } });
 
   function $(sel, el) { return (el || root).querySelector(sel); }
   function $$(sel, el) { return Array.prototype.slice.call((el || root).querySelectorAll(sel)); }
@@ -237,6 +240,8 @@
     }
     var paste = t.closest("[data-paste]");
     if (paste) { pasteRows(paste.closest("[data-card]")); return; }
+    var slotBg = t.closest("[data-slot-bg]");
+    if (slotBg) { toggleBackground(slotBg.closest("[data-slot]")); return; }
     var slotX = t.closest("[data-slot-remove]");
     if (slotX) { setSlot(slotX.closest("[data-slot]"), ""); changed(); return; }
     var slot = t.closest("[data-slot]");
@@ -274,16 +279,35 @@
   function setSlot(slot, name, url) {
     slot.setAttribute("data-name", name || "");
     slot.classList.toggle("filled", !!name);
+    slot.classList.toggle("cut", !!name && !!twins[name]);
+    var bg = $("[data-slot-bg]", slot);
+    if (bg) { bg.classList.toggle("on", !!name && name.indexOf("-o.") >= 0); }
     var img = $("img", slot);
     img.hidden = !name;
     img.src = name ? (url || "/datenblatt/" + sheetId + "/bild/" + name) : "";
     slot.title = name ? "Ziehen zum Tauschen, × zum Entfernen" : "Klicken oder Bild hierher ziehen";
   }
+  function toggleBackground(slot) {
+    var name = slot.getAttribute("data-name");
+    fetch("/datenblatt/" + sheetId + "/bild/" + encodeURIComponent(name) + "/hintergrund", {
+      method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf }
+    }).then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) { throw new Error(data.detail || "Fehler " + r.status); }
+        return data;
+      });
+    }).then(function (data) {
+      twins[data.name] = true;
+      setSlot(slot, data.name, data.url);
+      changed();
+    }).catch(function (e) { setStatus(e.message, "err"); });
+  }
   function upload(file, slot) {
     var fd = new FormData();
     fd.append("datei", file);
+    if (slot.closest('[data-imgs="bilder_unten"]')) { fd.append("art", "anwendung"); }
     slot.classList.add("loading");
-    setStatus("Bild wird hochgeladen …", "busy");
+    setStatus(slot.closest('[data-imgs="bilder_unten"]') ? "Bild wird hochgeladen …" : "Bild wird hochgeladen und freigestellt …", "busy");
     fetch("/datenblatt/" + sheetId + "/bilder", {
       method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf }, body: fd
     }).then(function (r) {
@@ -292,6 +316,7 @@
         return data;
       });
     }).then(function (data) {
+      if (data.zweitfassung) { twins[data.name] = twins[data.zweitfassung] = true; }
       setSlot(slot, data.name, data.url);
       changed();
     }).catch(function (e) {
@@ -307,7 +332,7 @@
     var grip = e.target.closest("[data-grip]");
     if (grip) { grip.closest("[data-row]").draggable = true; }
     var slot = e.target.closest("[data-slot]");
-    if (slot) { slot.draggable = slot.classList.contains("filled") && !e.target.closest("[data-slot-remove]"); }
+    if (slot) { slot.draggable = slot.classList.contains("filled") && !e.target.closest("[data-slot-remove], [data-slot-bg]"); }
   });
   root.addEventListener("dragstart", function (e) {
     var slot = e.target.closest && e.target.closest("[data-slot]");

@@ -72,7 +72,8 @@ async def create(request: Request, db: Session = Depends(get_db), user: User = D
 
 
 @router.get("/datenblatt/{sheet_id}")
-def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
+           settings: Settings = Depends(get_settings)):
     sheet = get_visible(db, Datasheet, sheet_id, user)
     c = ds.normalized(sheet.content)
     html, count = _pages_html(sheet, c)
@@ -81,7 +82,7 @@ def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user:
         "colors": ds.COLORS, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
         "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,
         "max_columns": ds.MAX_COLUMNS, "new_table": ds.new_table(), "new_accessories": ds.new_table(zubehoer=True),
-        "new_image": ds.new_image_block(),
+        "new_image": ds.new_image_block(), "twins": ds.twin_names(settings, sheet.id),
     })
 
 
@@ -117,10 +118,12 @@ async def upload_image(request: Request, sheet_id: int, db: Session = Depends(ge
     if not ds.is_upload(upload):
         return JSONResponse({"detail": "Keine Datei"}, status_code=400)
     try:
-        name = await ds.save_image(settings, sheet.id, upload)
+        # Anwendungsbilder bleiben wie geliefert, alle anderen werden als PNG freigestellt
+        name = await ds.save_image(settings, sheet.id, upload, product=form.get("art") != "anwendung")
     except ds.ImageError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
-    return {"name": name, "url": f"/datenblatt/{sheet.id}/bild/{name}"}
+    return {"name": name, "url": f"/datenblatt/{sheet.id}/bild/{name}",
+            "zweitfassung": ds.other_version(settings, sheet.id, name)}
 
 
 @router.post("/datenblatt/{sheet_id}/einfuegen", dependencies=[Depends(check_csrf)])
@@ -139,6 +142,18 @@ def preview(request: Request, sheet_id: int, db: Session = Depends(get_db), user
     return render(request, "datasheet_print.html", {
         "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER,
     })
+
+
+@router.post("/datenblatt/{sheet_id}/bild/{name}/hintergrund", dependencies=[Depends(check_csrf)])
+def toggle_background(sheet_id: int, name: str, db: Session = Depends(get_db), user: User = Depends(current_user),
+                      settings: Settings = Depends(get_settings)):
+    """Zwischen freigestelltem Bild und Original mit Hintergrund wechseln."""
+    sheet = get_visible(db, Datasheet, sheet_id, user)
+    other = ds.other_version(settings, sheet.id, name)
+    if other is None:
+        return JSONResponse({"detail": "Für dieses Bild gibt es keine zweite Fassung (Hintergrund wurde nicht entfernt)"},
+                            status_code=404)
+    return {"name": other, "url": f"/datenblatt/{sheet.id}/bild/{other}", "hintergrund": "-o." in other}
 
 
 @router.get("/datenblatt/{sheet_id}/bild/{name}")
