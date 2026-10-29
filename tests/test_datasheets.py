@@ -343,3 +343,16 @@ def test_product_images_are_cut_out_as_png_application_images_unchanged(admin_cl
     # Beschädigtes Bild mit gültigem Kopf
     r = _upload(c, sid, "kaputt.png", PNG[:30])
     assert r.status_code == 400 and "beschädigt" in r.json()["detail"]
+
+
+def test_empty_table_shows_in_live_preview_only(admin_client):
+    """Tabelle mit Überschrift/Bild, aber ohne Artikelzeilen: in der Live-Vorschau sichtbar mit Hinweis, im Druck nicht."""
+    c = admin_client
+    sid = _new(c, "LED Blitzmodul", "Serie Flashy")
+    img = _upload(c, sid).json()["name"]
+    table = {**ds.new_table("Flashy 3"), "zusatz": "Flashy 3", "bild": img, "bild_pos": "links",
+             "spalten": ["Zulassung", "Montage"], "zeilen": []}
+    html = _save(c, sid, _content(bloecke=[{"typ": "intro"}, {"typ": "spez"}, table])).json()["html"]
+    assert "<b>Flashy 3</b> - Flashy 3" in html and "Noch keine Artikel" in html and img in html
+    page = c.get(f"/datenblatt/{sid}/vorschau").text
+    assert "Flashy 3" not in page and "Noch keine Artikel" not in page

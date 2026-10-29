@@ -66,6 +66,11 @@
             <td>{{ lines(r.beschreibung) }}</td>
             {% for s in t.spalten %}<td>{{ r.werte[loop.index0] if loop.index0 < r.werte | length }}</td>{% endfor %}
           </tr>
+        {% else %}
+          <tr class="placeholder-row">
+            {% if t.bild_links %}<td class="img"><img src="{{ img ~ t.bild }}" alt=""></td>{% endif %}
+            <td colspan="{{ 2 + t.spalten | length }}">Noch keine Artikel – links in der Tabelle mit „+ Zeile“ oder „Aus Excel einfügen“ eintragen.</td>
+          </tr>
         {% endfor %}
         </tbody>
       </table>
