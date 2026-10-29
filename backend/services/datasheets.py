@@ -466,9 +466,18 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
 
     props, badges = shown_properties(c), approval_badges(c)
     blocks = c["bloecke"]
+    # Wie im Standard: Eigenschaften mit Namen („Spannung: 12-24V“) stehen in der Spezifikationstabelle,
+    # Punkte ohne Namen („5 Jahre Garantie“) als Aufzählung unter dem Text. Ohne sichtbare Spezifikation alle oben.
+    if any(b["typ"] == "spez" and b["sichtbar"] for b in blocks):
+        given = {z.get("merkmal", "").strip().rstrip(":").casefold() for z in c["spez"]["zeilen"]}
+        spec_rows = [{"merkmal": e["name"], "wert": e["wert"]} for e in props
+                     if e.get("name") and e["name"].strip().rstrip(":").casefold() not in given] + c["spez"]["zeilen"]
+        props = [e for e in props if not e.get("name")]
+    else:
+        spec_rows = c["spez"]["zeilen"]
     has_intro = editor or bool(c["einleitung"] or props or c["bilder_oben"])
     # Überschrift „Produkttyp - Serie / Spezifikationen“ steht, sobald Produkttyp oder Serie eingetragen sind
-    has_spez = bool(c["spez"]["zeilen"] or badges or c["zeichnungen"] or c["kopf"]["titel"] or c["kopf"]["untertitel"]
+    has_spez = bool(spec_rows or badges or c["zeichnungen"] or c["kopf"]["titel"] or c["kopf"]["untertitel"]
                     or editor)
     joined = set()  # Spezifikation, die schon im Kopfbereich mit der Einleitung steht
     for index, block in enumerate(blocks):
@@ -484,7 +493,7 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
                                           and not blocks[nxt]["neue_seite"] and has_spez)
             if typ == "intro" and with_spez:
                 joined.add(nxt)
-            spez = ({"zeilen": c["spez"]["zeilen"], "logos": badges, "index": index if typ == "spez" else nxt}
+            spez = ({"zeilen": spec_rows, "logos": badges, "index": index if typ == "spez" else nxt}
                     if with_spez else None)
             intro = typ == "intro"
             part = {"typ": "kopfbereich", "intro_index": index if intro else None,
