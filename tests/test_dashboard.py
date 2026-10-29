@@ -8,6 +8,7 @@ def test_dashboard_shows_tasks_and_manufacturer_status(admin_client, tmp_path, a
     c = admin_client
     page = c.get("/preisliste").text
     assert "So funktioniert" in page and "Noch keine Hersteller" in page
+    assert 'class="done"' not in page  # leeres System: kein Schritt als erledigt markiert
     mid, rule_id = _setup(c)
     ours = _ours(c, app, tmp_path, mid, [["LED1", "a", "10,00", "20,00"], ["LED2", "b", "10,00", "20,00"]])
     new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "12,00"]],

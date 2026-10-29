@@ -45,7 +45,7 @@ MAX_FACTOR = Decimal(20)
 DEFAULT_THRESHOLD = Decimal(5)
 STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "UNVERAENDERT", "FEHLER")
 STATUS_LABELS = {
-    "OK": "in Ordnung", "PRUEFEN": "prüfen", "NICHT_EINDEUTIG": "Zuordnung unklar",
+    "OK": "in Ordnung", "PRUEFEN": "Preisänderung", "NICHT_EINDEUTIG": "Zuordnung unklar",
     "NICHT_IN_HERSTELLERLISTE": "fehlt beim Hersteller", "UNVERAENDERT": "nicht in Teilliste (unverändert)",
     "FEHLER": "Fehler",
 }

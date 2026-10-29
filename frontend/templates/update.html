@@ -54,17 +54,15 @@
   {% if s.ignoriert_nur_beim_hersteller %}<p class="hint m0">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und werden ignoriert (bei uns nicht angelegt).</p>{% endif %}
 </section>
 
-{% if ai_targets %}
+{% if ai_targets and ai_status and ai_status.active %}
 <section class="card ai-card">
   <span class="dot info">{{ icon("sparkle", 18) }}</span>
   <div><b>{{ ai_targets }} Artikel fehlen beim Hersteller oder sind unklar</b>
     <span class="hint">Die KI sucht nach leicht geänderten Artikelnummern und sagt dir, was sie denkt. Übernommen wird nur, was du bestätigst.</span></div>
-  {% if ai_status and ai_status.active %}
   <form method="post" action="/aktualisierungen/{{ upd.id }}/ki">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="secondary">{{ icon("sparkle", 16) }} KI prüfen lassen</button>
   </form>
-  {% else %}<span class="badge off" title="{{ ai_status.message if ai_status else '' }}">KI inaktiv</span>{% endif %}
 </section>
 {% endif %}
 

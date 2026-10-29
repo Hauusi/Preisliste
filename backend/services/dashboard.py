@@ -121,7 +121,7 @@ def build(db: Session, user) -> dict:
     activity = db.scalars(own(select(AuditLog).where(AuditLog.action.in_(list(ACTION_LABELS)), AuditLog.action != "login"))
                           .order_by(AuditLog.id.desc()).limit(8)).all()
     setup = {"manufacturer": bool(manufacturers), "rule": any(c["rule"] for c in cards),
-             "ours": any(c["current"] for c in cards), "update": bool(updates)}
+             "ours": any(c["current"] for c in cards), "abgleich": bool(updates)}
     from backend.models.entities import User
 
     owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}

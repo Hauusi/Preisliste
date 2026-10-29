@@ -43,7 +43,7 @@ def test_ai_suggests_renamed_article_and_user_confirms(admin_client, tmp_path, a
     _, items = _items()
     assert items["N20"].status == "NICHT_IN_HERSTELLERLISTE"
     page = c.get(url).text
-    assert "Artikel fehlen beim Hersteller oder sind unklar" in page and "KI inaktiv" in page
+    assert "Artikel fehlen beim Hersteller oder sind unklar" not in page  # ohne KI keine KI-Karte
 
     mock = MockProvider(S, [
         json.dumps({"new_article": "N20", "old_article": "QX-7781", "match": True, "confidence": 0.9,
