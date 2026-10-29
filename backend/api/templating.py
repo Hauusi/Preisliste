@@ -63,7 +63,10 @@ def price(value) -> str:
     if value is None:
         return ""
     if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
-        return money(Decimal(str(value)))
+        from backend.excel.numbers import parse_amount
+
+        # wie beim Import: berechnete Zellen (=174*0,4) stehen als 69.60000000000001 in der Datei
+        return money(parse_amount(value).value)
     return str(value)
 
 
