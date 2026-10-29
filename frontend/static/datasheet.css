@@ -142,3 +142,4 @@ body.ds-print { margin: 0; background: #d9dce3; overflow-x: auto; color-scheme: 
   .ds-doc .sheet { margin: 0; box-shadow: none; break-after: page; outline: 0; }
   .ds-doc .sheet:last-child { break-after: auto; }
 }
+.ds-doc .art-table .placeholder-row td:not(.img) { color: #94a3b8; font-style: italic; text-align: center; }

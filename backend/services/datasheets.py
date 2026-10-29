@@ -548,7 +548,9 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
         elif typ == "bild" and block.get("bild"):
             part = {"typ": "bild", "bild": block["bild"], "hoehe": block.get("hoehe", "M")}
             height = IMAGE_HEIGHTS[part["hoehe"]][1] + 1.2
-        elif typ == "tabelle" and block.get("zeilen"):
+        elif typ == "tabelle" and (block.get("zeilen") or (editor and (block["titel"] or block["zusatz"] or block["bild"]))):
+            # Live-Vorschau: Tabelle ohne Artikelzeilen schon mit Überschrift und Bild zeigen (Platzhalter-Zeile);
+            # im Druck erscheint sie erst mit Zeilen
             part = {k: block[k] for k in ("titel", "zusatz", "bild", "spalten", "zeilenbilder")}
             part.update(typ="tabelle", bild_links=bool(block["bild"]) and block["bild_pos"] == "links",
                         bild_oben=bool(block["bild"]) and block["bild_pos"] == "oben",
