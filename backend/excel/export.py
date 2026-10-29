@@ -197,10 +197,9 @@ def export_calculation(db: Session, run: CalculationRun) -> bytes:
 def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     """Jahresabgleich: neue EK/VK-Liste mit unseren Artikeln. Entwurf deutlich gekennzeichnet."""
     from backend.comparison.update import REASON_LABELS, STATUS_LABELS as UL, vk_factor
-    from backend.models.entities import PriceUpdateItem, User
+    from backend.models.entities import PriceUpdateItem
 
     codes = code_map(db)
-    users = {u.id: u.username for u in db.scalars(select(User))}
     items = db.scalars(select(PriceUpdateItem).where(PriceUpdateItem.update_id == upd.id)
                        .order_by(PriceUpdateItem.id)).all()
     rule_label = None
@@ -234,12 +233,12 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
         info.row([label, value])
 
     decisions = {"NEU": "neuer Preis", "ALT": "alter Preis behalten", "MANUELL": "VK von Hand"}
-    checks = {True: "stimmt", False: "ABWEICHUNG"}
+    # Regel, Rechenweg, Gegenrechnung und Prüfvermerk stehen in der App (Prüfseite, Protokoll), nicht in der Ausgabe.
+    # „Kennzeichnung“ bleibt leer zum Ausfüllen.
     cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40), ("Herstellerpreis", 14),
             ("Währung Hersteller", 10), ("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
             ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9), ("Status", 20),
-            ("Prüfhinweise", 60), ("Entscheidung", 20), ("Regel", 36), ("Rechenweg EK", 50),
-            ("Gegenrechnung", 13), ("geprüft von", 14), ("geprüft am (UTC)", 18)]
+            ("Prüfhinweise", 60), ("Entscheidung", 20), ("Kennzeichnung", 20)]
     header, widths = [c[0] for c in cols], [c[1] for c in cols]
     main = _Sheet(wb, "ENTWURF Neue Preisliste" if draft else "Neue Preisliste", header, widths)
     open_items = _Sheet(wb, "Zu prüfen", header, widths)
@@ -255,9 +254,7 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
                main._cell(compact(vk_factor(i.final_ek, i.final_vk))),
                main.percent(margin(i.final_ek, i.final_vk)),
-               i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision),
-               i.rule_label, i.ek_text, checks.get(i.check_ok, "nicht prüfbar" if i.decision == "NEU" else ""), users.get(i.reviewed_by),
-               i.reviewed_at.strftime("%d.%m.%Y %H:%M") if i.reviewed_at else None]
+               i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision), None]
         main.row(row)
         if i.needs_review and not i.reviewed_at:
             open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])
