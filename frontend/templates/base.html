@@ -35,15 +35,15 @@
     {{ nav("/neue-artikel", "Neue Artikel", "plus") }}
     {{ nav("/listen", "Preislisten", "list") }}
     {{ nav("/hersteller", "Hersteller", "factory") }}
-    {{ nav("/regeln", "Regeln", "calc") }}
     <div class="nav-label">Weitere</div>
-    <a href="/" class="nav-item">{{ icon("grid") }}<span>Alle Tools</span></a>
+    {{ nav("/regeln", "Regeln", "calc") }}
     {{ nav("/vergleiche", "Vergleiche", "compare") }}
     {{ nav("/jobs", "Jobs", "jobs") }}
     {% if user.role == "admin" %}
     {{ nav("/benutzer", "Benutzer", "users") }}
     {{ nav("/audit", "Protokoll", "log") }}
     {% endif %}
+    <a href="/" class="nav-item">{{ icon("grid") }}<span>Alle Tools</span></a>
   </nav>
   <div class="sidebar-foot">
     {% if ai_status and ai_status.active %}<span class="pill ok" title="{{ ai_status.provider }} / {{ ai_status.model }}">{{ icon("sparkle", 14) }} KI aktiv</span>{% else %}<span class="pill muted" title="{{ ai_status.message if ai_status else '' }}">KI inaktiv</span>{% endif %}

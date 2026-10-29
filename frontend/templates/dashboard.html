@@ -10,7 +10,7 @@
   </div>
   <div class="actions m0">
     <a class="button secondary" href="/neue-artikel">{{ icon("plus", 18) }} Neue Artikel</a>
-    <a class="button" href="/import">{{ icon("upload", 18) }} Herstellerliste einspielen</a>
+    <a class="button" href="/import">{{ icon("upload", 18) }} Liste einspielen</a>
   </div>
 </div>
 
@@ -41,13 +41,12 @@
   </section>
 
   <section class="card m0">
-    {% if not (setup.manufacturer and setup.rule and setup.ours and setup.update) %}
+    {% if not (setup.manufacturer and setup.ours and setup.abgleich) %}
     <h2>So funktioniert's</h2>
     <ol class="flow">
-      <li class="{{ 'done' if setup.manufacturer }}"><b>Hersteller anlegen</b><span>Kürzel (z. B. ST), Währung, EK oder UVP.</span> <a href="/hersteller">Hersteller →</a></li>
-      <li class="{{ 'done' if setup.rule }}"><b>Kalkulation festlegen</b><span>Standardregel, z. B. EK × 2,6.</span> <a href="/regeln/neu">Regel →</a></li>
-      <li class="{{ 'done' if setup.ours }}"><b>Unsere EK/VK-Liste</b><span>Einmal importieren als „Unsere Liste“.</span> <a href="/import">Import →</a></li>
-      <li class="{{ 'done' if setup.update }}"><b>Herstellerliste abgleichen</b><span>Neue Preise, prüfen, übernehmen.</span> <a href="/import">Einspielen →</a></li>
+      <li class="{{ 'done' if setup.manufacturer }}"><b>Hersteller anlegen</b><span>Name, Kürzel (z. B. ST) und Faktor (VK = EK × 2,6).</span> <a href="/hersteller">Hersteller →</a></li>
+      <li class="{{ 'done' if setup.ours }}"><b>Unsere EK/VK-Liste einspielen</b><span>Einmalig, wird die aktuelle Liste.</span> <a href="/import">Einspielen →</a></li>
+      <li class="{{ 'done' if setup.abgleich }}"><b>Neue Herstellerliste einspielen</b><span>Abgleich läuft automatisch: prüfen, abschließen, Excel fertig.</span> <a href="/import">Einspielen →</a></li>
     </ol>
     {% else %}
     <h2>Letzte Aktivitäten</h2>

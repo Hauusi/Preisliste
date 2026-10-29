@@ -161,7 +161,7 @@ async def save_manufacturer(request: Request, db: Session = Depends(get_db), use
         values["faktor"] = factor.value
         values["vk_rundung"] = vk_rounding
     audit(db, user, "hersteller_angelegt", "manufacturer", m.id, _jsonable(values), client_ip(request))
-    return RedirectResponse(f"/hersteller/{m.id}?meldung=Angelegt. Jetzt Kalkulation und Herstellerliste einstellen.",
+    return RedirectResponse(f"/hersteller/{m.id}?meldung=Angelegt. Nächster Schritt: unsere aktuelle EK/VK-Liste einspielen.&neu=1",
                             status_code=303)
 
 
