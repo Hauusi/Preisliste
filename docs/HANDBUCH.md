@@ -78,8 +78,10 @@ Die Übersichtsseite (**Preisliste → Übersicht**) zeigt:
 
 - **Zu erledigen:** offene Prüfungen, nicht abgeglichene Herstellerlisten, fehlende Regeln, unfertige Importe –
   jeweils mit Knopf zum nächsten Schritt.
-- **Kennzahlen:** Hersteller, Artikel in den aktuellen Listen, offene Prüfungen, Abgleiche im Jahr, neue Artikel
-  der letzten 30 Tage.
+- **Kennzahlen:** Hersteller, Artikel in den aktuellen Listen, offene Prüfungen.
+- **So funktioniert's** (solange noch nicht alles eingerichtet ist): die drei Schritte Hersteller anlegen, unsere
+  Liste einspielen, Herstellerliste einspielen – erledigte Schritte mit Haken.
+- **System** (nur Administratoren): KI-Status, Speicher, laufende Jobs.
 - **Herstellerkacheln:** aktuelle Liste, Stand, Ø EK- und VK-Änderung des letzten Abgleichs, Status.
 
 ## 4. Hersteller einrichten
@@ -187,7 +189,7 @@ Artikel, die nur in der Herstellerliste stehen, werden ignoriert (sie gehören n
 | Status | Bedeutung |
 |---|---|
 | in Ordnung | keine Auffälligkeit, nichts zu tun |
-| prüfen | mindestens ein Prüfgrund (unten), muss bestätigt werden |
+| Preisänderung | mindestens ein Prüfgrund (unten), muss bestätigt werden |
 | Zuordnung unklar | möglicher Treffer, bitte Kandidat oder „kein Treffer“ wählen |
 | fehlt beim Hersteller | nicht in der Herstellerliste, alter EK/VK bleibt |
 | nicht in Teilliste | bei Teillisten: unverändert, nichts zu tun |
@@ -211,10 +213,13 @@ Artikel, die nur in der Herstellerliste stehen, werden ignoriert (sie gehören n
 
 - Oben **„Offene anzeigen“**, Filter nach Status und Prüfgrund, Suche (auch mit Kürzel, z. B. `NL984`).
 - **Bestätigen** je Zeile, optional mit **VK von Hand** (nicht unter EK).
-- **Alle bestätigen** (für den aktuellen Filter): nimmt nie unklare Zuordnungen oder Fehler mit.
+- **Alle auf einmal bestätigen** (oben in der Fortschrittskarte, gilt für den aktuellen Filter): Häkchen
+  „durchgesehen“ setzen, dann klicken. Nimmt nie unklare Zuordnungen oder Fehler mit; fehlende Artikel werden mit
+  „alter Preis bleibt“ bestätigt. Der Knopf erscheint nur, wenn es etwas gesammelt zu bestätigen gibt.
 - **Zuordnung unklar:** Kandidat wählen oder „kein Treffer – alten EK/VK behalten“. Die Entscheidung wird gespeichert
   und in künftigen Abgleichen wiederverwendet.
-- **Anders kalkulieren:** Artikel anhaken → Faktor (z. B. 2,8) oder Regel → gilt dauerhaft.
+- **Einzelne Artikel anders kalkulieren** (aufklappbar, öffnet sich beim Anhaken): Artikel anhaken → Faktor
+  (z. B. 2,8) oder Regel → gilt dauerhaft.
 - **Zurücknehmen** macht eine Bestätigung rückgängig.
 - **KI prüfen lassen** (wenn aktiv): schlägt für fehlende/unklare Artikel mögliche umbenannte Herstellerartikel vor.
 
@@ -293,7 +298,8 @@ Entfallene Artikel, Unklare Zuordnungen und Fehler.
 ## 10. KI-Funktionen
 
 Die KI (lokales Modell über Ollama auf demselben Server, keine Cloud) ist optional. Ist sie aus, sind die
-KI-Knöpfe ausgeblendet und alles andere funktioniert. Status: Übersicht → „System“, Seitenleiste „KI aktiv“.
+KI-Knöpfe und KI-Hinweise ausgeblendet und alles andere funktioniert. Status: Übersicht → „System“ (Administratoren),
+Seitenleiste „KI aktiv“ (nur sichtbar, wenn die KI läuft).
 
 | Funktion | Wo | Ergebnis |
 |---|---|---|
