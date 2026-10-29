@@ -28,6 +28,7 @@ VK_ROUNDINGS = {
     "e95": ("auf ,95 (aufrunden)", {"type": "round_ending", "ending": "0.95", "period": "1", "direction": "UP"}),
     "e99": ("auf ,99 (aufrunden)", {"type": "round_ending", "ending": "0.99", "period": "1", "direction": "UP"}),
 }
+DEFAULT_VK_ROUNDING = "0.10up"  # neue Hersteller: VK auf eine Nachkommastelle aufrunden
 
 
 def _rounding_key(step: dict | None) -> str | None:
@@ -83,7 +84,7 @@ def factor_of(db: Session, m: Manufacturer | None) -> Decimal | None:
 
 def set_factor(db: Session, m: Manufacturer, factor: Decimal, user, rounding: str | None = None) -> Rule:
     """Standardregel des Herstellers auf VK = EK × Faktor [+ VK-Rundung] setzen (neu oder neue Version).
-    rounding=None behält die bisherige Rundung."""
+    rounding=None behält die bisherige Rundung (neue Regel: DEFAULT_VK_ROUNDING)."""
     if not Decimal(0) < factor <= Decimal(100):
         raise ValueError("Faktor muss größer 0 und höchstens 100 sein")
     if rounding is not None and rounding not in VK_ROUNDINGS:
@@ -91,7 +92,7 @@ def set_factor(db: Session, m: Manufacturer, factor: Decimal, user, rounding: st
     rule = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
     current = _parse(current_version(db, rule).definition) if rule is not None and not rule.deleted else None
     if rounding is None:
-        rounding = current[1] if current else ""
+        rounding = current[1] if current else DEFAULT_VK_ROUNDING
     steps = [{"type": "multiply", "factor": str(factor)}] + ([VK_ROUNDINGS[rounding][1]] if rounding else [])
     if current is not None:
         if current == (factor, rounding):

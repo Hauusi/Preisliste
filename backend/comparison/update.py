@@ -98,10 +98,11 @@ def _price(a: Article | None, price_type: str):
 
 
 def vk_factor(ek, vk) -> Decimal | None:
-    """Faktor VK/EK der endgültigen Preise. Leer ohne echten EK (fehlt oder Platzhalter 0,01)."""
+    """Faktor VK/EK der endgültigen Preise, auf eine Nachkommastelle (Cent-/VK-Rundung erzeugt sonst 2,8013).
+    Leer ohne echten EK (fehlt oder Platzhalter 0,01)."""
     if ek is None or vk is None or ek <= PLACEHOLDER_EK:
         return None
-    return (vk / ek).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    return (vk / ek).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
 
 
 def _pct(old, new):
@@ -573,24 +574,35 @@ def rule_for_factor(db: Session, m: Manufacturer, factor: Decimal, user) -> Rule
     """Regel 'EK × Faktor' für den Hersteller (gleiche Rundung wie die Standardregel), vorhandene wiederverwenden."""
     from backend.services.rules import create_rule
 
+    rounding = {"mode": "HALF_UP", "places": 2, "timing": "STEP"}
+    vk_rounding = []  # VK-Rundung der Standardregel (z. B. 10 Cent aufrunden) gilt auch für die Ausnahme
+    std = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
+    if std and not std.deleted:
+        rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == std.id,
+                                                 RuleVersion.version == std.current_version))
+        rounding = rv.definition.get("rounding", rounding)
+        std_steps = rv.definition.get("steps", [])
+        if std_steps and std_steps[0].get("type") == "multiply":
+            vk_rounding = [s for s in std_steps[1:] if s.get("type") in ("round", "round_ending")]
+    steps = [{"type": "multiply", "factor": str(factor)}] + vk_rounding
     name = f"{m.name} × {de(factor, 0)}"
     existing = db.scalar(select(Rule).where(Rule.name == name, Rule.manufacturer_id == m.id,
                                             Rule.deleted.is_(False)))
     if existing:
         rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == existing.id,
                                                  RuleVersion.version == existing.current_version))
-        steps = rv.definition.get("steps", [])
-        if len(steps) == 1 and steps[0].get("type") == "multiply" and Decimal(str(steps[0]["factor"])) == factor:
+        old = rv.definition.get("steps", [])
+        if old and old[0].get("type") == "multiply" and Decimal(str(old[0]["factor"])) == factor:
+            norm = lambda d: RuleDefinition.model_validate(d).model_dump(mode="json")["steps"][1:]  # noqa: E731
+            if norm(rv.definition) == norm({**rv.definition, "steps": steps}):
+                return existing
+            # Rundung des Standards hat sich geändert: neue Version mit gleicher Rundung
+            from backend.services.rules import new_version
+            defn = RuleDefinition.model_validate({**rv.definition, "steps": steps})
+            new_version(db, existing, existing.name, m.id, defn, user, "VK-Rundung wie Standardregel")
             return existing
         raise ValueError(f"Regel „{name}“ existiert, rechnet aber nicht nur EK × {de(factor, 0)} – bitte Regel wählen")
-    rounding = {"mode": "HALF_UP", "places": 2, "timing": "STEP"}
-    std = db.get(Rule, m.default_rule_id) if m.default_rule_id else None
-    if std and not std.deleted:
-        rv = db.scalar(select(RuleVersion).where(RuleVersion.rule_id == std.id,
-                                                 RuleVersion.version == std.current_version))
-        rounding = rv.definition.get("rounding", rounding)
-    defn = RuleDefinition.model_validate({"start_price": "EK", "rounding": rounding,
-                                          "steps": [{"type": "multiply", "factor": str(factor)}]})
+    defn = RuleDefinition.model_validate({"start_price": "EK", "rounding": rounding, "steps": steps})
     return create_rule(db, name, m.id, defn, user, "automatisch für Artikel-Ausnahmen angelegt", owner_id=m.owner_id)
 
 

@@ -267,11 +267,11 @@ def test_default_threshold_5_percent_one_decimal_and_factor_everywhere(admin_cli
     assert (b.difference_percent, b.status) == (D("5.0"), "PRUEFEN") and "EK_AENDERUNG" in b.reasons
     assert "EK +5,0 % (Prüfschwelle 5 %)" in b.note
     assert a.factor == D("2") and cc.decision == "ALT" and cc.factor == D("2.5")
-    assert d.decision == "MANUELL" and d.factor == D("1.86")
+    assert d.decision == "MANUELL" and d.factor == D("1.9")
     url = f"/aktualisierungen/{upd.id}"
     c.post(f"{url}/positionen/{b.id}", data={"csrf_token": c.csrf, "action": "bestaetigen", "manual_vk": "220,00"})
     _, items = _items()
-    assert (items["B"].decision, items["B"].factor) == ("MANUELL", D("2.0962"))
+    assert (items["B"].decision, items["B"].factor) == ("MANUELL", D("2.1"))
     wb = openpyxl.load_workbook(io.BytesIO(c.get(f"{url}/export?entwurf=1").content))
     ws = wb["ENTWURF Neue Preisliste"]
     head = [x.value for x in ws[1]]

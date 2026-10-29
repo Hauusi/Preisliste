@@ -94,7 +94,7 @@ Menü **Hersteller** → Name und Kürzel eingeben → „Anlegen“, danach die
 | **Kürzel** | 1–10 Zeichen A–Z/0–9, pro Benutzer eindeutig. Steht in Anzeige und Export direkt vor der Artikelnummer (Kürzel `NL` + `984-9020` = `NL984-9020`). Gespeichert wird die Nummer **ohne** Kürzel. |
 | **Aliase** | weitere Schreibweisen des Namens (mit `;` getrennt), helfen bei der Erkennung |
 | **Faktor** | Standardkalkulation: **VK = EK × Faktor**, z. B. 2,8. Legt automatisch die Regel „<Hersteller> Standard“ an. Jede Änderung erzeugt eine neue Regelversion. |
-| **VK-Rundung** | keine (Cent) · auf 10 Cent · auf 10 Cent aufrunden · auf volle Euro · auf ,90 / ,95 / ,99 (Endungen runden immer **auf**, die Marge sinkt also nie) |
+| **VK-Rundung** | **Standard bei neuen Herstellern: auf 10 Cent aufrunden** (8,736 → 8,80). Weitere: keine (Cent) · auf 10 Cent · auf volle Euro · auf ,90 / ,95 / ,99 (Endungen runden immer **auf**, die Marge sinkt also nie). Gilt auch für „Kalk“ und „anders kalkulieren“. Bestehende Hersteller behalten ihre Einstellung. |
 | **Herstellerliste enthält** | **EK** (Einkaufspreis direkt) oder **UVP** (dann ist der **Händlerrabatt** Pflicht: EK = UVP − Rabatt %) |
 | **Währung der Herstellerliste** | EUR, USD, CHF, SEK, NOK, DKK, GBP, PLN, CZK. Bei Fremdwährung ist der **Umrechnungskurs** Pflicht (1 SEK = 0,095 EUR). Unsere eigene Liste ist immer in Euro. |
 | **Prüfschwelle %** | ab dieser EK-Änderung (Standard 5 %, Erhöhung oder Senkung) muss ein Artikel im Abgleich geprüft werden |
@@ -242,7 +242,9 @@ Rechenweg, Gegenrechnung, geprüft von/am.
 
 - **Marge** = (VK − EK) / VK × 100. Leer, wenn der EK fehlt oder 0,01 ist.
 - **EK Δ%** ist leer, wenn der Vorjahres-EK 0,01 war.
-- Der **Faktor** wird ohne angehängte Nullen geschrieben (2,8). Bei „VK von Hand“ bleibt er leer.
+- Der **Faktor VK/EK** ist das tatsächliche Verhältnis der endgültigen Preise, auf **eine Nachkommastelle** gerundet
+  (2,8). Durch die VK-Rundung kann er leicht vom eingestellten Faktor abweichen; bei „alter Preis bleibt“ und
+  „VK von Hand“ zeigt er das Verhältnis dieser Preise (z. B. 3,1).
 
 ## 7. Neue Artikel unterm Jahr
 
