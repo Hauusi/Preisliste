@@ -50,6 +50,7 @@
 .ds-doc .lead-intro { font-size: 11pt; line-height: 1.2; }
 .ds-doc .lead-intro p { margin: 0 0 4mm; text-align: justify; hyphens: auto; }
 .ds-doc .lead-intro p.placeholder { text-align: left; color: #94a3b8; font-style: italic; border: .3mm dashed #cbd5e1; padding: 3mm; }
+.ds-doc .part-title .placeholder { color: #94a3b8; font-style: italic; }
 .ds-doc .lead-intro ul { margin: 6mm 0 0; padding-left: 6mm; }
 .ds-doc .lead-intro p + ul { margin-top: 6mm; }
 .ds-doc .lead-intro ul:first-child { margin-top: 0; }
