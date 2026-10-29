@@ -157,10 +157,11 @@ def test_annual_reconciliation_full_flow(admin_client, tmp_path, app):
     assert rows["RALED2"]["VK neu"] == 29.9
     # Ausgabe ohne interne Spalten, mit leerer „Kennzeichnung“ am Ende
     assert not {"Regel", "Rechenweg EK", "Gegenrechnung", "geprüft von", "geprüft am (UTC)", "Status",
-                "Prüfhinweise", "Entscheidung"} & set(header)
+                "Prüfhinweise", "Entscheidung", "Herstellerpreis", "Währung Hersteller"} & set(header)  # EK-Liste in €
     draft = openpyxl.load_workbook(io.BytesIO(c.get(url + "/export?entwurf=1").content))["ENTWURF Neue Preisliste"]
     draft_rows = {r[0]: dict(zip([h.value for h in draft[1]], r)) for r in draft.iter_rows(min_row=2, values_only=True)}
     assert draft_rows["RALED2"]["Entscheidung"] == "VK von Hand"  # Entwurf behält die Prüfspalten
+    assert "Herstellerpreis" in draft_rows["RALED2"]
     assert draft_rows["RALED3"]["Entscheidung"] == "alter Preis behalten"
     assert header[-1] == "Kennzeichnung" and all(r["Kennzeichnung"] is None for r in rows.values())
     assert (rows["RALED3"]["EK neu"], rows["RALED3"]["VK neu"]) == (10, 20)
