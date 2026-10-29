@@ -282,8 +282,9 @@
   function upload(file, slot) {
     var fd = new FormData();
     fd.append("datei", file);
+    if (slot.closest('[data-imgs="bilder_unten"]')) { fd.append("art", "anwendung"); }
     slot.classList.add("loading");
-    setStatus("Bild wird hochgeladen …", "busy");
+    setStatus(slot.closest('[data-imgs="bilder_unten"]') ? "Bild wird hochgeladen …" : "Bild wird hochgeladen und freigestellt …", "busy");
     fetch("/datenblatt/" + sheetId + "/bilder", {
       method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrf }, body: fd
     }).then(function (r) {

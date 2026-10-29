@@ -117,7 +117,8 @@ async def upload_image(request: Request, sheet_id: int, db: Session = Depends(ge
     if not ds.is_upload(upload):
         return JSONResponse({"detail": "Keine Datei"}, status_code=400)
     try:
-        name = await ds.save_image(settings, sheet.id, upload)
+        # Anwendungsbilder bleiben wie geliefert, alle anderen werden als PNG freigestellt
+        name = await ds.save_image(settings, sheet.id, upload, product=form.get("art") != "anwendung")
     except ds.ImageError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
     return {"name": name, "url": f"/datenblatt/{sheet.id}/bild/{name}"}

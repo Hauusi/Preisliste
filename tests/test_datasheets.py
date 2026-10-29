@@ -128,7 +128,7 @@ def test_images_upload_validation_swap_and_cleanup(admin_client, settings):
     assert r.status_code == 400 and "ist kein Bild" in r.json()["detail"]
     a, b = _upload(c, sid).json()["name"], _upload(c, sid).json()["name"]
     img = c.get(f"/datenblatt/{sid}/bild/{a}")
-    assert img.status_code == 200 and img.headers["content-type"] == "image/png" and img.content == PNG
+    assert img.status_code == 200 and img.headers["content-type"] == "image/png" and img.content.startswith(b"\x89PNG")
     _save(c, sid, _content(bilder_oben=[b, a]))
     # Nicht verwendete Bilder werden erst nach der Schonfrist gelöscht (Upload und Speichern laufen getrennt)
     _save(c, sid, _content(bilder_oben=[b]))
@@ -280,3 +280,50 @@ def test_named_properties_go_into_spec_table(admin_client):
     content["bloecke"] = [{"typ": "intro"}, {"typ": "spez", "sichtbar": False}]
     html = _save(c, sid, content).json()["html"]
     assert "<li><b>Spannung:</b> 12-24V</li>" in html and "Spezifikationen" not in html
+
+
+def _photo(fmt: str, bg=(255, 255, 255)) -> bytes:
+    """Produktfoto wie vom Hersteller: einfarbiger Hintergrund, Produkt mit heller Fläche innen."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    im = Image.new("RGB", (300, 200), bg)
+    d = ImageDraw.Draw(im)
+    d.rectangle((60, 50, 240, 150), fill=(230, 120, 0))
+    d.rectangle((100, 80, 200, 120), fill=bg)  # helle Fläche im Produkt, nicht mit dem Rand verbunden
+    out = io.BytesIO()
+    im.save(out, fmt, **({"quality": 85} if fmt == "JPEG" else {}))
+    return out.getvalue()
+
+
+def test_product_images_are_cut_out_as_png_application_images_unchanged(admin_client):
+    import io
+
+    from PIL import Image
+
+    c = admin_client
+    sid = _new(c)
+    for fmt, name in (("JPEG", "a.jpg"), ("WEBP", "a.webp"), ("PNG", "a.png")):
+        r = _upload(c, sid, name, _photo(fmt))
+        assert r.status_code == 200 and r.json()["name"].endswith(".png"), (fmt, r.text)
+        im = Image.open(io.BytesIO(c.get(r.json()["url"]).content))
+        w, h = im.size
+        assert im.mode == "RGBA" and 185 <= w <= 200 and 105 <= h <= 120  # auf das Produkt zugeschnitten
+        assert im.getpixel((0, 0))[3] == 0  # Hintergrund transparent
+        assert im.getpixel((15, 15))[3] == 255  # Produkt deckend
+        assert im.getpixel((w // 2, h // 2))[3] == 255  # helle Fläche im Produkt bleibt
+    # Anwendungsbild (Foto mit Umgebung): bleibt wie geliefert
+    data = _photo("WEBP")
+    r = c.post(f"/datenblatt/{sid}/bilder", headers={"X-CSRF-Token": c.csrf},
+               files={"datei": ("b.webp", data, "image/webp")}, data={"art": "anwendung"})
+    assert r.json()["name"].endswith(".webp") and c.get(r.json()["url"]).content == data
+    # Ohne einfarbigen Rand (echtes Foto): nichts entfernen, nur PNG
+    noisy = Image.effect_noise((120, 80), 80).convert("RGB")
+    buf = io.BytesIO()
+    noisy.save(buf, "JPEG")
+    im = Image.open(io.BytesIO(c.get(_upload(c, sid, "n.jpg", buf.getvalue()).json()["url"]).content))
+    assert im.size == (120, 80) and im.getchannel("A").getextrema() == (255, 255)
+    # Beschädigtes Bild mit gültigem Kopf
+    r = _upload(c, sid, "kaputt.png", PNG[:30])
+    assert r.status_code == 400 and "beschädigt" in r.json()["detail"]

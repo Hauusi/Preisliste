@@ -9,6 +9,7 @@ der Dateiname.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import secrets
 import shutil
@@ -17,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 from backend.config import Settings
+from backend.services.image_cutout import NotAnImage, open_image, product_png
 
 # Fußzeile ist fest (Design immer gleich), nur die Version kommt vom Benutzer
 FOOTER = {
@@ -288,14 +290,23 @@ def is_upload(value) -> bool:
     return bool(getattr(value, "filename", None)) and hasattr(value, "read")
 
 
-async def save_image(settings: Settings, sheet_id: int, upload) -> str:
-    """Bild prüfen (Inhalt, nicht Dateiendung) und speichern; liefert den neuen Dateinamen."""
+async def save_image(settings: Settings, sheet_id: int, upload, product: bool = True) -> str:
+    """Bild prüfen (Inhalt, nicht Dateiendung) und speichern; liefert den neuen Dateinamen.
+
+    product: Produktbild -> PNG, einfarbiger Hintergrund wird transparent. Anwendungsbilder bleiben wie geliefert."""
     data = await upload.read(MAX_IMAGE_BYTES + 1)
     if len(data) > MAX_IMAGE_BYTES:
         raise ImageError(f"„{upload.filename}“ ist größer als {MAX_IMAGE_BYTES // (1024 * 1024)} MB")
     kind = _image_type(data[:16])
     if kind is None:
         raise ImageError(f"„{upload.filename}“ ist kein Bild (erlaubt: JPG, PNG, GIF, WebP)")
+    try:
+        if product:
+            data, kind = await asyncio.to_thread(product_png, data), "png"
+        else:
+            open_image(data)
+    except NotAnImage:
+        raise ImageError(f"„{upload.filename}“ ist beschädigt oder zu groß und kann nicht gelesen werden") from None
     folder = image_dir(settings, sheet_id)
     folder.mkdir(parents=True, exist_ok=True)
     name = f"{secrets.token_hex(8)}.{kind}"

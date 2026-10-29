@@ -32,6 +32,7 @@ Alle Lizenzen sind freizügig (MIT, BSD, Apache-2.0, PSF). Es gibt keine Copylef
 | annotated-types, typing-inspection, typing_extensions, annotated-doc | – | MIT / PSF | indirekt |
 | pyyaml | 6.0.3 | MIT | Synonymliste lesen |
 | rapidfuzz | 3.14.6 | MIT | unscharfer Vergleich |
+| pillow | 12.3.0 | MIT-CMU (HPND) | Datenblatt: Produktbilder freistellen, PNG |
 | opentelemetry-api | 1.45.0 | Apache-2.0 | **Pflichtabhängigkeit von FastAPI**, siehe unten |
 
 ## Telemetrie und Netzwerkzugriff zur Laufzeit
