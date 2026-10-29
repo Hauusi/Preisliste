@@ -238,13 +238,14 @@ Danach zusätzlich verfügbar: **Preisänderungen für Kunden** (nur Artikel mit
 gültig ab). Vor dem Abschluss gibt es den **Entwurf-Export** (deutlich als ENTWURF gekennzeichnet).
 
 **Excel „Neue Preisliste“** (Blätter Zusammenfassung, Neue Preisliste, Zu prüfen): Artikelnummer mit Kürzel,
-Herstellerpreis, EK alt/neu/Δ%, VK alt/neu/Δ%, Faktor VK/EK, Marge %, Status, Prüfhinweise, Entscheidung, Regel,
-Rechenweg, Gegenrechnung, geprüft von/am.
+Herstellerpreis, EK alt/neu/Δ%, VK alt/neu/Δ%, Faktor VK/EK, Marge %, Status, Prüfhinweise, Entscheidung und eine
+leere Spalte **Kennzeichnung** zum Ausfüllen. Regel, Rechenweg, Gegenrechnung und wer wann geprüft hat stehen nicht
+in der Excel-Ausgabe, sondern in der App (Prüfseite, „Rechenweg“ je Zeile, Protokoll).
 
 - **Marge** = (VK − EK) / VK × 100. Leer, wenn der EK fehlt oder 0,01 ist.
 - **EK Δ%** und **VK Δ%** stehen immer da, bei „alter Preis behalten“ als 0 %. Leer nur ohne Vergleichswert
   (Vorjahres-EK 0,01 bzw. kein alter VK).
-- **Rechenweg EK** nennt die Zeile der Herstellerliste, aus der der Preis stammt.
+- Der **Rechenweg** auf der Prüfseite nennt die Zeile der Herstellerliste, aus der der Preis stammt.
 - Der **Faktor VK/EK** ist das tatsächliche Verhältnis der endgültigen Preise, auf **eine Nachkommastelle** gerundet
   (2,8). Durch die VK-Rundung kann er leicht vom eingestellten Faktor abweichen; bei „alter Preis bleibt“ und
   „VK von Hand“ zeigt er das Verhältnis dieser Preise (z. B. 3,1).

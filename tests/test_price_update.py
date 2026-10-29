@@ -155,7 +155,9 @@ def test_annual_reconciliation_full_flow(admin_client, tmp_path, app):
     assert set(rows) == {"RALED1", "RALED2", "RALED3", "RALED4", "RAABC-1000"}
     assert (rows["RALED1"]["EK neu"], rows["RALED1"]["VK neu"]) == (10.5, 21)
     assert rows["RALED2"]["VK neu"] == 29.9 and rows["RALED2"]["Entscheidung"] == "VK von Hand"
-    assert rows["RALED2"]["geprüft von"] == "admin"
+    # Ausgabe ohne interne Spalten, mit leerer „Kennzeichnung“ am Ende
+    assert not {"Regel", "Rechenweg EK", "Gegenrechnung", "geprüft von", "geprüft am (UTC)"} & set(header)
+    assert header[-1] == "Kennzeichnung" and all(r["Kennzeichnung"] is None for r in rows.values())
     assert (rows["RALED3"]["EK neu"], rows["RALED3"]["VK neu"]) == (10, 20)
     assert rows["RALED3"]["Entscheidung"] == "alter Preis behalten"
     assert list(wb["Zu prüfen"].iter_rows(min_row=2, values_only=True)) == []

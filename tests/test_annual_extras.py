@@ -56,7 +56,7 @@ def test_sek_list_is_converted_before_calculation(admin_client, tmp_path, app):
     ws = wb["Neue Preisliste"]
     row = dict(zip([h.value for h in ws[1]], next(ws.iter_rows(min_row=2, values_only=True))))
     assert (row["Herstellerpreis"], row["Währung Hersteller"], row["EK neu"], row["VK neu"]) == (123.45, "SEK", 11.73, 30.5)
-    assert row["Gegenrechnung"] == "stimmt" and row["Faktor VK/EK"] == 2.6
+    assert row["Faktor VK/EK"] == 2.6
 
 
 def test_currency_mismatch_is_blocked(admin_client, tmp_path, app):
@@ -209,7 +209,7 @@ def test_formula_rule_is_marked_not_checkable(admin_client, tmp_path, app):
     wb = openpyxl.load_workbook(io.BytesIO(c.get(f"/aktualisierungen/{i.update_id}/export?entwurf=1").content))
     ws = wb["ENTWURF Neue Preisliste"]
     row = dict(zip([h.value for h in ws[1]], next(ws.iter_rows(min_row=2, values_only=True))))
-    assert row["Gegenrechnung"] == "nicht prüfbar"
+    assert "Gegenrechnung" not in row
 
 
 def test_manufacturer_pages_render(admin_client, user_client):
