@@ -125,7 +125,7 @@ def test_ai_buttons_hidden_without_ai(admin_client, tmp_path):
     p = make_xlsx(tmp_path / "l.xlsx", [["Code", "Text"], ["A", "x"]])
     list_id = int(upload(admin_client, p).headers["location"].rsplit("/", 1)[1])
     page = admin_client.get(f"/import/{list_id}/spalten").text
-    assert "KI-Vorschlag" not in page and "KI inaktiv" in page
+    assert "KI-Vorschlag" not in page and "KI aktiv" not in page
 
 
 def test_ai_columns_job(admin_client, tmp_path, app):

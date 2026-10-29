@@ -66,9 +66,9 @@
   </fieldset>
 </form>
 
-<section class="card">
-  <h2>Artikel mit eigener Kalkulation</h2>
-  <p class="hint">Für diese Artikel gilt statt der Standardregel eine andere Regel (z. B. EK × 2,8, wenn die Marge sonst zu klein ist). Am einfachsten im Jahresabgleich: Artikel anhaken und Faktor eingeben. Einzelne Artikel gehen vor „beginnt mit“. Passen sonst mehrere Ausnahmen mit verschiedenen Regeln, wird nicht geraten: der Artikel landet als Fehler in der Prüfung.</p>
+<details class="card"{% if exceptions %} open{% endif %}>
+  <summary>Artikel mit eigener Kalkulation ({{ exceptions | length }})</summary>
+  <p class="hint">Für diese Artikel gilt ein anderer Faktor als der Standard (z. B. EK × 2,8, wenn die Marge sonst zu klein ist). Am einfachsten im Jahresabgleich: Artikel anhaken und Faktor eingeben. Einzelne Artikel gehen vor „beginnt mit“; passen mehrere Ausnahmen, wird nicht geraten, der Artikel landet in der Prüfung.</p>
   <table>
     <thead><tr><th>Gilt für</th><th>Wert</th><th>Regel</th><th>Notiz</th><th></th></tr></thead>
     <tbody>
@@ -92,6 +92,6 @@
   </form>
   <p class="hint">Artikelnummern ohne Kürzel{% if m.code %} {{ m.code }}{% endif %} eingeben, Bindestriche/Leerzeichen sind egal.</p>
   {% endif %}
-</section>
+</details>
 <script src="/static/app.js"></script>
 {% endblock %}

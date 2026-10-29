@@ -93,7 +93,7 @@ def build(db: Session, user) -> dict:
         s = u.summary or {}
         if s.get("offen"):
             who = u.base_list.manufacturer.name if u.base_list.manufacturer else u.base_list.name
-            todo.insert(0, ("err", f"{who}: {s['offen']} Positionen prüfen", f"Jahresabgleich vom {u.created_at:%d.%m.%Y}",
+            todo.insert(0, ("err", f"{who}: {s['offen']} {'Position' if s['offen'] == 1 else 'Positionen'} prüfen", f"Jahresabgleich vom {u.created_at:%d.%m.%Y}",
                             f"/aktualisierungen/{u.id}?status=offen", "Jetzt prüfen"))
         elif not u.adopted_list_id and u is next((x for x in updates if x.base_price_list_id == u.base_price_list_id), None):
             who = u.base_list.manufacturer.name if u.base_list.manufacturer else u.base_list.name
