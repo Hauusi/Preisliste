@@ -26,7 +26,7 @@
         {% endif %}
         {% if t.spez %}
         <div class="lead-spec" data-block="{{ t.spez.index }}">
-          <h2 class="part-title"><b>{{ titel }}</b>{% if untertitel %} - {{ untertitel }}{% endif %}<small>Spezifikationen</small></h2>
+          <h2 class="part-title">{% if titel or untertitel %}<b>{{ titel }}</b>{% if titel and untertitel %} - {% endif %}{{ untertitel }}{% elif editor %}<span class="placeholder">Produkttyp - Serie</span>{% endif %}<small>Spezifikationen</small></h2>
           {% if t.spez.logos %}<div class="badges">{% for b in t.spez.logos %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
           {% if t.spez.zeilen %}
           <table class="spec-table">

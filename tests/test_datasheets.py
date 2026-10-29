@@ -91,7 +91,7 @@ def test_save_returns_live_preview_with_all_blocks(admin_client, settings):
 
 
 def test_new_page_and_order_control_pagination():
-    c = _content(eigenschaften=[{"name": "A", "wert": "1", "sichtbar": True}])
+    c = _content(eigenschaften=[{"name": "A", "wert": "1", "sichtbar": True}], kopf={"titel": "", "untertitel": ""})
     rows = [{"bild": None, "artnr": f"A{i}", "farbe": "", "beschreibung": "x", "werte": []} for i in range(3)]
     table = {**ds.new_table("Tabelle"), "zeilen": rows}
     c["bloecke"] = [{"typ": "intro", "neue_seite": False, "sichtbar": True}, table]
@@ -113,10 +113,10 @@ def test_long_tables_are_split_with_continuation():
                                     for i in range(15)]})
     pages = ds.paginate(c)
     parts = [t for p in pages for t in p["teile"]]
-    shown = [r["artnr"] for t in parts if t["titel"] == "Gross" for r in t["zeilen"]]
+    shown = [r["artnr"] for t in parts if t.get("titel") == "Gross" for r in t["zeilen"]]
     assert shown == [r["artnr"] for r in rows]
-    assert any(t["fortsetzung"] for t in parts)
-    assert sum(len(t["zeilen"]) for t in parts if t["titel"] == "Zubehör") == 15
+    assert any(t.get("fortsetzung") for t in parts)
+    assert sum(len(t["zeilen"]) for t in parts if t.get("titel") == "Zubehör") == 15
 
 
 def test_images_upload_validation_swap_and_cleanup(admin_client, settings):
@@ -242,3 +242,16 @@ def test_intro_text_and_spec_share_head_area_like_standard(admin_client):
     content["bloecke"] = [{"typ": "intro"}, {"typ": "spez", "neue_seite": True}, {"typ": "anwendung"}]
     data = _save(c, sid, content).json()
     assert data["seiten"] == 2 and data["html"].count('class="part lead"') == 2
+
+
+def test_spec_heading_from_product_type_and_series(admin_client):
+    """Überschrift wie im Standard („LED Leuchtbalken - Serie 12+ / Spezifikationen“) steht sofort,
+    auch ohne Spezifikationszeilen – in der Live-Vorschau und im Druck."""
+    c = admin_client
+    sid = _new(c, "LED Leuchtbalken", "Serie 12+")
+    title = '<h2 class="part-title"><b>LED Leuchtbalken</b> - Serie 12+<small>Spezifikationen</small></h2>'
+    assert title in _save(c, sid, _content()).json()["html"]
+    assert title in c.get(f"/datenblatt/{sid}/vorschau").text
+    content = _content(kopf={"titel": "", "untertitel": ""})
+    assert "Produkttyp - Serie</span><small>Spezifikationen" in _save(c, sid, content).json()["html"]
+    assert "<small>Spezifikationen</small>" not in c.get(f"/datenblatt/{sid}/vorschau").text

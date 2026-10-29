@@ -467,7 +467,9 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
     props, badges = shown_properties(c), approval_badges(c)
     blocks = c["bloecke"]
     has_intro = editor or bool(c["einleitung"] or props or c["bilder_oben"])
-    has_spez = bool(c["spez"]["zeilen"] or badges or c["zeichnungen"])
+    # Überschrift „Produkttyp - Serie / Spezifikationen“ steht, sobald Produkttyp oder Serie eingetragen sind
+    has_spez = bool(c["spez"]["zeilen"] or badges or c["zeichnungen"] or c["kopf"]["titel"] or c["kopf"]["untertitel"]
+                    or editor)
     joined = set()  # Spezifikation, die schon im Kopfbereich mit der Einleitung steht
     for index, block in enumerate(blocks):
         typ = block["typ"]
