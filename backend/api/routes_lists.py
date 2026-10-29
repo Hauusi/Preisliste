@@ -99,6 +99,7 @@ def price_list(request: Request, list_id: int, status: str | None = None, q: str
     return render(request, "price_list.html", {
         "pl": pl, "rows": rows, "info": info, "status": status if status in STATUSES else None,
         "q": q or "", "statuses": STATUSES, "manufacturers": manufacturers, "codes": code_map(db),
+        "status_labels": {"OK": "in Ordnung", "WARNUNG": "Warnung", "UNKLAR": "unklar", "FEHLER": "Fehler"},
     })
 
 

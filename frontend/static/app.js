@@ -118,3 +118,11 @@
     input.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); add(); } });
   });
 })();
+// Jahresabgleich: Sobald ein Artikel angehakt wird, den Bereich „anders kalkulieren“ aufklappen
+(function () {
+  var box = document.querySelector("[data-open-on-select]");
+  if (!box) { return; }
+  document.querySelectorAll("input[form=ausnahme-form][type=checkbox]").forEach(function (cb) {
+    cb.addEventListener("change", function () { if (cb.checked) { box.open = true; } });
+  });
+})();

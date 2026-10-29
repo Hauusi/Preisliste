@@ -18,8 +18,6 @@
   <a class="kpi" href="/hersteller"><span class="kpi-icon">{{ icon("factory", 18) }}</span>Hersteller<span class="kpi-value">{{ kpis.manufacturers }}</span><div class="kpi-sub">mit Kürzel und Regel</div></a>
   <a class="kpi" href="/listen"><span class="kpi-icon">{{ icon("box", 18) }}</span>Artikel aktuell<span class="kpi-value">{{ "{:,}".format(kpis.articles).replace(",", ".") }}</span><div class="kpi-sub">unsere finalen EK/VK</div></a>
   <a class="kpi" href="/aktualisierungen"><span class="kpi-icon {{ 'err' if kpis.open else 'ok' }}">{{ icon("alert" if kpis.open else "check", 18) }}</span>Offene Prüfungen<span class="kpi-value">{{ kpis.open }}</span><div class="kpi-sub">{{ "müssen bestätigt werden" if kpis.open else "alles geprüft" }}</div></a>
-  <a class="kpi" href="/aktualisierungen"><span class="kpi-icon">{{ icon("sync", 18) }}</span>Abgleiche (Jahr)<span class="kpi-value">{{ kpis.updates_year }}</span><div class="kpi-sub">{{ kpis.adopted_year }} übernommen</div></a>
-  <a class="kpi" href="/neue-artikel"><span class="kpi-icon ok">{{ icon("plus", 18) }}</span>Neue Artikel<span class="kpi-value">{{ kpis.new_articles_30d }}</span><div class="kpi-sub">letzte 30 Tage aufgenommen</div></a>
 </div>
 
 <div class="grid grid-2">
@@ -93,10 +91,12 @@
 <section class="card"><div class="empty-state"><div class="dot info">{{ icon("factory", 22) }}</div>Noch keine Hersteller. <a href="/hersteller">Ersten Hersteller anlegen →</a></div></section>
 {% endif %}
 
+{% if user.role == "admin" %}
 <details class="card">
   <summary>System</summary>
   <p>KI: {% if ai_status.active %}<span class="badge OK">aktiv</span> {{ ai_status.provider }}, Modell {{ ai_status.model }}{% if ai_status.loaded_mb %}, geladen {{ ai_status.loaded_mb }} MB{% else %}, nicht im Speicher (wird bei Bedarf geladen){% endif %}{% else %}<span class="badge off">inaktiv</span> {{ ai_status.message }}. Die Anwendung funktioniert ohne KI vollständig.{% endif %}</p>
   <p class="hint">Speicher App-Prozess: {{ memory_mb if memory_mb is not none else "unbekannt" }} MB · Keine Verbindungen zu externen Diensten.</p>
   {% if jobs %}<p>Laufende Jobs: {% for j in jobs %}<a href="/jobs/{{ j.id }}">#{{ j.id }} {{ j.type }} ({{ j.status }})</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 </details>
+{% endif %}
 {% endblock %}

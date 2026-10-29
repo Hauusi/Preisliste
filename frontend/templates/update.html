@@ -22,7 +22,7 @@
     {% endif %}
   </div>
 </div>
-{% if meldung %}<p class="msg UNKLAR">{{ meldung }}</p>{% endif %}
+{% if meldung %}<p class="msg {{ 'UNKLAR' if meldung.startswith(('Bitte', 'Keine', 'Gültig ab:')) else 'OK' }}">{{ meldung }}</p>{% endif %}
 
 {% set needs = s.artikel - s.get("OK", 0) - s.get("UNVERAENDERT", 0) %}
 <section class="card progress-card">
@@ -31,7 +31,7 @@
       <span class="dot err">{{ icon("alert", 18) }}</span>
       <div><b>{{ s.offen }} von {{ needs }} Positionen noch zu prüfen</b>
         <span class="hint">Endgültiger Export gesperrt, bis alles geprüft ist. {{ s.get("OK", 0) }} Artikel sind ohne Auffälligkeit.</span></div>
-      <a class="button" href="?status=offen">Offene anzeigen</a>
+      <a class="button secondary" href="?status=offen">Offene anzeigen</a>
     {% elif upd.adopted_list_id %}
       <span class="dot ok">{{ icon("check", 18) }}</span>
       <div><b>{% if fertig %}Fertig! Die neue Preisliste wird heruntergeladen.{% else %}Abgeschlossen und als aktuelle Liste übernommen{% endif %}</b>
@@ -50,6 +50,16 @@
       </form>
     {% endif %}
   </div>
+  {% if s.offen and bulk_open %}
+  <form method="post" action="/aktualisierungen/{{ upd.id }}/alle-bestaetigen" class="row bulk-confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="status" value="{{ status if status != 'offen' else '' }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}">
+    <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required>
+      Ich habe alle offenen Positionen{% if status in labels %} „{{ labels[status] }}“{% endif %}{% if grund %} mit „{{ reasons[grund] }}“{% endif %} durchgesehen</label>
+    <button type="submit">{{ icon("check", 16) }} Alle auf einmal bestätigen</button>
+    <span class="hint">Unklare Zuordnungen und Fehler entscheidest du einzeln in der Tabelle.</span>
+  </form>
+  {% endif %}
   {% if needs > 0 %}<div class="bar" role="img" aria-label="{{ needs - s.offen }} von {{ needs }} geprüft"><span class="bar-fill bar-{{ ((needs - s.offen) * 20 // needs) * 5 }}"></span></div>{% endif %}
   {% if s.ignoriert_nur_beim_hersteller %}<p class="hint m0">{{ s.ignoriert_nur_beim_hersteller }} Artikel stehen nur in der Herstellerliste und werden ignoriert (bei uns nicht angelegt).</p>{% endif %}
 </section>
@@ -79,25 +89,18 @@
     <label>Prüfgrund <select name="grund"><option value="">alle</option>{% for k, v in reasons.items() %}<option value="{{ k }}" {% if k == grund %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
     <button type="submit" class="secondary">Filtern</button>
   </form>
-  {% if s.offen %}
-  <form method="post" action="/aktualisierungen/{{ upd.id }}/alle-bestaetigen" class="row">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="status" value="{{ status if status != 'offen' else '' }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}">
-    <label class="inline-label"><input type="checkbox" name="bestaetigt" value="ja" required>
-      Alle offenen Positionen{% if status in labels %} „{{ labels[status] }}“{% endif %}{% if grund %} mit „{{ reasons[grund] }}“{% endif %} sind geprüft</label>
-    <button type="submit" class="secondary">Sammelbestätigung</button>
-    <span class="hint">Unklare Zuordnungen und Fehler müssen einzeln entschieden werden.</span>
-  </form>
-  {% endif %}
-  <form method="post" action="/aktualisierungen/{{ upd.id }}/ausnahmen" id="ausnahme-form" class="row">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
-    <span class="toolbar-label">Angehakte Artikel anders kalkulieren</span>
-    <label>Faktor <input name="factor" size="6" placeholder="z. B. 2,8"></label>
-    <label>oder Regel <select name="rule_id"><option value="">–</option>{% for r in all_rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
-    <button type="submit" name="action" value="setzen">Übernehmen</button>
-    <button type="submit" name="action" value="entfernen" class="secondary">Zurück auf Standard</button>
-  </form>
+  <details class="calc-box" data-open-on-select>
+    <summary>Einzelne Artikel anders kalkulieren (z. B. Faktor 2,8 statt Standard)</summary>
+    <p class="hint">Artikel in der Tabelle links anhaken, Faktor eingeben, übernehmen. Gilt dauerhaft für diese Artikel, auch bei den nächsten Abgleichen.</p>
+    <form method="post" action="/aktualisierungen/{{ upd.id }}/ausnahmen" id="ausnahme-form" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="status" value="{{ status }}"><input type="hidden" name="grund" value="{{ grund }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ info.page }}">
+      <label>Faktor <input name="factor" size="6" placeholder="z. B. 2,8"></label>
+      <label>oder Regel <select name="rule_id"><option value="">–</option>{% for r in all_rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></label>
+      <button type="submit" name="action" value="setzen">Übernehmen</button>
+      <button type="submit" name="action" value="entfernen" class="secondary">Zurück auf Standard</button>
+    </form>
+  </details>
 </div>
 
 {% set base_query = ({"status": status, "grund": grund, "q": q} | urlencode) ~ "&" %}
@@ -184,4 +187,5 @@
 </table>
 </div>
 {% include "_pager.html" %}
+<script src="/static/app.js"></script>
 {% endblock %}

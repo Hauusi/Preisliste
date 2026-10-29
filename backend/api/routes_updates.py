@@ -139,6 +139,9 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
         "grund": grund if grund in REASON_LABELS else "", "q": q or "", "meldung": meldung,
         "statuses": STATUSES, "labels": STATUS_LABELS, "reasons": REASON_LABELS, "codes": code_map(db),
         "step": 4, "reviewers": reviewers, "fertig": bool(fertig and upd.adopted_list_id),
+        "bulk_open": db.scalar(select(func.count(PriceUpdateItem.id)).where(  # was „Alle bestätigen“ erfasst
+            PriceUpdateItem.update_id == upd_id, PriceUpdateItem.needs_review.is_(True),
+            PriceUpdateItem.reviewed_at.is_(None), PriceUpdateItem.status.not_in(("NICHT_EINDEUTIG", "FEHLER")))),
         "ai_targets": db.scalar(select(func.count(PriceUpdateItem.id)).where(
             PriceUpdateItem.update_id == upd_id, PriceUpdateItem.reviewed_at.is_(None),
             PriceUpdateItem.status.in_(("NICHT_IN_HERSTELLERLISTE", "NICHT_EINDEUTIG")))),

@@ -16,17 +16,16 @@
 {% if pl.summary %}
 <div class="stats">
   <div class="stat"><span>{{ pl.summary.articles }}</span>Artikel</div>
-  {% if pl.summary.prices is defined %}<div class="stat"><span>{{ pl.summary.prices }}</span>Preise</div>{% endif %}
-  <a class="stat FEHLER" href="/listen/{{ pl.id }}/meldungen?level=FEHLER"><span>{{ pl.summary.messages.FEHLER }}</span>Fehler</a>
-  <a class="stat UNKLAR" href="/listen/{{ pl.id }}/meldungen?level=UNKLAR"><span>{{ pl.summary.messages.UNKLAR }}</span>Unklar</a>
-  <a class="stat WARNUNG" href="/listen/{{ pl.id }}/meldungen?level=WARNUNG"><span>{{ pl.summary.messages.WARNUNG }}</span>Warnungen</a>
+  {% for lvl, label in (("FEHLER", "Fehler"), ("UNKLAR", "Unklar"), ("WARNUNG", "Warnungen")) if pl.summary.messages[lvl] %}
+  <a class="stat {{ lvl }}" href="/listen/{{ pl.id }}/meldungen?level={{ lvl }}"><span>{{ pl.summary.messages[lvl] }}</span>{{ label }}</a>
+  {% else %}<div class="stat OK"><span>{{ icon("check", 22) }}</span>keine Auffälligkeiten</div>{% endfor %}
 </div>
 {% if pl.summary.manufacturers_unknown %}<p class="msg FEHLER">Unbekannte Hersteller (nicht angelegt, Zeilen als Fehler markiert): {{ pl.summary.manufacturers_unknown | join(", ") }}</p>{% endif %}
 {% endif %}
 
 <form method="get" class="card row">
   <label>Status
-    <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <select name="status"><option value="">alle</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ status_labels[s] }}</option>{% endfor %}</select>
   </label>
   <label>Suche <input name="q" value="{{ q }}" maxlength="100" placeholder="Artikelnummer (auch mit Kürzel) oder Bezeichnung"></label>
   <button type="submit" class="secondary">Filtern</button>
@@ -36,17 +35,18 @@
 {% include "_pager.html" %}
 <div class="scroll">
 <table>
-  <thead><tr><th>Zeile</th><th>Artikelnummer</th><th>Hersteller</th><th>Bezeichnung</th><th>Kategorie</th><th>Preise</th><th>Status</th></tr></thead>
+  {% set show_mfr = not pl.manufacturer_id %}{% set show_cat = rows | selectattr("category") | list %}
+  <thead><tr><th title="Zeile in der Excel-Datei">Zeile</th><th>Artikelnummer</th>{% if show_mfr %}<th>Hersteller</th>{% endif %}<th>Bezeichnung</th>{% if show_cat %}<th>Kategorie</th>{% endif %}<th>Preise</th><th>Status</th></tr></thead>
   <tbody>
   {% for a in rows %}
     <tr>
       <td class="num">{{ a.source_row }}</td>
       <td>{{ a.article_number | artnr(codes.get(a.manufacturer_id)) }}</td>
-      <td>{{ manufacturers.get(a.manufacturer_id, a.manufacturer_raw or "") }}</td>
+      {% if show_mfr %}<td>{{ manufacturers.get(a.manufacturer_id, a.manufacturer_raw or "") }}</td>{% endif %}
       <td>{{ a.description or "" }}</td>
-      <td>{{ a.category or "" }}</td>
+      {% if show_cat %}<td>{{ a.category or "" }}</td>{% endif %}
       <td>{% for p in a.prices %}<div class="price">{{ {"LISTE": "VK"}.get(p.price_type, p.price_type) }} {{ p.amount | money }} {{ p.currency }}{% if p.min_quantity is not none %} ab {{ p.min_quantity }}{% endif %}{% if p.discount_percent is not none %} · Rabatt {{ p.discount_percent }} %{% endif %}</div>{% endfor %}{% if a.calc_factor is not none %}<div class="small">Kalk × {{ a.calc_factor | num }}</div>{% endif %}</td>
-      <td><span class="badge {{ a.status }}">{{ a.status }}</span></td>
+      <td><span class="badge {{ a.status }}">{{ status_labels[a.status] }}</span></td>
     </tr>
   {% else %}
     <tr><td colspan="7">Keine Artikel.</td></tr>
