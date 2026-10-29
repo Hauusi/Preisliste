@@ -5,7 +5,7 @@ Jeder Preis wird unabhängig nachgerechnet: EK aus der Datei (ggf. UVP − Rabat
 
 import io
 import re
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
 from pathlib import Path
 
 import openpyxl
@@ -22,6 +22,11 @@ DATA = Path(__file__).resolve().parent.parent / "beispiel-daten"
 
 def money(v) -> Decimal:
     return D(v).quantize(D("0.01"), rounding=ROUND_HALF_UP)
+
+
+def vk(ek, factor: str) -> Decimal:
+    """VK wie das Tool: EK × Faktor auf Cent, dann Standard-Rundung neuer Hersteller (10 Cent aufrunden)."""
+    return money(D(ek) * D(factor)).quantize(D("0.1"), rounding=ROUND_UP)
 
 
 def new_manufacturer(c, name, code, factor, **settings) -> int:
@@ -111,7 +116,7 @@ def test_raphi_led_full_year(admin_client, app):
     for nr, i in items.items():
         if nr in new and i.status in ("OK", "PRUEFEN"):
             ek = money(str(new[nr]))
-            assert i.final_ek == ek and i.final_vk == money(ek * D("2.6")), nr
+            assert i.final_ek == ek and i.final_vk == vk(ek, "2.6"), nr
             assert i.check_ok is True
             checked += 1
     assert checked == 47
@@ -146,7 +151,7 @@ def test_raphi_led_full_year(admin_client, app):
         assert current.kind == "UNSERE"
         led1 = db.scalar(select(Article).where(Article.price_list_id == current.id, Article.article_number == "LED1"))
         prices = {p.price_type: p.amount for p in led1.prices}
-    assert prices == {"EK": money(str(new["LED1"])), "LISTE": money(money(str(new["LED1"])) * D("2.6"))}
+    assert prices == {"EK": money(str(new["LED1"])), "LISTE": vk(money(str(new["LED1"])), "2.6")}
 
     # 4) Preiserhöhung unterm Jahr: nur Arbeitsscheinwerfer -> Teilliste vorgeschlagen, Rest unverändert
     url, page = smart_page(c, "RaphiLED_Preiserhoehung_Arbeitsscheinwerfer.xlsx")
@@ -157,7 +162,7 @@ def test_raphi_led_full_year(admin_client, app):
     assert sum(1 for i in items.values() if i.status == "UNVERAENDERT") == 46
     part = file_prices("RaphiLED_Preiserhoehung_Arbeitsscheinwerfer.xlsx", 4, 2)
     for nr, ek in part.items():
-        assert items[nr].final_ek == money(str(ek)) and items[nr].final_vk == money(money(str(ek)) * D("2.6"))
+        assert items[nr].final_ek == money(str(ek)) and items[nr].final_vk == vk(money(str(ek)), "2.6")
     assert items["AS500"].status == "UNVERAENDERT"  # nicht in der Teilliste: bleibt beim zugeordneten Preis
 
 
@@ -176,7 +181,7 @@ def test_nordlicht_uvp_with_dealer_discount(admin_client, app):
     for nr, i in items.items():
         if isinstance(uvp[nr], (int, float)):
             ek = money(D(str(uvp[nr])) * D("0.65"))
-            assert (i.final_ek, i.final_vk) == (ek, money(ek * D("1.8"))), nr
+            assert (i.final_ek, i.final_vk) == (ek, vk(ek, "1.8")), nr
             assert i.status == "OK", (nr, i.reasons)
     bad = items["10400"]  # "auf Anfrage": kein Preis -> Fehler, alter Preis bleibt
     assert bad.status == "FEHLER" and bad.decision == "ALT" and "keinen UVP-Preis" in bad.note
@@ -196,7 +201,7 @@ def test_svensk_ljus_sek_conversion(admin_client, app):
     assert len(items) == 12
     for nr, i in items.items():
         ek = money(D(str(sek[nr])) * D("0.095"))
-        assert (i.final_ek, i.final_vk, i.source_currency, i.status) == (ek, money(ek * D("2.4")), "SEK", "OK"), nr
+        assert (i.final_ek, i.final_vk, i.source_currency, i.status) == (ek, vk(ek, "2.4"), "SEK", "OK"), nr
 
 
 def test_blocking_problems_are_explained(admin_client, app):
@@ -255,7 +260,7 @@ def test_lumatec_messy_real_world_list(admin_client, app):
     for nr, i in items.items():
         if nr == "01003":
             continue
-        assert (i.final_ek, i.final_vk, i.status) == (new[nr], money(new[nr] * D("2.5")), "OK"), (nr, i.note)
+        assert (i.final_ek, i.final_vk, i.status) == (new[nr], vk(new[nr], "2.5"), "OK"), (nr, i.note)
     gone = items["01003"]
     assert gone.status == "NICHT_IN_HERSTELLERLISTE" and "Laut Hersteller entfallen" in gone.note
     assert "Nachfolger 01004" in gone.note and (gone.final_ek, gone.decision) == (gone.old_amount, "ALT")

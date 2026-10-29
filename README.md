@@ -34,7 +34,8 @@ Nach dem Login: Kachel-Startseite des **Sales Assistant**, Modul **Preisliste** 
 4. **Abschließen** (optional mit „gültig ab“): ein Klick übernimmt die neuen EK/VK als aktuelle Liste und lädt die
    fertige Excel-Liste herunter. Zusätzlich: **Preisänderungsliste für Kunden** (nur geänderte VK, alt → neu, gültig ab).
 
-Vertriebsdetails: VK-Rundung pro Hersteller (10 Cent, volle Euro, ,90/,95/,99 – Endungen runden immer auf),
+Vertriebsdetails: VK-Rundung pro Hersteller (Standard: auf 10 Cent aufrunden; außerdem Cent, volle Euro, ,90/,95/,99 – Endungen runden immer auf),
+Faktor VK/EK mit einer Nachkommastelle,
 Marge (Rohertrag in % vom VK) in Prüfung und Export, doppelte Zeilen mit gleichem Preis zählen einmal,
 „entfällt“-Vermerke des Herstellers werden erkannt (alter Preis bleibt, Hinweis in der Prüfung),
 Deckblätter werden übersprungen, eine allgemeine „Preis“-Spalte wird laut Hersteller-Einstellung als EK bzw. UVP gelesen.
