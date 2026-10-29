@@ -203,6 +203,7 @@ Artikel, die nur in der Herstellerliste stehen, werden ignoriert (sie gehören n
 | VK-Änderung passt nicht zur EK-Änderung | Vorjahr war anders kalkuliert | neuer VK |
 | alter VK passt nicht zur Kalkulation (**Sonderpreis**) | kalkulierter VK wäre niedriger als der alte, obwohl der EK nicht fällt | **alter VK bleibt** vorgeschlagen; „zurücknehmen“ setzt den kalkulierten |
 | **Preis vom Vorjahr fehlt (EK 0,01)** | EK 0,01 in unserer Liste = kein Preis eingespielt oder Abverkauf | alter VK vorgeschlagen, kalkulierter VK im Hinweis; keine EK-Änderung in % |
+| **EK unplausibel** | neuer EK ist mehr als 5 × oder weniger als 1/5 des alten EK, oder ohne Vorjahres-EK 1 Mio. € und mehr (falsche Spalte, EAN, Tippfehler) | **Fehler, alter EK/VK bleibt**; der Hinweis nennt Wert und Zeile der Herstellerliste. Nie in der Sammelbestätigung. Ist der Preis echt: Datei prüfen/korrigieren und neu einspielen |
 | **VK unplausibel** | alter VK ist mehr als 20 × der neue EK (Tipp- oder Importfehler) | alter VK wird **nie** übernommen, kalkulierter VK |
 | VK neu liegt unter EK neu | Kalkulation ergibt Verlust | prüfen |
 | Preis ist 0 | | prüfen |
@@ -241,7 +242,9 @@ Herstellerpreis, EK alt/neu/Δ%, VK alt/neu/Δ%, Faktor VK/EK, Marge %, Status, 
 Rechenweg, Gegenrechnung, geprüft von/am.
 
 - **Marge** = (VK − EK) / VK × 100. Leer, wenn der EK fehlt oder 0,01 ist.
-- **EK Δ%** ist leer, wenn der Vorjahres-EK 0,01 war.
+- **EK Δ%** und **VK Δ%** stehen immer da, bei „alter Preis behalten“ als 0 %. Leer nur ohne Vergleichswert
+  (Vorjahres-EK 0,01 bzw. kein alter VK).
+- **Rechenweg EK** nennt die Zeile der Herstellerliste, aus der der Preis stammt.
 - Der **Faktor VK/EK** ist das tatsächliche Verhältnis der endgültigen Preise, auf **eine Nachkommastelle** gerundet
   (2,8). Durch die VK-Rundung kann er leicht vom eingestellten Faktor abweichen; bei „alter Preis bleibt“ und
   „VK von Hand“ zeigt er das Verhältnis dieser Preise (z. B. 3,1).

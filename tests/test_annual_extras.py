@@ -48,7 +48,7 @@ def test_sek_list_is_converted_before_calculation(admin_client, tmp_path, app):
     i = items["LED1"]
     # 123,45 SEK × 0,095 = 11,72775 -> 11,73 EUR; × 2,6 = 30,498 -> 30,50
     assert (i.source_amount, i.source_currency, i.final_ek, i.final_vk) == (D("123.45"), "SEK", D("11.73"), D("30.50"))
-    assert i.ek_text == "EK Hersteller 123,45 SEK × Kurs 0,095 = 11,73 EUR"
+    assert i.ek_text == "EK Hersteller 123,45 SEK × Kurs 0,095 = 11,73 EUR (Herstellerliste Zeile 2)"
     assert i.check_ok is True and i.status == "OK" and i.currency == "EUR"
     assert upd.list_currency == "SEK" and upd.exchange_rate == D("0.095")
     assert "Gegenrechnung stimmt" in c.get(url).text

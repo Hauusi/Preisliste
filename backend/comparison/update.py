@@ -41,6 +41,8 @@ CENT = Decimal("0.01")
 PLACEHOLDER_EK = CENT
 # VK über dem 20-fachen EK ist nie gewollt (Tippfehler/Importfehler): so ein alter VK wird nie beibehalten
 MAX_FACTOR = Decimal(20)
+EK_JUMP = Decimal(5)  # neuer EK mehr als 5 × oder weniger als 1/5 des alten: fast immer Spalten- oder Tippfehler
+MAX_EK = Decimal(1_000_000)  # EK ab 1 Mio. ohne Vorjahrespreis: EAN/Artikelnummer statt Preis?
 # EK-Änderung ab 5 % (Erhöhung oder Senkung) wird von Hand geprüft
 DEFAULT_THRESHOLD = Decimal(5)
 STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "UNVERAENDERT", "FEHLER")
@@ -59,6 +61,7 @@ REASON_LABELS = {
     "KEIN_ALTER_VK": "kein VK im Vorjahr",
     "VORJAHR_FEHLT": "Preis vom Vorjahr fehlt (EK 0,01) – Abverkauf? alter VK vorgeschlagen, kalkulierter daneben",
     "VK_UNPLAUSIBEL": "VK unplausibel (mehr als 20 × EK)",
+    "EK_UNPLAUSIBEL": "EK unplausibel (mehr als 5 × bzw. unter 1/5 des alten EK) – alter Preis bleibt",
     "NICHT_GEGENGEPRUEFT": "Kalkulation nicht automatisch nachrechenbar",
     "UNKLAR": "Zuordnung unklar",
     "FEHLT": "fehlt in der Herstellerliste",
@@ -208,6 +211,11 @@ def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str |
             reasons.append(reason)
         notes.append(note)
         row.update(status=status, final_ek=ek_old, final_vk=vk_old, decision="ALT")
+        # Preis bleibt: Änderung 0 % ausweisen statt leer (EK 0,01 = kein Vorjahrespreis bleibt leer)
+        if ek_old is not None and ek_old > PLACEHOLDER_EK:
+            row.update(difference=Decimal(0), difference_percent=Decimal(0))
+        if vk_old:
+            row.update(vk_difference=Decimal(0), vk_difference_percent=Decimal(0))
 
     if not base.article_number:
         keep_old("FEHLER", "FEHLER", f"Artikel ohne Artikelnummer (Zeile {base.source_row})")
@@ -256,7 +264,17 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     ek_new = value.quantize(CENT, rounding=ROUND_HALF_UP) if changed else value
     if changed:
         text += f" = {de(ek_new)} {currency}"
+    if source.source_row:
+        text += f" (Herstellerliste Zeile {source.source_row})"  # damit jeder Preis in der Datei auffindbar ist
     row.update(new_amount=ek_new, ek_text=text)
+    real_old = ek_old is not None and ek_old > PLACEHOLDER_EK
+    if ((real_old and ek_new > PLACEHOLDER_EK and (ek_new >= ek_old * EK_JUMP or ek_new * EK_JUMP <= ek_old))
+            or (not real_old and ek_new >= MAX_EK)):
+        was = f" statt bisher {de(ek_old)} {currency}" if real_old else ""
+        return keep_old("FEHLER", "EK_UNPLAUSIBEL",
+                        f"EK aus der Herstellerliste {de(ek_new)} {currency}{was} (Zeile {source.source_row}, "
+                        f"Wert in der Datei: {de(src.amount)} {src.currency}) ist unplausibel – falsche Spalte, "
+                        f"EAN oder Tippfehler? Alter EK und VK bleiben. Bitte die Zeile in der Datei prüfen.")
 
     rule, rule_label, rule_error = ctx.pick_rule(base, source)
     row["rule_label"] = rule_label

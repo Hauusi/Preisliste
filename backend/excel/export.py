@@ -245,11 +245,11 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     open_items = _Sheet(wb, "Zu prüfen", header, widths)
     for i in items:
         hints = "; ".join([REASON_LABELS.get(r, r) for r in i.reasons or []] + ([i.note] if i.note else []))
-        new = i.decision != "ALT"
-        # EK 0,01 im Vorjahr = Preis fehlt: keine Änderung in % (wäre z. B. +471.900 %)
+        # Immer ausweisen, auch bei „alter Preis bleibt“ (dann 0 %). Leer nur ohne Vergleichswert:
+        # EK 0,01 im Vorjahr = Preis fehlt (wäre z. B. +471.900 %), kein alter VK.
         ek_pct = (percent_change(i.old_amount, i.final_ek)
-                  if new and i.old_amount and i.old_amount > PLACEHOLDER_EK and i.final_ek is not None else None)
-        vk_pct = percent_change(i.vk_old, i.final_vk) if new and i.vk_old and i.final_vk is not None else None
+                  if i.old_amount and i.old_amount > PLACEHOLDER_EK and i.final_ek is not None else None)
+        vk_pct = percent_change(i.vk_old, i.final_vk) if i.vk_old and i.final_vk is not None else None
         row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
                main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
