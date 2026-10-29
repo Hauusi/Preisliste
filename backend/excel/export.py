@@ -235,9 +235,13 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     decisions = {"NEU": "neuer Preis", "ALT": "alter Preis behalten", "MANUELL": "VK von Hand"}
     # Regel, Rechenweg, Gegenrechnung und Prüfvermerk stehen in der App (Prüfseite, Protokoll), nicht in der Ausgabe.
     # „Kennzeichnung“ bleibt leer zum Ausfüllen.
-    cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40), ("Herstellerpreis", 14),
-            ("Währung Hersteller", 10), ("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
-            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9)]
+    # Herstellerpreis nur, wenn er sich vom EK unterscheidet (UVP-Liste oder Fremdwährung) – sonst doppelt
+    source_cols = draft or upd.price_type == "UVP" or (upd.list_currency or "EUR") != "EUR"
+    cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40)]
+    if source_cols:
+        cols += [("Herstellerpreis", 14), ("Währung Hersteller", 10)]
+    cols += [("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
+             ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9)]
     if draft:  # Prüfspalten nur im Entwurf; die endgültige Preisliste enthält sie nicht
         cols += [("Status", 20), ("Prüfhinweise", 60), ("Entscheidung", 20)]
     cols += [("Kennzeichnung", 20)]
@@ -251,8 +255,10 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
         ek_pct = (percent_change(i.old_amount, i.final_ek)
                   if i.old_amount and i.old_amount > PLACEHOLDER_EK and i.final_ek is not None else None)
         vk_pct = percent_change(i.vk_old, i.final_vk) if i.vk_old and i.final_vk is not None else None
-        row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
-               main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
+        row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description]
+        if source_cols:
+            row += [main.money(i.source_amount), i.source_currency]
+        row += [main.money(i.old_amount), main.money(i.final_ek),
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
                main._cell(compact(vk_factor(i.final_ek, i.final_vk))),
                main.percent(margin(i.final_ek, i.final_vk)),

@@ -238,7 +238,8 @@ Danach zusätzlich verfügbar: **Preisänderungen für Kunden** (nur Artikel mit
 gültig ab). Vor dem Abschluss gibt es den **Entwurf-Export** (deutlich als ENTWURF gekennzeichnet).
 
 **Excel „Neue Preisliste“** (Blätter Zusammenfassung, Neue Preisliste, Zu prüfen): Artikelnummer mit Kürzel,
-Herstellerpreis, EK alt/neu/Δ%, VK alt/neu/Δ%, Faktor VK/EK, Marge %, Währung und eine leere Spalte
+Herstellerpreis mit Währung (in der endgültigen Liste nur bei UVP-Listen oder Fremdwährung, sonst ist er gleich dem
+EK neu), EK alt/neu/Δ%, VK alt/neu/Δ%, Faktor VK/EK, Marge %, Währung und eine leere Spalte
 **Kennzeichnung** zum Ausfüllen. Status, Prüfhinweise und Entscheidung stehen nur im **Entwurf-Export**. Regel, Rechenweg, Gegenrechnung und wer wann geprüft hat stehen nicht
 in der Excel-Ausgabe, sondern in der App (Prüfseite, „Rechenweg“ je Zeile, Protokoll).
 
