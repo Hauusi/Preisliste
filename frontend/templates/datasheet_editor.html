@@ -69,7 +69,7 @@
   {% if t == "intro" %}
     <h4>Beschreibungstext <small>oben links, Blocksatz; Absätze mit einer Leerzeile trennen</small></h4>
     <textarea data-f="einleitung" rows="4" maxlength="2000" class="dse-text" placeholder="z. B. Die LED Leuchtbalken der Serie 12+ Vantage sind leistungsstarke und vielseitige Warnbalken, die auf vielen Fahrzeugtypen einsetzbar sind.">{{ c.einleitung }}</textarea>
-    <h4>Eigenschaften <small>Aufzählung „Name: Wert“, nur Zeilen mit Wert werden gedruckt</small></h4>
+    <h4>Eigenschaften <small>mit Namen in die Spezifikationstabelle, ohne Namen als Aufzählung unter dem Text; nur Zeilen mit Wert werden gedruckt</small></h4>
     <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften %}{{ prop_row(e) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="prop">{{ icon("plus", 16) }} Eigenschaft</button>
     <h4>Produktbilder <small>rechts, untereinander, laufen neben der Spezifikation weiter</small></h4>

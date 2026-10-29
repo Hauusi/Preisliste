@@ -68,7 +68,9 @@ def test_save_returns_live_preview_with_all_blocks(admin_client, settings):
     data = r.json()
     assert data["ok"] and data["titel"] == "LED Leuchtbalken – Serie 12+" and data["seiten"] == 1
     html = data["html"]
-    assert "<li><b>Garantie:</b> 5 Jahre</li>" in html and "12-24V" not in html  # ausgeblendet
+    # Eigenschaft mit Namen steht in der Spezifikationstabelle vor den eigenen Zeilen
+    assert "<tr><th>Garantie:</th><td>5 Jahre</td></tr>" in html and "<li>" not in html
+    assert html.index("Garantie:") < html.index("Zulassungen:") and "12-24V" not in html  # ausgeblendet
     assert html.count('class="ece-in"') == 3 and "CISPR 25" in html and 'class="ece cispr"' in html
     assert "L x 279 x 64mm<br>L x 279 x 99mm" in html
     assert "<b>Bestellinformationen</b> - Serie 12+ Standard Version" in html
@@ -91,7 +93,7 @@ def test_save_returns_live_preview_with_all_blocks(admin_client, settings):
 
 
 def test_new_page_and_order_control_pagination():
-    c = _content(eigenschaften=[{"name": "A", "wert": "1", "sichtbar": True}], kopf={"titel": "", "untertitel": ""})
+    c = _content(eigenschaften=[{"name": "", "wert": "1", "sichtbar": True}], kopf={"titel": "", "untertitel": ""})
     rows = [{"bild": None, "artnr": f"A{i}", "farbe": "", "beschreibung": "x", "werte": []} for i in range(3)]
     table = {**ds.new_table("Tabelle"), "zeilen": rows}
     c["bloecke"] = [{"typ": "intro", "neue_seite": False, "sichtbar": True}, table]
@@ -255,3 +257,26 @@ def test_spec_heading_from_product_type_and_series(admin_client):
     content = _content(kopf={"titel": "", "untertitel": ""})
     assert "Produkttyp - Serie</span><small>Spezifikationen" in _save(c, sid, content).json()["html"]
     assert "<small>Spezifikationen</small>" not in c.get(f"/datenblatt/{sid}/vorschau").text
+
+
+def test_named_properties_go_into_spec_table(admin_client):
+    """„Spannung: 12-24V“ gehört unter „Spezifikationen“, Punkte ohne Namen bleiben Aufzählung unter dem Text."""
+    c = admin_client
+    sid = _new(c, "LED Blitzmodul", "Serie Flashy")
+    content = _content(kopf={"titel": "LED Blitzmodul", "untertitel": "Serie Flashy"},
+                       einleitung="Die LED Blitzmodule der Serie Flashy sind mega flashy.",
+                       eigenschaften=[{"name": "Spannung", "wert": "12-24V", "sichtbar": True},
+                                      {"name": "LED-Farbe", "wert": "gelb", "sichtbar": True},
+                                      {"name": "", "wert": "5 Jahre Garantie", "sichtbar": True},
+                                      {"name": "Schutzart", "wert": "IP67", "sichtbar": True}],
+                       spez={"zeilen": [{"merkmal": "Schutzart:", "wert": "IP69K"}]})
+    html = _save(c, sid, content).json()["html"]
+    intro = html[html.index('class="lead-intro"'):html.index('class="lead-spec"')]
+    spec = html[html.index('class="lead-spec"'):html.index('class="lead-right"')]
+    assert "<li>5 Jahre Garantie</li>" in intro and "Spannung" not in intro
+    assert spec.index("Spezifikationen") < spec.index("<th>Spannung:</th><td>12-24V</td>") < spec.index("LED-Farbe")
+    assert "IP69K" in spec and "IP67" not in html  # eigene Spezifikationszeile geht vor
+    # Spezifikation ausgeblendet: Eigenschaften bleiben als Aufzählung oben
+    content["bloecke"] = [{"typ": "intro"}, {"typ": "spez", "sichtbar": False}]
+    html = _save(c, sid, content).json()["html"]
+    assert "<li><b>Spannung:</b> 12-24V</li>" in html and "Spezifikationen" not in html
