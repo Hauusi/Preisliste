@@ -237,8 +237,10 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     # „Kennzeichnung“ bleibt leer zum Ausfüllen.
     cols = [("Artikelnummer", 18), ("Original-Nr.", 16), ("Bezeichnung", 40), ("Herstellerpreis", 14),
             ("Währung Hersteller", 10), ("EK alt", 12), ("EK neu", 12), ("EK Δ%", 10), ("VK alt", 12),
-            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9), ("Status", 20),
-            ("Prüfhinweise", 60), ("Entscheidung", 20), ("Kennzeichnung", 20)]
+            ("VK neu", 12), ("VK Δ%", 10), ("Faktor VK/EK", 11), ("Marge %", 10), ("Währung", 9)]
+    if draft:  # Prüfspalten nur im Entwurf; die endgültige Preisliste enthält sie nicht
+        cols += [("Status", 20), ("Prüfhinweise", 60), ("Entscheidung", 20)]
+    cols += [("Kennzeichnung", 20)]
     header, widths = [c[0] for c in cols], [c[1] for c in cols]
     main = _Sheet(wb, "ENTWURF Neue Preisliste" if draft else "Neue Preisliste", header, widths)
     open_items = _Sheet(wb, "Zu prüfen", header, widths)
@@ -254,7 +256,10 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
                main._cell(compact(vk_factor(i.final_ek, i.final_vk))),
                main.percent(margin(i.final_ek, i.final_vk)),
-               i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision), None]
+               i.currency]
+        if draft:
+            row += [UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision)]
+        row.append(None)
         main.row(row)
         if i.needs_review and not i.reviewed_at:
             open_items.row([open_items._cell(v.value, v.number_format) if isinstance(v, Cell) else v for v in row])
