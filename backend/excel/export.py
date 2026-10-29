@@ -32,7 +32,7 @@ from backend.models.entities import (
 
 DANGEROUS_PREFIX = ("=", "+", "-", "@", "\t", "\r")
 MONEY_FORMAT = "#,##0.00"
-PERCENT_FORMAT = '0.00" %"'
+PERCENT_FORMAT = '0.0" %"'
 BOLD = Font(bold=True)
 # EK 0,01 steht bei uns als Platzhalter für „kein Preis eingespielt“: keine Marge, keine EK-Änderung in %
 PLACEHOLDER_EK = Decimal("0.01")
@@ -196,7 +196,7 @@ def export_calculation(db: Session, run: CalculationRun) -> bytes:
 
 def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
     """Jahresabgleich: neue EK/VK-Liste mit unseren Artikeln. Entwurf deutlich gekennzeichnet."""
-    from backend.comparison.update import REASON_LABELS, STATUS_LABELS as UL
+    from backend.comparison.update import REASON_LABELS, STATUS_LABELS as UL, vk_factor
     from backend.models.entities import PriceUpdateItem, User
 
     codes = code_map(db)
@@ -253,7 +253,7 @@ def export_price_update(db: Session, upd, draft: bool = False) -> bytes:
         row = [with_code(i.article_number, codes.get(i.manufacturer_id)), i.article_number, i.description,
                main.money(i.source_amount), i.source_currency, main.money(i.old_amount), main.money(i.final_ek),
                main.percent(ek_pct), main.money(i.vk_old), main.money(i.final_vk), main.percent(vk_pct),
-               main._cell(compact(i.factor)) if i.factor is not None and i.decision == "NEU" else None,
+               main._cell(compact(vk_factor(i.final_ek, i.final_vk))),
                main.percent(margin(i.final_ek, i.final_vk)),
                i.currency, UL.get(i.status, i.status), hints, decisions.get(i.decision, i.decision),
                i.rule_label, i.ek_text, checks.get(i.check_ok, "nicht prüfbar" if i.decision == "NEU" else ""), users.get(i.reviewed_by),
@@ -288,7 +288,7 @@ def export_customer_changes(db: Session, upd) -> bytes:
     for i in items:
         if i.vk_old is None or i.final_vk is None or i.final_vk == i.vk_old:
             continue
-        change = ((i.final_vk - i.vk_old) / i.vk_old * 100).quantize(Decimal("0.01")) if i.vk_old else None
+        change = percent_change(i.vk_old, i.final_vk) if i.vk_old else None
         sh.row([with_code(i.article_number, codes.get(i.manufacturer_id)), i.description, sh.money(i.vk_old),
                 sh.money(i.final_vk), sh.percent(change), valid])
     info = _Sheet(wb, "Info", ["Angabe", "Wert"], [30, 60])

@@ -33,7 +33,7 @@
       <td>{{ i.description or "" }}</td>
       <td>{{ "ab " ~ i.min_quantity if i.min_quantity is not none else "" }}</td>
       <td class="num">{{ i.old_amount | money }}</td><td class="num">{{ i.new_amount | money }}</td>
-      <td class="num">{{ i.difference | money }}</td><td class="num">{{ (i.difference_percent | money) ~ " %" if i.difference_percent is not none else "" }}</td>
+      <td class="num">{{ i.difference | money }}</td><td class="num">{{ (i.difference_percent | pct) ~ " %" if i.difference_percent is not none else "" }}</td>
       <td><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>{% if i.match_method %}<div class="small">{{ i.match_method }}</div>{% endif %}</td>
       <td class="small">
         {% if i.note %}{{ i.note }}{% endif %}

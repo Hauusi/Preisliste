@@ -37,7 +37,7 @@
   {% if list_currencies and st.currency not in list_currencies %}<p class="msg FEHLER">Diese Liste ist in {{ list_currencies | join(", ") }} importiert, der Hersteller liefert laut Einstellung in {{ st.currency }}. Bitte Liste mit der richtigen Währung neu importieren oder die Hersteller-Einstellung korrigieren.</p>{% endif %}
   {% if st.currency != "EUR" and st.rate is none %}<p class="msg FEHLER">Umrechnungskurs fehlt beim Hersteller.</p>{% endif %}
   {% if update_manufacturer %}<p class="hint">Einstellungen ändern: <a href="/hersteller/{{ update_manufacturer.id }}">Hersteller {{ update_manufacturer.name }}</a></p>
-  {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste in EUR, Prüfschwelle 10 %).</p>{% endif %}
+  {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste in EUR, Prüfschwelle 5 %).</p>{% endif %}
   {% if st.basis == "UVP" and st.discount is none %}<p class="msg FEHLER">Beim Hersteller ist kein Händlerrabatt hinterlegt. Ohne ihn kann kein EK berechnet werden.</p>{% endif %}
   <div class="actions"><button type="submit">Abgleich starten →</button></div>
 </form>

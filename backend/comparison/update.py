@@ -41,6 +41,8 @@ CENT = Decimal("0.01")
 PLACEHOLDER_EK = CENT
 # VK über dem 20-fachen EK ist nie gewollt (Tippfehler/Importfehler): so ein alter VK wird nie beibehalten
 MAX_FACTOR = Decimal(20)
+# EK-Änderung ab 5 % (Erhöhung oder Senkung) wird von Hand geprüft
+DEFAULT_THRESHOLD = Decimal(5)
 STATUSES = ("OK", "PRUEFEN", "NICHT_EINDEUTIG", "NICHT_IN_HERSTELLERLISTE", "UNVERAENDERT", "FEHLER")
 STATUS_LABELS = {
     "OK": "in Ordnung", "PRUEFEN": "prüfen", "NICHT_EINDEUTIG": "Zuordnung unklar",
@@ -95,6 +97,13 @@ def _price(a: Article | None, price_type: str):
     return min(cands, key=lambda p: (p.min_quantity is not None, p.min_quantity or 0))
 
 
+def vk_factor(ek, vk) -> Decimal | None:
+    """Faktor VK/EK der endgültigen Preise. Leer ohne echten EK (fehlt oder Platzhalter 0,01)."""
+    if ek is None or vk is None or ek <= PLACEHOLDER_EK:
+        return None
+    return (vk / ek).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
 def _pct(old, new):
     return percent_change(old, new) if old not in (None, Decimal(0)) and new is not None else None
 
@@ -124,7 +133,7 @@ class _Ctx:
         self.rule_label = f"Standard: {db.get(Rule, rv.rule_id).name} v{rv.version}" if rv else None
         self.basis = upd.price_type  # EK oder UVP: was die Herstellerliste liefert
         self.discount = upd.dealer_discount
-        self.threshold = upd.review_threshold if upd.review_threshold is not None else Decimal(10)
+        self.threshold = upd.review_threshold if upd.review_threshold is not None else DEFAULT_THRESHOLD
         self.list_currency = upd.list_currency
         self.rate = upd.exchange_rate
         # Artikel, die der Hersteller als entfallen kennzeichnet (Importmeldung ENTFALLEN)
@@ -210,6 +219,8 @@ def compute_item(ctx: _Ctx, base: Article, source: Article | None, method: str |
     else:
         row["source_article_id"] = source.id
         _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk_old, currency)
+    # Auch bei „alter Preis bleibt“ und „VK von Hand“ den tatsächlichen Faktor zeigen
+    row["factor"] = vk_factor(row.get("final_ek"), row.get("final_vk"))
     row["reasons"] = sorted(set(reasons)) or None
     row["note"] = "; ".join(notes) or None
     row["needs_review"] = row["status"] not in ("OK", "UNVERAENDERT")
@@ -268,8 +279,6 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
         reasons.append("NICHT_GEGENGEPRUEFT")
         notes.append(why)
     row.update(calculated_amount=vk_new, final_ek=ek_new, final_vk=vk_new, decision="NEU")
-    if ek_new > 0:
-        row["factor"] = (vk_new / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
     placeholder = ek_old is not None and ek_old <= PLACEHOLDER_EK
     if ek_old is not None and not placeholder:  # 0,01 -> 84,80 wäre +847.900 %: keine Änderung in % ausweisen
         row["difference"] = ek_new - ek_old
@@ -280,12 +289,12 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
     pct, vk_pct = row["difference_percent"], row["vk_difference_percent"]
     if pct is not None and abs(pct) >= ctx.threshold:
         reasons.append("EK_AENDERUNG")
-        notes.append(f"EK {'+' if pct > 0 else ''}{de(pct)} % (Prüfschwelle {de(ctx.threshold, 0)} %)")
+        notes.append(f"EK {'+' if pct > 0 else ''}{de(pct, 1)} % (Prüfschwelle {de(ctx.threshold, 0)} %)")
     if ek_old == 0 and ek_new != 0:
         reasons.append("EK_AENDERUNG")
     if pct is not None and vk_pct is not None and abs(vk_pct - pct) >= ctx.threshold:
         reasons.append("VK_ABWEICHUNG")
-        notes.append(f"EK {de(pct)} %, VK {de(vk_pct)} %")
+        notes.append(f"EK {de(pct, 1)} %, VK {de(vk_pct, 1)} %")
     # Neuer EK selbst 0,01 (Hersteller führt Abverkauf mit 0,01): Faktor sagt nichts, alter VK bleibt möglich
     old_vk_plausible = vk_old is not None and (ek_new <= PLACEHOLDER_EK or vk_old <= ek_new * MAX_FACTOR)
     if vk_old is not None and not old_vk_plausible:
@@ -299,8 +308,6 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
         if old_vk_plausible and vk_new != vk_old:
             notes.append(f"EK Vorjahr 0,01: kalkuliert wären {de(vk_new)} – alter VK {de(vk_old)} bleibt vorgeschlagen")
             row.update(final_vk=vk_old, decision="MANUELL", vk_difference=Decimal(0), vk_difference_percent=Decimal(0))
-            if ek_new > 0:
-                row["factor"] = (vk_old / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
         else:
             notes.append(f"EK Vorjahr 0,01: VK neu kalkuliert ({de(vk_new)})")
     elif ("VK_ABWEICHUNG" in reasons and old_vk_plausible and vk_new < vk_old and vk_old >= ek_new
@@ -310,8 +317,6 @@ def _compute_prices(ctx, base, source, row, reasons, notes, keep_old, ek_old, vk
         reasons.append("SONDERPREIS")
         notes.append(f"Kalkuliert wären {de(vk_new)} – alter VK {de(vk_old)} bleibt vorgeschlagen")
         row.update(final_vk=vk_old, decision="MANUELL", vk_difference=Decimal(0), vk_difference_percent=Decimal(0))
-        if ek_new > 0:
-            row["factor"] = (vk_old / ek_new).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
     if vk_new < ek_new:
         reasons.append("VK_UNTER_EK")
     if ek_new == 0 or vk_new == 0:
@@ -414,6 +419,7 @@ def accept(db: Session, item: PriceUpdateItem, user_id: int, manual_vk: Decimal 
         if ek is not None and vk < ek:
             raise ValueError(f"VK {vk} liegt unter dem EK {ek}")
         item.final_vk, item.decision = vk, "MANUELL"
+        item.factor = vk_factor(ek, vk)
     item.reviewed_by, item.reviewed_at = user_id, utcnow()
 
 
@@ -500,7 +506,7 @@ def bulk_accept(db: Session, upd: PriceUpdate, user_id: int, status: str | None,
 
 def manufacturer_settings(m: Manufacturer | None) -> dict:
     return {"basis": (m.list_basis if m else "EK") or "EK", "discount": m.dealer_discount if m else None,
-            "threshold": m.review_threshold if m and m.review_threshold is not None else Decimal(10),
+            "threshold": m.review_threshold if m and m.review_threshold is not None else DEFAULT_THRESHOLD,
             "currency": (m.list_currency if m else "EUR") or "EUR", "rate": m.exchange_rate if m else None}
 
 

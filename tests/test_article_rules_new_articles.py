@@ -14,7 +14,7 @@ D = Decimal
 
 def test_selected_articles_get_own_factor_and_keep_it(admin_client, user_client, tmp_path, app):
     c = admin_client
-    mid, rule_id = _setup(c, factor="2,6")
+    mid, rule_id = _setup(c, factor="2,6", review_threshold="10")
     ours = _ours(c, app, tmp_path, mid, [["LED1", "a", "10,00", "26,00"], ["LED2", "b", "10,00", "28,00"]])
     new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["LED1", "a", "10,00"],
                                           ["LED2", "b", "10,00"]], mid, "HERSTELLER")

@@ -73,7 +73,7 @@ class Manufacturer(Base):
     list_basis: Mapped[str] = mapped_column(String(5), default="EK", server_default="EK")
     dealer_discount: Mapped[object | None] = mapped_column(DecimalText)
     # Ab dieser EK-Änderung (in %, Betrag) muss ein Artikel geprüft werden
-    review_threshold: Mapped[object] = mapped_column(DecimalText, default=Decimal(10), server_default="10")
+    review_threshold: Mapped[object] = mapped_column(DecimalText, default=Decimal(5), server_default="5")
     # Währung der Herstellerliste und Umrechnung: 1 Einheit list_currency = exchange_rate EUR (z. B. SEK 0,095)
     list_currency: Mapped[str] = mapped_column(String(3), default="EUR", server_default="EUR")
     exchange_rate: Mapped[object | None] = mapped_column(DecimalText)

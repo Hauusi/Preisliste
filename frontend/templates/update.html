@@ -116,11 +116,11 @@
       <td class="art"><b>{{ i.article_number | artnr(codes.get(i.manufacturer_id)) }}</b>{% if i.rule_label and i.rule_label.startswith("Ausnahme") %} <span class="badge NEUER_ARTIKEL" title="{{ i.rule_label }}">eigene Kalkulation</span>{% endif %}
         <div class="desc">{{ i.description or "" }}</div></td>
       <td class="num"><span class="old">{{ i.old_amount | money }}</span> → <b>{{ i.final_ek | money }}</b>
-        {% if new and i.difference_percent is not none %}<div class="delta {{ 'up' if i.difference_percent > 0 else 'down' if i.difference_percent < 0 else '' }}">{{ "+" if i.difference_percent > 0 else "" }}{{ i.difference_percent | money }} %</div>{% endif %}
+        {% if new and i.difference_percent is not none %}<div class="delta {{ 'up' if i.difference_percent > 0 else 'down' if i.difference_percent < 0 else '' }}">{{ "+" if i.difference_percent > 0 else "" }}{{ i.difference_percent | pct }} %</div>{% endif %}
         {% if foreign and i.source_amount is not none %}<div class="small">Hersteller {{ i.source_amount | money }} {{ i.source_currency or "" }}</div>{% endif %}</td>
       <td class="num"><span class="old">{{ i.vk_old | money }}</span> → <b>{{ i.final_vk | money }}</b>
-        {% if i.decision == "MANUELL" %}<div class="small">von Hand</div>{% elif new and i.vk_difference_percent is not none %}<div class="delta {{ 'up' if i.vk_difference_percent > 0 else 'down' if i.vk_difference_percent < 0 else '' }}">{{ "+" if i.vk_difference_percent > 0 else "" }}{{ i.vk_difference_percent | money }} %</div>{% endif %}</td>
-      <td class="num">{{ i.factor | num if i.factor is not none and i.decision == "NEU" else "–" }}
+        {% if i.decision == "MANUELL" %}<div class="small">von Hand</div>{% elif new and i.vk_difference_percent is not none %}<div class="delta {{ 'up' if i.vk_difference_percent > 0 else 'down' if i.vk_difference_percent < 0 else '' }}">{{ "+" if i.vk_difference_percent > 0 else "" }}{{ i.vk_difference_percent | pct }} %</div>{% endif %}</td>
+      <td class="num">{{ i.factor | num if i.factor is not none else "–" }}
         {% if i.final_ek is not none and i.final_ek > 0.01 and i.final_vk %}<div class="small">Marge {{ (((i.final_vk - i.final_ek) / i.final_vk) * 100) | round(1) | num }} %</div>{% endif %}</td>
       <td class="hints"><span class="badge {{ i.status }}">{{ labels[i.status] }}</span>
         {% if i.note %}<div class="small">{{ i.note }}</div>

@@ -29,7 +29,7 @@
   <form method="post" action="/hersteller" class="mfr-new">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="ignore_leading_zeros" value="1">
-    <input type="hidden" name="review_threshold" value="10">
+    <input type="hidden" name="review_threshold" value="5">
     <div class="row">
       <label class="grow">Name <input name="name" required maxlength="200" placeholder="z. B. Strands"></label>
       <label>Kürzel <input name="code" maxlength="10" size="6" class="code" placeholder="z. B. ST"></label>

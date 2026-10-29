@@ -57,7 +57,7 @@ def _items(upd_id=None):
 
 def test_annual_reconciliation_full_flow(admin_client, tmp_path, app):
     c = admin_client
-    mid, rule_id = _setup(c)
+    mid, rule_id = _setup(c, review_threshold="10")
     ours = _ours(c, app, tmp_path, mid, [
         ["LED1", "Modul 1", "10,00", "20,00"],   # +5 % -> OK
         ["LED2", "Modul 2", "10,00", "20,00"],   # +20 % -> prüfen
@@ -233,7 +233,7 @@ def test_manufacturer_settings_validation(admin_client):
     c.post("/hersteller", data={"csrf_token": c.csrf, "name": "X", "list_basis": "UVP", "dealer_discount": "35,5"})
     with session_scope() as db:
         m = db.scalar(select(Manufacturer))
-        assert (m.list_basis, m.dealer_discount, m.review_threshold) == ("UVP", D("35.5"), D("10"))
+        assert (m.list_basis, m.dealer_discount, m.review_threshold) == ("UVP", D("35.5"), D("5"))
 
 
 def test_our_list_requires_ek_and_vk(admin_client, tmp_path, app):
@@ -248,3 +248,34 @@ def test_our_list_requires_ek_and_vk(admin_client, tmp_path, app):
     assert r.status_code == 400 and "VK-Spalte" in r.text
     with session_scope() as db:
         assert db.get(PriceList, list_id).kind is None
+
+
+def test_default_threshold_5_percent_one_decimal_and_factor_everywhere(admin_client, tmp_path, app):
+    """Standard: ab 5 % EK-Änderung von Hand prüfen, Änderung % mit einer Nachkommastelle,
+    Faktor VK/EK auch bei altem Preis und VK von Hand."""
+    c = admin_client
+    mid, rule_id = _setup(c)
+    ours = _ours(c, app, tmp_path, mid, [["A", "4,9 %", "100,00", "200,00"], ["B", "5 %", "100,00", "200,00"],
+                                         ["C", "fehlt", "100,00", "250,00"], ["D", "Platzhalter", "0,01", "93,00"]])
+    new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["A", "a", "104,94"],
+                                          ["B", "b", "104,95"], ["D", "d", "50,00"]], mid, "HERSTELLER")
+    c.post("/aktualisierungen", data={"csrf_token": c.csrf, "base_id": ours, "source_id": new, "rule_id": rule_id})
+    upd, items = _items()
+    a, b, cc, d = items["A"], items["B"], items["C"], items["D"]
+    assert upd.review_threshold == D("5")
+    assert (a.difference_percent, a.status) == (D("4.9"), "OK")
+    assert (b.difference_percent, b.status) == (D("5.0"), "PRUEFEN") and "EK_AENDERUNG" in b.reasons
+    assert "EK +5,0 % (Prüfschwelle 5 %)" in b.note
+    assert a.factor == D("2") and cc.decision == "ALT" and cc.factor == D("2.5")
+    assert d.decision == "MANUELL" and d.factor == D("1.86")
+    url = f"/aktualisierungen/{upd.id}"
+    c.post(f"{url}/positionen/{b.id}", data={"csrf_token": c.csrf, "action": "bestaetigen", "manual_vk": "220,00"})
+    _, items = _items()
+    assert (items["B"].decision, items["B"].factor) == ("MANUELL", D("2.0962"))
+    wb = openpyxl.load_workbook(io.BytesIO(c.get(f"{url}/export?entwurf=1").content))
+    ws = wb["ENTWURF Neue Preisliste"]
+    head = [x.value for x in ws[1]]
+    rows = {r[0].value: r for r in ws.iter_rows(min_row=2)}
+    col = head.index("Faktor VK/EK")
+    assert rows["RAC"][col].value == 2.5 and rows["RAA"][col].value == 2
+    assert rows["RAB"][head.index("EK Δ%")].number_format == '0.0" %"'

@@ -55,8 +55,8 @@ def compare(db, old, new, price_type="LISTE", rule_version_id=None, mfr=None):
 
 def test_percent_change():
     assert percent_change(D("100"), D("104.50")) == D("4.50")
-    assert percent_change(D("3"), D("4")) == D("33.33")
-    assert percent_change(D("3"), D("2")) == D("-33.33")
+    assert percent_change(D("3"), D("4")) == D("33.3")
+    assert percent_change(D("3"), D("2")) == D("-33.3")
 
 
 def test_statuses(db):
