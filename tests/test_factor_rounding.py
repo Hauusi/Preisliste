@@ -57,3 +57,24 @@ def test_implausible_ek_keeps_old_price_and_change_is_shown_as_zero(admin_client
     rows = {r[1]: dict(zip(head, r)) for r in ws.iter_rows(min_row=2, values_only=True)}
     assert (rows["A"]["EK Δ%"], rows["A"]["VK Δ%"]) == (0, 0)  # alter Preis bleibt: 0 %, nicht leer
     assert (rows["C"]["EK Δ%"], rows["C"]["VK Δ%"]) == (0, 0)  # fehlt beim Hersteller
+
+
+def test_calculated_excel_cells_without_float_noise(admin_client, tmp_path, app):
+    """Formelzellen wie =174*0,4 stehen als 69.60000000000001 in der Datei: Vorschau und Preise zeigen 69,60."""
+    from tests.test_price_update import _import, _items, _ours, _setup
+    from tests.test_import_web import upload
+    from tests.conftest import make_xlsx
+
+    c = admin_client
+    mid, rule_id = _setup(c)
+    ours = _ours(c, app, tmp_path, mid, [["A", "a", "68,00", "136,00"]])
+    noisy = 174 * 0.4
+    assert repr(noisy) == "69.60000000000001"
+    p = make_xlsx(tmp_path / "noise.xlsx", [["Artikelnummer", "Bezeichnung", "EK"], ["A", "a", noisy]])
+    page = c.get(upload(c, p).headers["location"]).text
+    assert "69,60" in page and "69,6000000" not in page
+    new = _import(c, app, tmp_path, "h", [["Artikelnummer", "Bezeichnung", "EK"], ["A", "a", noisy]],
+                  mid, "HERSTELLER")
+    c.post("/aktualisierungen", data={"csrf_token": c.csrf, "base_id": ours, "source_id": new, "rule_id": rule_id})
+    _, items = _items()
+    assert items["A"].final_ek == D("69.6") and "69,60 EUR" in items["A"].ek_text
