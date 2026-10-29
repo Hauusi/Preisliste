@@ -5,11 +5,12 @@
 
 {# Bildplatz: leer = klicken oder Datei hineinziehen; gefüllt = ziehen zum Tauschen, × zum Entfernen #}
 {% macro slot(name, label="Bild", small=false) -%}
-<div class="dse-slot{{ ' filled' if name }}{{ ' small' if small }}" data-slot data-name="{{ name or '' }}" tabindex="0"
+<div class="dse-slot{{ ' filled' if name }}{{ ' small' if small }}{{ ' cut' if name in twins }}" data-slot data-name="{{ name or '' }}" tabindex="0"
      title="{{ 'Ziehen zum Tauschen, × zum Entfernen' if name else 'Klicken oder Bild hierher ziehen' }}">
   <img src="{{ '/datenblatt/%d/bild/%s' % (sheet.id, name) if name else '' }}" alt=""{% if not name %} hidden{% endif %}>
   <span class="dse-slot-empty">{{ icon("upload", 16) }}{% if not small %}<span>{{ label }}</span>{% endif %}</span>
   <button type="button" class="dse-slot-x" data-slot-remove title="Bild entfernen" aria-label="Bild entfernen">×</button>
+  <button type="button" class="dse-slot-bg{{ ' on' if name and '-o.' in name }}" data-slot-bg title="Hintergrund behalten (an) oder entfernen (aus)" aria-label="Hintergrund behalten oder entfernen">Hintergrund</button>
   <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
 </div>
 {%- endmacro %}
@@ -117,7 +118,7 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}">
+<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}">
   <div class="dse-top">
     <div>
       <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>

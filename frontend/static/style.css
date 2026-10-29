@@ -520,6 +520,12 @@ body.portal.wide .content { max-width: 1760px; }
   background: rgb(15 23 42 / .7); color: #fff; border: 0; display: none; }
 .dse-slot.filled .dse-slot-x { display: grid; place-items: center; }
 .dse-slot-x:hover { background: var(--err); }
+.dse-slot-bg { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px; font-size: .7rem; line-height: 1.5;
+  background: rgb(15 23 42 / .7); color: #fff; border: 0; display: none; }
+.dse-slot.filled.cut .dse-slot-bg { display: block; }
+.dse-slot-bg.on { background: var(--accent); }
+.dse-slot.small .dse-slot-bg { font-size: 0; width: 14px; height: 14px; padding: 0; border-radius: 50%; }
+.dse-slot.filled.cut { background: repeating-conic-gradient(#eef2f7 0 25%, #fff 0 50%) 0 0 / 14px 14px; }
 .dse-slot.small { height: 34px; border-width: 1.5px; }
 .dse-slot.small .dse-slot-x { top: 1px; right: 1px; width: 16px; height: 16px; font-size: 12px; }
 /* Tabellenzeile: oben Bild, Artikelnr., Farbe, Zusatzspalten; darunter die Beschreibung über die ganze Breite */

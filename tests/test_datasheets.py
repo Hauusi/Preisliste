@@ -297,7 +297,7 @@ def _photo(fmt: str, bg=(255, 255, 255)) -> bytes:
     return out.getvalue()
 
 
-def test_product_images_are_cut_out_as_png_application_images_unchanged(admin_client):
+def test_product_images_are_cut_out_as_png_application_images_unchanged(admin_client, settings):
     import io
 
     from PIL import Image
@@ -322,8 +322,24 @@ def test_product_images_are_cut_out_as_png_application_images_unchanged(admin_cl
     noisy = Image.effect_noise((120, 80), 80).convert("RGB")
     buf = io.BytesIO()
     noisy.save(buf, "JPEG")
-    im = Image.open(io.BytesIO(c.get(_upload(c, sid, "n.jpg", buf.getvalue()).json()["url"]).content))
-    assert im.size == (120, 80) and im.getchannel("A").getextrema() == (255, 255)
+    plain = _upload(c, sid, "n.jpg", buf.getvalue()).json()
+    im = Image.open(io.BytesIO(c.get(plain["url"]).content))
+    assert im.size == (120, 80) and im.getchannel("A").getextrema() == (255, 255) and plain["zweitfassung"] is None
+    assert c.post(f"/datenblatt/{sid}/bild/{plain['name']}/hintergrund",
+                  headers={"X-CSRF-Token": c.csrf}).status_code == 404
+    # „Hintergrund behalten“: zwischen freigestellt und Original wechseln, beide bleiben beim Aufräumen erhalten
+    photo = _photo("JPEG")
+    cut = _upload(c, sid, "p.jpg", photo).json()
+    assert cut["zweitfassung"] == cut["name"].replace(".png", "-o.jpg")
+    assert cut["name"] in c.get(f"/datenblatt/{sid}").text  # Editor kennt die zweite Fassung
+    r = c.post(f"/datenblatt/{sid}/bild/{cut['name']}/hintergrund", headers={"X-CSRF-Token": c.csrf}).json()
+    assert r["name"] == cut["zweitfassung"] and r["hintergrund"] and c.get(r["url"]).content == photo
+    back = c.post(f"/datenblatt/{sid}/bild/{r['name']}/hintergrund", headers={"X-CSRF-Token": c.csrf}).json()
+    assert back["name"] == cut["name"] and not back["hintergrund"]
+    assert c.post(f"/datenblatt/{sid}/bild/{cut['name']}/hintergrund").status_code in (400, 403)  # CSRF
+    _save(c, sid, _content(bilder_oben=[r["name"]]))
+    ds.remove_unused_images(settings, sid, _content(bilder_oben=[r["name"]]))
+    assert ds.image_names(settings, sid) == {cut["name"], cut["zweitfassung"]}
     # Beschädigtes Bild mit gültigem Kopf
     r = _upload(c, sid, "kaputt.png", PNG[:30])
     assert r.status_code == 400 and "beschädigt" in r.json()["detail"]

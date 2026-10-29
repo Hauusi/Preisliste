@@ -72,32 +72,33 @@ def _background_region(distance: Image.Image) -> Image.Image | None:
     return region.resize(distance.size, Image.Resampling.BILINEAR).point(lambda v: 255 if v else 0)
 
 
-def cut_out(im: Image.Image) -> Image.Image:
-    """RGBA-Bild mit transparentem Hintergrund (oder unverändert, wenn kein einfarbiger Hintergrund erkennbar)."""
+def cut_out(im: Image.Image) -> tuple[Image.Image, bool]:
+    """(RGBA-Bild, freigestellt?). Unverändert, wenn kein einfarbiger Hintergrund erkennbar ist."""
     im = im.convert("RGBA")
     if max(im.size) > MAX_SIDE:
         im.thumbnail((MAX_SIDE, MAX_SIDE), Image.Resampling.LANCZOS)
     if im.getchannel("A").getextrema()[0] < 250:
-        return im  # schon freigestellt
+        return im, False  # schon freigestellt
     rgb = im.convert("RGB")
     color = _border_color(rgb)
     if color is None:
-        return im
+        return im, False
     distance = _channel_max(ImageChops.difference(rgb, Image.new("RGB", rgb.size, color)))
     region = _background_region(distance)
     if region is None:
-        return im
+        return im, False
     ramp = distance.point(lambda v: 0 if v <= TOLERANCE else min(255, (v - TOLERANCE) * 255 // SOFT))
     im.putalpha(ImageChops.lighter(ramp, ImageChops.invert(region)))
     box = im.getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox()
     if box:
         l, t, r, b = box
         im = im.crop((max(0, l - PADDING), max(0, t - PADDING), min(im.width, r + PADDING), min(im.height, b + PADDING)))
-    return im
+    return im, True
 
 
-def product_png(data: bytes) -> bytes:
-    """Hochgeladenes Produktbild -> PNG, Hintergrund wenn möglich transparent."""
+def product_png(data: bytes) -> tuple[bytes, bool]:
+    """Hochgeladenes Produktbild -> (PNG, freigestellt?), Hintergrund wenn möglich transparent."""
+    im, changed = cut_out(open_image(data))
     out = io.BytesIO()
-    cut_out(open_image(data)).save(out, "PNG", optimize=True)
-    return out.getvalue()
+    im.save(out, "PNG", optimize=True)
+    return out.getvalue(), changed

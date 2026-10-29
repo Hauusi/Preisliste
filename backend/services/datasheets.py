@@ -73,7 +73,8 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_PROPERTIES, MAX_SPEC_ROWS, MAX_COLUMNS = 25, 20, 3
 MAX_ROWS = 80
 IMAGE_SLOTS = {"bilder_oben": 2, "zeichnungen": 2, "bilder_unten": 2}
-IMAGE_NAME = re.compile(r"^[0-9a-f]{16}\.(png|jpg|gif|webp)$")
+# „-o“: Original eines freigestellten Produktbilds (für „Hintergrund behalten“)
+IMAGE_NAME = re.compile(r"^[0-9a-f]{16}(-o)?\.(png|jpg|gif|webp)$")
 MEDIA_TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
 # Nicht mehr verwendete Bilder erst löschen, wenn sie so alt sind: ein gerade hochgeladenes Bild ist evtl. noch
 # nicht im gespeicherten Inhalt (Speichern und Hochladen laufen im Editor unabhängig voneinander)
@@ -300,18 +301,45 @@ async def save_image(settings: Settings, sheet_id: int, upload, product: bool = 
     kind = _image_type(data[:16])
     if kind is None:
         raise ImageError(f"„{upload.filename}“ ist kein Bild (erlaubt: JPG, PNG, GIF, WebP)")
+    original = None
     try:
         if product:
-            data, kind = await asyncio.to_thread(product_png, data), "png"
+            png, changed = await asyncio.to_thread(product_png, data)
+            original, data, kind = (data, kind) if changed else None, png, "png"
         else:
             open_image(data)
     except NotAnImage:
         raise ImageError(f"„{upload.filename}“ ist beschädigt oder zu groß und kann nicht gelesen werden") from None
     folder = image_dir(settings, sheet_id)
     folder.mkdir(parents=True, exist_ok=True)
-    name = f"{secrets.token_hex(8)}.{kind}"
+    token = secrets.token_hex(8)
+    name = f"{token}.{kind}"
     (folder / name).write_bytes(data)
+    if original:
+        (folder / f"{token}-o.{original[1]}").write_bytes(original[0])
     return name
+
+
+def _token(name: str) -> str:
+    return name.split(".")[0].removesuffix("-o")
+
+
+def twin_names(settings: Settings, sheet_id: int) -> list[str]:
+    """Bilder, die es freigestellt und als Original gibt (Schalter „Hintergrund“ im Editor)."""
+    names = image_names(settings, sheet_id)
+    originals = {_token(n) for n in names if "-o." in n}
+    return sorted(n for n in names if _token(n) in originals)
+
+
+def other_version(settings: Settings, sheet_id: int, name: str) -> str | None:
+    """Freigestelltes Produktbild <-> Original mit Hintergrund („Hintergrund behalten“). None, wenn es keins gibt."""
+    if not IMAGE_NAME.match(name):
+        return None
+    token, is_original = _token(name), "-o." in name
+    for other in image_names(settings, sheet_id):
+        if other != name and _token(other) == token and ("-o." in other) != is_original:
+            return other
+    return None
 
 
 def image_path(settings: Settings, sheet_id: int, name: str) -> Path | None:
@@ -335,7 +363,10 @@ def remove_unused_images(settings: Settings, sheet_id: int, content: dict, grace
     folder = image_dir(settings, sheet_id)
     if not folder.is_dir():
         return
-    keep = referenced_images(content)
+    used = referenced_images(content)
+    # beide Fassungen eines Produktbilds behalten (freigestellt und Original), solange eine verwendet wird
+    tokens = {_token(n) for n in used}
+    keep = {p.name for p in folder.iterdir() if IMAGE_NAME.match(p.name) and _token(p.name) in tokens} | used
     limit = time.time() - grace
     for path in folder.iterdir():
         if path.is_file() and path.name not in keep and path.stat().st_mtime <= limit:
