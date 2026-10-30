@@ -1075,19 +1075,18 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     content["bilder_oben"] = [_store(settings, sheet_id, i, True) for i in top] + \
         [_store(settings, sheet_id, i, False) for i in from_photos]
     content["zeichnungen"] = [_store(settings, sheet_id, _trim_white(i), False) for i in imgs["zeichnung"][:2]]
-    bottom = imgs["foto"] + imgs["produktfoto"][len(from_photos):]
+    bottom = imgs["foto"]  # weitere Studioaufnahmen nicht unten wiederholen – das Produkt steht schon oben
     content["bilder_unten"] = [_store(settings, sheet_id, i, False) for i in bottom[:2]]
     for i in imgs["diagramm"][:2]:
         block = ds.new_image_block()
         block.update(bild=_store(settings, sheet_id, _trim_white(i), False), hoehe="M")
-        pos = next((k for k, b in enumerate(content["bloecke"]) if b.get("typ") == "tabelle"), len(content["bloecke"]))
-        content["bloecke"].insert(pos, block)  # vor den Bestellinformationen
+        content["bloecke"].append(block)  # unter die Bestellinformationen
     if not content["bilder_oben"]:
         report.append("Kein Produktbild gefunden – Produktbilder bitte hochladen.")
-    imgs["foto"] = bottom
-    extra = sum(max(0, len(v) - 2) for k, v in imgs.items() if k not in ("produktfoto",))
+    used = sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten")) + len(imgs["diagramm"][:2])
+    extra = sum(len(v) for v in imgs.values()) - used
     if extra:
-        report.append(f"{extra} weitere Bilder im PDF wurden nicht übernommen (je Platz höchstens 2).")
+        report.append(f"{extra} weitere Bilder im PDF wurden nicht übernommen (je Platz höchstens 2, Produktbilder nur oben).")
     stats = {"seiten": len(pages), "technische_daten": len(spec_rows), "artikel": total, "bilder":
              sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten")) + len(imgs["diagramm"][:2])}
     return ImportResult(content=content, report=report, stats=stats)
