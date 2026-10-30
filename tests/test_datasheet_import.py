@@ -298,3 +298,24 @@ def test_english_single_model_sheet(settings):
 def test_rotating_beacon_stays_rundumleuchte():
     assert dsi.product_type("", "LED beacon with rotating light and flash mode") == "Rundumleuchte"
     assert dsi.product_type("", "LED beacon, 125 FPM double flash") == "Blitzleuchte"
+
+
+def test_product_photo_and_beam_diagram_are_told_apart():
+    """Rechts oben nur das Produkt: Studiofoto vor einfarbigem Hintergrund zählt als Produktbild,
+    Leuchtreichweite (farbige Fläche auf weißem Papier) kommt nach unten, Maßzeichnung bleibt farblos."""
+    from PIL import Image, ImageDraw
+
+    studio = Image.new("RGB", (600, 600), (12, 12, 14))
+    ImageDraw.Draw(studio).rectangle((180, 150, 420, 450), fill=(150, 150, 160))
+    assert dsi._image_kind(studio) == "produktfoto"
+    scene = Image.linear_gradient("L").resize((600, 600)).convert("RGB")
+    ImageDraw.Draw(scene).rectangle((180, 150, 420, 450), fill=(40, 90, 30))
+    assert dsi._image_kind(scene) == "foto"
+    beam = Image.new("RGB", (700, 300), "white")
+    d = ImageDraw.Draw(beam)
+    d.ellipse((60, 100, 500, 200), fill=(150, 200, 240))
+    d.line((40, 270, 680, 270), fill=(0, 0, 0), width=2)
+    assert dsi._image_kind(beam) == "diagramm"
+    drawing = Image.new("RGB", (700, 300), "white")
+    ImageDraw.Draw(drawing).rectangle((60, 60, 400, 240), outline=(0, 0, 0), width=3)
+    assert dsi._image_kind(drawing) == "zeichnung"
