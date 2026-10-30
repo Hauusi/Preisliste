@@ -348,16 +348,17 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 
 | Aus dem PDF | In den Baukasten |
 |---|---|
-| erste Überschrift auf Seite 1 (sonst Titel aus den PDF-Eigenschaften); Klammerzusatz oder „ - …“ | Titel und Serie |
+| erste Überschrift auf Seite 1 (sonst Titel aus den PDF-Eigenschaften); Klammerzusatz oder „ - …“ | Titel und Serie. Steht dort nur der Serienname (z. B. „Scorpius GO 410“), wird die **Produktart aus dem Text** erkannt (Arbeitsscheinwerfer, Rundumleuchte, Leuchtbalken, Blitzmodul …, auch englisch) und Titel – „LED“ davor, wenn LED oder Lumen im Blatt steht –, der Serienname wird „Serie …“ |
 | Abschnitt „Anwendung/Beschreibung/Produkt…“ (sonst erster längerer Text) | Beschreibungstext, gekürzt auf 2–3 Sätze; läuft die **lokale KI**, formuliert sie ihn kurz auf Deutsch (Zahlen, die nicht im PDF stehen, werden verworfen) |
-| Aufzählungspunkte (•) | Eigenschaften ohne Namen |
+| Aufzählungspunkte (•), Abschnitt „Hauptmerkmale/Features“ | Eigenschaften ohne Namen |
 | „Technische Daten/Spezifikationen“ | **B&B-Begriffe in B&B-Reihenfolge**: Spannungsbereich, Lichtleistung, Wasserdicht (aus Schutzart/IP), Montage, Zulassungen, Gehäuse (aus Material), Abmessungen, Leuchtbild. Garantie wird Aufzählungspunkt („2 Jahre Garantie“) |
-| übrige Technische Daten | bis zu 3 weitere Zeilen (wichtige zuerst), der Rest steht im Prüfbericht. Mehrere Spalten (z. B. 12 V / 24 V) werden untereinander geschrieben, mehrzeilige Werte zusammengehalten |
+| übrige Technische Daten | bis zu 3 weitere Zeilen (wichtige zuerst), der Rest steht im Prüfbericht. Mehrere Spalten (z. B. 12 V / 24 V) werden untereinander geschrieben, mehrzeilige Werte zusammengehalten. Zwei Datentabellen nebeneinander (z. B. Nordic Lights) werden getrennt gelesen; Fußzeilen mit Adresse, Web, Telefon werden ignoriert |
 | „Artikelnummern/Bestellinformationen“ oder jeder Abschnitt mit Artikelliste (Überschrift wird Gruppenname), auch als Matrix (Ausführung × Spannung); weitere Spalten wie Länge, Zulassung, Montage, Abmessungen werden Zusatzspalten. „Tricolour/Dual Colour“ im Serienname wird farbiger Zusatz der Spezifikation | je Gruppe eine Tabelle „Bestellinformationen – Gruppe“, eine Zeile je Nummer mit Beschreibung (Artikelart vorne, z. B. „LED-Lichtsignalgeber, rot, 12 V DC“) und Farbpunkt; „Zubehör“ als Zubehörtabelle. Mit Hersteller: Kürzel davor und Abgleich mit der aktuellen Preisliste (Anzahl im Bericht) |
-| eingebettete Bilder | freigestellte Produktfotos → Produktbilder, Maßzeichnungen → Spezifikation, Fotos → Anwendungsbilder (je höchstens 2; Logos und Kleinteile werden übersprungen) |
+| Artikelnummern im Fließtext einer Datenzeile („Wide Flood (36-48 V): 988-208B, …“) | eigene Tabelle „Bestellinformationen“, Beschreibung „LED Arbeitsscheinwerfer Scorpius GO 410, Wide Flood (36-48 V)“ |
+| eingebettete Bilder (nur die tatsächlich auf der Seite gezeichneten) | freigestellte Produktfotos der ersten Seite → Produktbilder, Maßzeichnungen (auch freigestellte Strichzeichnungen) → Spezifikation, Fotos → Anwendungsbilder (je höchstens 2; Logos und Kleinteile werden übersprungen) |
 
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
-Herstellerblatt wird nach dem Einlesen gelöscht. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
+Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
 
 **Bedienung:**
 

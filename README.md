@@ -50,7 +50,7 @@ Editor mit Live-Vorschau: links Bausteine (Eigenschaften & Produktbilder, Spezif
 Zulassungslogos, Anwendungsbilder, beliebig viele Tabellen, Zubehör und Bilder), rechts das A4-Blatt, das sich bei
 jeder Eingabe aktualisiert. Bausteine und Zeilen per Ziehen sortieren, ausblenden, auf neuer Seite beginnen; Bilder
 hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speichern, Druck/PDF über den Browser.
-**Aus Hersteller-Datenblatt erstellen:** PDF hochladen, der Baukasten wird automatisch gefüllt (Titel, Beschreibung,
+**Aus Hersteller-Datenblatt erstellen:** PDF hochladen, der Baukasten wird automatisch gefüllt (Produktart als Titel, Serie, Beschreibung,
 Technische Daten, Artikelnummern, Bilder), danach nur prüfen. Optional formuliert die lokale KI den Text.
 Details: `docs/HANDBUCH.md`, Abschnitt 11.
 

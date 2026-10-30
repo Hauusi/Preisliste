@@ -192,3 +192,43 @@ def test_tricolour_from_subtitle_becomes_colored_suffix(settings):
     c = dsi.build(make_pdf([page]), settings, 8).content
     assert c["kopf"] == {"titel": "LED Leuchtbalken", "untertitel": "Serie Spartan"}
     assert (c["spez"]["zusatz"], c["spez"]["zusatz_farben"]) == ("Tricolour", "gelb/klar/blau")  # hell in der Mitte
+
+
+def test_manufacturer_sheet_side_by_side_gets_product_type_and_numbers(settings):
+    """Hersteller-Blatt (wie Nordic Lights): Serienname als Titel, Daten zweispaltig nebeneinander,
+    Artikelnummern im Fließtext einer Zelle, Fußzeile mit Adresse."""
+    page = [(50, 780, 22, "Scorpius GO 410"),
+            (50, 740, 10, "Robuster Arbeitsscheinwerfer mit 1900 lm fuer Baumaschinen und Landwirtschaft."),
+            (50, 700, 12, "TECHNISCHE DATEN"),
+            (50, 680, 10, "Nominale Spannung"), (200, 680, 10, "12 - 24 V"),
+            (320, 680, 10, "Artikelnummern"), (450, 680, 10, "Flood (12-24 V): 988-202B,"),
+            (200, 668, 10, "36 - 48 V"), (450, 668, 10, "Flood (36-48 V): 988-234B"),
+            (50, 650, 10, "Schutzart"), (200, 650, 10, "IP68"), (320, 650, 10, "Gewicht"), (450, 650, 10, "0.5 kg"),
+            (50, 630, 10, "Gehaeuse"), (200, 630, 10, "Aluminium"), (320, 630, 10, "Anschluss"), (450, 630, 10, "DT-2"),
+            (50, 40, 8, "NORDIC LIGHTS Ltd., P.O. Box 36, www.nordiclights.com")]
+    c = dsi.build(make_pdf([page]), settings, 9).content
+    assert c["kopf"] == {"titel": "LED Arbeitsscheinwerfer", "untertitel": "Serie Scorpius GO 410"}
+    props = {p["name"]: p["wert"] for p in c["eigenschaften"] if p["name"]}
+    assert props["Spannungsbereich"] == "12 - 24 V\n36 - 48 V"
+    assert props["Wasserdicht"] == "IP68"
+    rows = [(r["artnr"], r["beschreibung"]) for t in ds.tables(c) for r in t["zeilen"]]
+    assert rows == [("988-202B", "LED Arbeitsscheinwerfer Scorpius GO 410, Flood (12-24 V)"),
+                    ("988-234B", "LED Arbeitsscheinwerfer Scorpius GO 410, Flood (36-48 V)")]
+    assert "nordiclights" not in json.dumps(c).lower()
+
+
+def test_title_keeps_own_product_word():
+    assert dsi.product_type("Kamera", "Kamerasystem mit Monitor") == "Kamerasystem"
+
+
+def test_black_line_drawing_on_transparency_is_drawing():
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGBA", (400, 300), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rectangle((40, 40, 360, 260), outline=(5, 7, 8, 255), width=3)
+    d.line((40, 280, 360, 280), fill=(5, 7, 8, 255), width=2)
+    assert dsi._image_kind(img) == "zeichnung"
+    filled = Image.new("RGBA", (400, 300), (0, 0, 0, 0))
+    ImageDraw.Draw(filled).rectangle((40, 40, 360, 260), fill=(5, 7, 8, 255))
+    assert dsi._image_kind(filled) is None  # Silhouette/Schattenmaske
