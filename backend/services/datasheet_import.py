@@ -30,22 +30,44 @@ HEADING_ARTICLES = re.compile(r"ARTIKEL|BESTELL|ORDER|TYPEN|VARIANTEN|AUSF[ÜU]H
 HEADING_TEXT = re.compile(r"ANWENDUNG|BESCHREIBUNG|PRODUKT|VORTEIL|EIGENSCHAFT|DESCRIPTION|FEATURE|ALLGEMEIN|EINSATZ", re.I)
 ACCESSORY = re.compile(r"^(ZUBEH[ÖO]R|ACCESSOR)", re.I)
 ARTNR = re.compile(r"^(?=.*\d)[A-Za-z0-9][A-Za-z0-9.\-/]{2,24}$")
+FOOTER = re.compile(r"\b(ltd|gmbh|inc|oy|s\.r\.l)\b\.?[ ,:]|www\.|https?://|\bp\.?\s?o\.? box\b|postfach|\bfon\b|\btel\.?\s*[+0-9(]|\bfax\b|@[\w-]+\.\w", re.I)
 SKIP_LINE = re.compile(r"^(www\.|http|fon|fax|tel|e-?mail|seite|page)\b", re.I)
 
 # Technische Daten -> Braun-&-Braun-Begriffe in der Reihenfolge der B&B-Datenblätter
 # (Spannungsbereich, Lichtleistung, Wasserdicht, Montage, Zulassungen, Gehäuse, Abmessungen, Leuchtbild)
 PROPERTY_SYNONYMS = {
-    "Spannungsbereich": ("spannungsbereich", "betriebsspannung", "nennspannung", "spannung", "voltage", "supply voltage",
-                         "operating voltage"),
-    "Lichtleistung": ("lichtleistung", "lichtstrom", "luminous flux", "lumen", "light output"),
-    "Wasserdicht": ("wasserdicht", "schutzart", "schutzklasse", "ip-schutz", "ip rating", "protection", "ingress"),
+    "Spannungsbereich": ("spannungsbereich", "betriebsspannung", "nennspannung", "spannung", "nominale spannung",
+                         "eingangsspannung", "voltage", "supply voltage", "operating voltage", "nominal voltage"),
+    "Lichtleistung": ("lichtleistung", "lichtstrom", "lichtausbeute", "theoretische lichtausbeute", "luminous flux",
+                      "lumen", "light output", "effective lumens", "raw lumens"),
+    "Wasserdicht": ("wasserdicht", "schutzart", "internationale schutzart", "schutzklasse", "ip-schutz", "ip rating",
+                    "protection", "ingress", "ip class"),
     "Montage": ("montage", "befestigung", "mounting", "installation"),
-    "Zulassungen": ("zulassung", "zulassungen", "approval", "homologation", "prüfzeichen", "zertifizierung"),
+    "Zulassungen": ("zulassung", "zulassungen", "approval", "homologation", "prüfzeichen", "zertifizierung", "emv", "emc"),
     "Gehäuse": ("gehäuse", "material", "housing"),
     "Abmessungen": ("abmessung", "abmessungen", "maße", "dimension", "größe", "size"),
     "Leuchtbild": ("leuchtbild", "abstrahlcharakteristik", "beam pattern", "lichtverteilung"),
 }
 BB_ORDER = list(PROPERTY_SYNONYMS)
+# Produktarten im B&B-Sortiment: Einzahl (Artikelbeschreibung) -> Mehrzahl (Titel wie „LED RUNDUMLEUCHTEN“).
+# Längere Begriffe zuerst, damit „Arbeitsscheinwerfer“ vor „Scheinwerfer“ gewinnt.
+PRODUCT_TYPES = {
+    "Arbeitsscheinwerfer": "Arbeitsscheinwerfer", "Rückfahrscheinwerfer": "Rückfahrscheinwerfer",
+    "Rundumkennleuchte": "Rundumkennleuchten", "Rundumleuchte": "Rundumleuchten", "Lichtsignalgeber": "Lichtsignalgeber",
+    "Leuchtbalken": "Leuchtbalken", "Blitzmodul": "Blitzmodule", "Blitzleuchte": "Blitzleuchten",
+    "Frontblitzer": "Frontblitzer", "Kennleuchte": "Kennleuchten", "Warnleuchte": "Warnleuchten",
+    "Positionsleuchte": "Positionsleuchten", "Begrenzungsleuchte": "Begrenzungsleuchten",
+    "Kennzeichenleuchte": "Kennzeichenleuchten", "Schlussleuchte": "Schlussleuchten", "Rückleuchte": "Rückleuchten",
+    "Innenraumleuchte": "Innenraumleuchten", "Umfeldleuchte": "Umfeldleuchten", "Nebelscheinwerfer": "Nebelscheinwerfer",
+    "Fernscheinwerfer": "Fernscheinwerfer", "Zusatzscheinwerfer": "Zusatzscheinwerfer", "Scheinwerfer": "Scheinwerfer",
+    "Rückfahrkamerasystem": "Rückfahrkamerasysteme", "Kamerasystem": "Kamerasysteme", "Rückfahrkamera": "Rückfahrkameras",
+    "Signalsäule": "Signalsäulen", "Sirene": "Sirenen", "Signalhorn": "Signalhörner", "Ampel": "Ampeln",
+}
+PRODUCT_TYPES_EN = {"work light": "Arbeitsscheinwerfer", "worklight": "Arbeitsscheinwerfer", "work lamp": "Arbeitsscheinwerfer",
+                    "beacon": "Rundumleuchte", "light bar": "Leuchtbalken", "lightbar": "Leuchtbalken",
+                    "reversing light": "Rückfahrscheinwerfer", "flasher": "Blitzleuchte", "strobe": "Blitzleuchte",
+                    "camera system": "Kamerasystem", "headlight": "Scheinwerfer", "driving light": "Fernscheinwerfer"}
+NO_LED = ("Kamerasystem", "Rückfahrkamerasystem", "Rückfahrkamera", "Sirene", "Signalhorn")
 # Wichtige Technische Daten zuerst (Rest kommt in den Bericht, wenn das Blatt sonst zu voll wird)
 SPEC_PRIORITY = ("leistung", "power", "lichtstärke", "lichtstrom", "luminous", "abmessung", "dimension", "maße",
                  "gehäuse", "housing", "material", "temperatur", "temperature", "anschluss", "kabel", "connection",
@@ -109,6 +131,7 @@ def _clean_text(text: str) -> str:
     """Reste aus Schriften ohne Zeichentabelle: „/hyphen.cap“ -> „-“, Wingdings-Häkchen -> „✓“."""
     text = re.sub(r"/([a-z]+)(?:\.[a-z0-9]+)?", lambda m: GLYPHS.get(m.group(1), m.group(0)), text)
     text = "".join(SYMBOL_FONT.get(ch, ch) for ch in text)
+    text = re.sub(r"\bAluminum\b", "Aluminium", text)  # englische Schreibweise in übersetzten Blättern
     return re.sub(r"[\ue000-\uf8ff]", "", text)  # übrige Symbolzeichen (Privatbereich) weglassen
 
 
@@ -139,11 +162,14 @@ def sections(texts: list[str]) -> list[tuple[str, list[str]]]:
     out: list[tuple[str, list[str]]] = [("", [])]
     for text in texts:
         for line in text.splitlines():
-            if not line.strip() or SKIP_LINE.match(line.strip()):
+            if not line.strip() or SKIP_LINE.match(line.strip()) or FOOTER.search(line):
                 out[-1][1].append("")
                 continue
+            cells = _cells(line)
             if _is_heading(line):
                 out.append((_clean_heading(line), []))
+            elif len(cells) >= 2 and all(_is_heading(c[2]) for c in cells):
+                out.append((" / ".join(_clean_heading(c[2]) for c in cells), []))  # „ANSCHLUSS   HAUPTMERKMALE“
             else:
                 out[-1][1].append(line.rstrip())
     return [(h, lines) for h, lines in out if h or any(x.strip() for x in lines)]
@@ -203,6 +229,8 @@ def _title(texts: list[str], meta_title: str | None = None) -> tuple[str, str]:
             if nxt.startswith("(") or (nxt and _is_heading(nxt) and len(nxt) <= 30 and not HEADING_SPEC.search(nxt)
                                         and not HEADING_TEXT.search(nxt)):
                 sub = nxt.strip("()")
+            elif re.fullmatch(r"[A-Z0-9][A-Z0-9 .\-/+]{0,10}", nxt or "") and any(c.isdigit() for c in nxt):
+                title = f"{title} {nxt}"  # Modellnummer in eigener Zeile, z. B. „SCORPIUS GO“ / „410“
             break
     if not title and meta_title:
         title = re.sub(r"\.(indd|docx?|pdf|ai|qxp)$", "", meta_title.strip(), flags=re.I)
@@ -246,7 +274,39 @@ def _spans_all(cell: tuple[int, int, str], centers: list[float]) -> bool:
     return all(abs(mid - c) > gap * .3 for c in centers) and centers[0] < mid < centers[-1]
 
 
+def _is_label(text: str) -> bool:
+    return bool(re.match(r"^[A-ZÄÖÜ][a-zäöüß]", text)) and sum(c.isalpha() for c in text) >= 4
+
+
+def split_side_by_side(lines: list[str]) -> list[list[str]]:
+    """Zwei Tabellen „Merkmal – Wert“ nebeneinander (z. B. Nordic Lights): an der gemeinsamen Anfangsspalte der
+    rechten Merkmale teilen und nacheinander lesen. Sonst unverändert."""
+    starts: dict[int, int] = {}
+    for line in lines:
+        cells = _cells(line)
+        for k, c in enumerate(cells[1:-1], start=1):  # rechtes Merkmal: nicht erste Zelle, danach noch ein Wert
+            if _is_label(c[2]) and c[0] > 30:
+                key = round(c[0] / 3)
+                starts[key] = starts.get(key, 0) + 1
+    if not starts:
+        return [lines]
+    key, count = max(starts.items(), key=lambda kv: kv[1])
+    if count < 3:
+        return [lines]
+    x = key * 3 - 3
+    left = [line[:x].rstrip() for line in lines]
+    right = [" " * 2 + line[x:] if len(line) > x else "" for line in lines]
+    return [left, right]
+
+
 def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
+    parts = split_side_by_side(lines)
+    if len(parts) > 1:
+        return [row for part in parts for row in _parse_spec(part)]
+    return _parse_spec(lines)
+
+
+def _parse_spec(lines: list[str]) -> list[tuple[str, str]]:
     """Technische Daten: Merkmal links, Wert(e) rechts. Mehrere Spaltenköpfe (z. B. 12 V / 24 V) werden als
     „12 V DC: …“ untereinander geschrieben. Mehrzeilige Werte gehören zur nächstgelegenen Merkmalszeile – auch
     wenn sie darüber stehen (senkrecht mittig gesetzt). Text weit rechts der Tabelle (Zeichnungen) zählt nicht."""
@@ -262,7 +322,10 @@ def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
             heads, centers = [c[2] for c in cells], [(c[0] + c[1]) / 2 for c in cells]
             continue
         indented = first[0] > (label_end if label_end is not None else 20)
-        if not indented and len(cells) >= 2:
+        if not indented and len(cells) >= 2 and anchors and re.match(r"^[(a-zäöü]", first[2]):
+            anchors[-1][1] += " " + first[2]  # zweite Zeile des Merkmals, z. B. „(GS)“
+            anchors[-1][2].extend(cells[1:])
+        elif not indented and len(cells) >= 2:
             label_end = max(label_end or 0, first[1] + 2)
             anchors.append([i, first[2], list(cells[1:])])
         else:
@@ -279,6 +342,11 @@ def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
     loose_rows = {i for i, _c in loose}
     for i, cells in loose:
         cells = [c for c in cells if c[0] <= right]
+        if label_end is not None and cells and cells[0][1] < label_end and i > anchors[0][0]:
+            # zweite Zeile des Merkmals („Eingangsspannungsbereich“ / „(GS)“)
+            owner = max((a for a in anchors if a[0] < i), key=lambda a: a[0])
+            owner[1] = f"{owner[1]} {cells[0][2]}"
+            cells = cells[1:]
         if not cells:
             continue
         before = [a for a in anchors if a[0] < i]
@@ -305,7 +373,9 @@ def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
     def join(parts: list[str]) -> str:  # Folgezeile mit Großbuchstaben = eigene Angabe, sonst Zeilenumbruch im Wort
         out = ""
         for part in parts:
-            out = part if not out else out + ("\n" if part[:1].isupper() and not out.endswith((",", "-")) else " ") + part
+            new_line = (part[:1].isupper() and not out.endswith((",", "-"))) or (
+                part[:1].isdigit() and re.search(r"\d\s*(V|W|A|K|lm|mm|cm|kg|g|Hz|°C)$", out))
+            out = part if not out else out + ("\n" if new_line else " ") + part
         return out
 
     for label, values in rows:
@@ -436,7 +506,7 @@ def _new_group(groups: list[dict], title: str) -> None:
 
 def _image_kind(img) -> str | None:
     """'produkt', 'zeichnung', 'foto' oder None (zu klein, Banner)."""
-    from PIL import ImageStat
+    from PIL import Image, ImageStat
 
     w, h = img.size
     if min(w, h) < 120 or max(w, h) / min(w, h) > 3.2 or w * h > 4_500_000:
@@ -444,8 +514,9 @@ def _image_kind(img) -> str | None:
     rgba = img.convert("RGBA")
     small = rgba.copy()
     small.thumbnail((120, 120))
-    if max(ImageStat.Stat(small.convert("L")).stddev[0], 0) < 6:
-        return None  # einfarbige Fläche (Hintergrund, Platzhalter)
+    if ImageStat.Stat(small.convert("L")).stddev[0] < 6:
+        # Farbe einheitlich: Fläche/Schattenmaske – oder schwarze Strichzeichnung, deren Form nur im Alphakanal steckt
+        return "zeichnung" if _line_art(rgba) else None
     sw, sh = small.size
     px = small.load()
     border = [px[x, y] for x in range(sw) for y in (0, sh - 1)] + [px[x, y] for y in range(sh) for x in (0, sw - 1)]
@@ -464,6 +535,36 @@ def _image_kind(img) -> str | None:
     return "zeichnung" if saturation < 18 and paper > .6 else "produkt"
 
 
+def _line_art(rgba) -> bool:
+    """Freigestellte Strichzeichnung: wenige deckende Pixel innerhalb der Umrissfläche (volle Auflösung,
+    Verkleinern verschmiert die Linien). Gefüllte Silhouetten/Flächen decken ihren Umriss weitgehend."""
+    alpha = rgba.getchannel("A")
+    box = alpha.point(lambda a: 255 if a > 30 else 0).getbbox()
+    if not box:
+        return False
+    hist = alpha.crop(box).histogram()
+    return sum(hist[31:]) / ((box[2] - box[0]) * (box[3] - box[1])) < .2
+
+
+def _drawn_names(page) -> set[str] | None:
+    """Namen der Bilder, die der Seiteninhalt zeichnet („/I2 Do“); None, wenn nicht feststellbar
+    (z. B. Bilder in Formularobjekten) – dann zählen alle Bilder der Seite."""
+    try:
+        contents = page.get_contents()
+        data = contents.get_data() if contents is not None else b""
+    except Exception:  # noqa: BLE001
+        return None
+    names = {m.decode("latin-1") for m in re.findall(rb"/([^\s/<>\[\]()]+)\s+Do\b", data)}
+    try:
+        xobjects = page["/Resources"]["/XObject"]
+        forms = [n.lstrip("/") for n, o in xobjects.items() if o.get_object().get("/Subtype") == "/Form"]
+    except Exception:  # noqa: BLE001
+        forms = []
+    if not names or any(f in names for f in forms):
+        return None
+    return names
+
+
 def extract_images(pages) -> dict[str, list]:
     """Bilder je Art, frühe Seiten und größte zuerst. Logos (auf mehreren Seiten) und Kleinkram werden übersprungen."""
     seen: dict[str, int] = {}
@@ -473,6 +574,9 @@ def extract_images(pages) -> dict[str, list]:
             images = list(page.images)
         except Exception:  # noqa: BLE001 - kaputtes Bild-Objekt: Seite ohne Bilder behandeln
             continue
+        drawn = _drawn_names(page)
+        if drawn is not None:  # manche PDF-Ersteller hängen alle Bilder an jede Seite: nur gezeichnete zählen
+            images = [im for im in images if im.name.rsplit(".", 1)[0].lstrip("/") in drawn]
         for im in images:
             try:
                 img = im.image
@@ -496,7 +600,11 @@ def extract_images(pages) -> dict[str, list]:
         kind = _image_kind(img)
         if kind:
             out[kind].append((page_no, img))
-    # Bilder der ersten Seiten zeigen meist das Hauptprodukt: Seite zuerst, dann die größten
+    # Produktbilder nur von der ersten Seite mit Produktbild: spätere freigestellte Grafiken sind meist
+    # Lichtverteilungen, Stecker oder Zubehör. Sonst: Seite zuerst, dann die größten.
+    if out["produkt"]:
+        first = min(pn for pn, _i in out["produkt"])
+        out["produkt"] = [(pn, i) for pn, i in out["produkt"] if pn == first]
     return {k: [img for _p, img in sorted(v, key=lambda x: (x[0], -(x[1].size[0] * x[1].size[1])))]
             for k, v in out.items()}
 
@@ -531,10 +639,12 @@ def _store(settings: Settings, sheet_id: int, img, product: bool) -> str:
 # ---------- Zusammenbauen ----------
 
 def _property_for(label: str) -> str | None:
-    """B&B-Begriff für ein Merkmal: ganzes Wort am Anfang („Spannungsbereich DC“ ja, „Gehäusefarben“ nein)."""
-    low = label.lower().strip(" :")
+    """B&B-Begriff für ein Merkmal: ganzes Wort am Anfang oder als eigenes Wort („Nominale Spannung (GS)“,
+    „Montage / Befestigung“ ja; „Gehäusefarben“ nein)."""
+    low = re.sub(r"\s+", " ", label.lower().strip(" :"))
     for name, words in PROPERTY_SYNONYMS.items():
-        if any(low == w or re.match(re.escape(w) + r"\b", low) for w in words):
+        if any(low == w or re.match(re.escape(w) + r"\b", low) or re.search(r"(^|[\s/(])" + re.escape(w) + r"\b", low)
+               for w in words):
             return name
     return None
 
@@ -554,6 +664,38 @@ def with_product_type(product: str, desc: str) -> str:
         words.pop(0)
     rest = " ".join(words).lstrip(", ")
     return f"{product}, {rest}" if rest else product
+
+
+def product_type(title: str, text: str) -> str | None:
+    """Produktart (Einzahl, deutsch) aus Titel, sonst aus dem Text (häufigste Nennung)."""
+    def find(hay: str) -> dict[str, int]:
+        hay = hay.lower()
+        counts: dict[str, int] = {}
+        for word in PRODUCT_TYPES:  # längere zuerst: Treffer aus dem Text entfernen
+            n = len(re.findall(word.lower(), hay))
+            if n:
+                counts[word] = n
+                hay = hay.replace(word.lower(), " ")
+        for en, de in PRODUCT_TYPES_EN.items():
+            n = len(re.findall(r"\b" + en + r"s?\b", hay))
+            if n:
+                counts[de] = counts.get(de, 0) + n
+        return counts
+
+    for hay in (title, text):
+        counts = find(hay)
+        if counts:
+            return max(counts, key=lambda k: (counts[k], len(k)))
+    return None
+
+
+def numbers_in_text(text: str) -> list[tuple[str, str]]:
+    """Artikelnummern im Fließtext einer Zelle: „Wide Flood (36-48 V): 988-208B, Flood (12-24 V): 988-202B“."""
+    flat = re.sub(r"\s+", " ", text)
+    out = []
+    for m in re.finditer(r"([^:,]{2,60}?):\s*([A-Za-z0-9][\w.\-/]*\d[\w.\-/]*)", flat):
+        out.append((m.group(2), m.group(1).strip(" ,")))
+    return out
 
 
 def _spec_rank(label: str) -> int:
@@ -587,7 +729,18 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     content = ds.empty_content()
     meta = getattr(reader.metadata, "title", None) if reader.metadata else None
     titel, untertitel = _title(texts, meta if isinstance(meta, str) else None)
-    content["kopf"] = {"titel": titel, "untertitel": untertitel}
+    # Produktart wie bei B&B in den Titel („LED Arbeitsscheinwerfer“), Produktname wird die Serie
+    alltext = "\n".join(texts)
+    kind = product_type(titel, alltext)
+    led = kind not in NO_LED and bool(re.search(r"\bLED|\blm\b|lumen", alltext, re.I))
+    named = kind and (kind.lower() in titel.lower()
+                      or any(len(w) >= 5 and w.lower() in kind.lower() for w in re.findall(r"[\w-]+", titel)))
+    if kind and not named:
+        series = " ".join(x for x in (titel, untertitel) if x)
+        untertitel = series if re.match(r"(serie|series)\b", series, re.I) else f"Serie {series}"
+        titel = ("LED " if led else "") + PRODUCT_TYPES.get(kind, kind)
+    article_kind = titel if not kind or named else ("LED " if led else "") + kind
+    content["kopf"] = {"titel": titel[:60], "untertitel": untertitel[:80]}
 
     # Technische Daten
     spec_rows: list[tuple[str, str]] = []
@@ -595,11 +748,15 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
         if HEADING_SPEC.search(head):
             spec_rows += parse_spec(lines)
     props = {n: "" for n in BB_ORDER}
-    rest, warranty = [], ""
+    rest, warranty, numbered = [], "", []
     for label, value in spec_rows:
         name = _property_for(label)
-        if re.match(r"garantie|gewährleistung|warranty", label, re.I):
+        if re.match(r"(artikel|art\.?-?nr|bestell|part\s*n|order)", label, re.I):
+            numbered += numbers_in_text(value)  # „Wide Flood (36-48 V): 988-208B, …“
+        elif re.match(r"garantie|gewährleistung|warranty", label, re.I):
             warranty = warranty or value
+        elif name == "Lichtleistung" and props[name] and re.search(r"betrieb|gemessen|effektiv|effective", label, re.I):
+            props[name] += f" ({value} im Betrieb)"
         elif name and not props.get(name):
             props[name] = value
         else:
@@ -619,11 +776,19 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     # Beschreibung
     text_secs = [(h, _join_lines(lines)) for h, lines in secs
                  if not HEADING_SPEC.search(h) and not HEADING_ARTICLES.search(h) and not _is_list(lines)]
+    disclaimer = re.compile(r"nicht alle produkte|änderungen (und irrtümer )?vorbehalten|nominalwerte|irrtümer|"
+                            r"subject to change|all rights reserved", re.I)
+    text_secs = [(h, [p for p in ps if not disclaimer.search(p)]) for h, ps in text_secs]
     preferred = [p for h, ps in text_secs if HEADING_TEXT.search(h) for p in ps]
     paragraphs = preferred or [p for _h, ps in text_secs for p in ps]
     description = " ".join(paragraphs[:2])
     bullets = [b for h, lines in secs if not HEADING_SPEC.search(h) and not HEADING_ARTICLES.search(h)
                for b in _bullets(lines)][:6]
+    for h, lines in secs:  # „HAUPTMERKMALE“ u. ä.: kurze Zeilen sind Stichpunkte, auch ohne Aufzählungszeichen
+        if re.search(r"MERKMAL|FEATURE|HIGHLIGHT|VORTEIL|BENEFIT", h, re.I) and not bullets:
+            short = [re.sub(r"\s+", " ", l.strip()) for l in lines if l.strip() and len(_cells(l)) == 1]
+            if short and all(len(x) <= 80 and not x.endswith(".") for x in short):
+                bullets = short[:6]
     other_texts = [p for _h, ps in text_secs for p in ps if p not in paragraphs[:2]]
     if ai is not None and description:
         step("Beschreibung mit der KI formulieren")
@@ -655,6 +820,10 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             else:
                 zusatz = head  # z. B. „GECKO 3 - HORIZONTALE MONTAGE“
             groups += parse_articles(lines, zusatz)
+    if numbered:
+        groups.insert(0, {"titel": "", "zubehoer": False, "spalten": [],
+                          "zeilen": [(nr, f"{article_kind} {content['kopf']['untertitel'].removeprefix('Serie ')}, {label}", [])
+                                     for nr, label in numbered]})
     found = total = 0
     blocks = [b for b in content["bloecke"]]
     for g in groups:
@@ -670,7 +839,7 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
                 found += 1
             shown = f"{code}{nr}" if code and not nr.upper().startswith(code.upper()) else nr
             if not g["zubehoer"]:
-                desc = with_product_type(titel, desc)
+                desc = with_product_type(article_kind, desc)
             rows.append({"bild": None, "artnr": shown[:40], "farbe": ds.guess_color(desc), "beschreibung": desc[:300],
                          "werte": [w[:80] for w in werte]})
         table["zeilen"] = rows
