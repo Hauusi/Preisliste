@@ -563,7 +563,8 @@ def _new_group(groups: list[dict], title: str) -> None:
 # ---------- Bilder ----------
 
 def _image_kind(img) -> str | None:
-    """'produkt', 'zeichnung', 'foto' oder None (zu klein, Banner)."""
+    """'produkt' (freigestellt), 'produktfoto' (Produkt vor einfarbigem Hintergrund), 'zeichnung', 'diagramm'
+    (Leuchtreichweite/Lichtverteilung), 'foto' (Anwendung) oder None (zu klein, Banner)."""
     from PIL import Image, ImageStat
 
     w, h = img.size
@@ -581,7 +582,10 @@ def _image_kind(img) -> str | None:
     transparent = sum(1 for p in border if p[3] < 30) / len(border)
     white = sum(1 for p in border if p[3] >= 30 and min(p[:3]) > 228) / len(border)
     if transparent < .6 and white < .8:
-        return "foto"
+        lum = [sum(p[:3]) / 3 for p in border]
+        mean = sum(lum) / len(lum)
+        spread = (sum((v - mean) ** 2 for v in lum) / len(lum)) ** .5
+        return "produktfoto" if spread < 20 else "foto"  # gleichmäßiger Rand = Studioaufnahme des Produkts
     hsv = small.convert("RGB").convert("HSV")
     mask = small.getchannel("A").point(lambda a: 255 if a > 30 else 0)
     if not mask.getbbox():
@@ -589,8 +593,11 @@ def _image_kind(img) -> str | None:
     saturation = ImageStat.Stat(hsv.getchannel("S"), mask).mean[0]
     opaque = [p for p in small.getdata() if p[3] > 30]
     paper = sum(1 for p in opaque if min(p[:3]) > 225) / len(opaque)
-    # Maßzeichnung: farblos und überwiegend weißes Papier mit dünnen Linien
-    return "zeichnung" if saturation < 18 and paper > .6 else "produkt"
+    if saturation < 18 and paper > .6:
+        # farbige Flächen auf weißem Papier: Leuchtreichweite/Lichtverteilung; Maßzeichnungen sind farblos
+        colored = sum(1 for p in opaque if max(p[:3]) - min(p[:3]) > 40) / len(opaque)
+        return "diagramm" if colored > .03 else "zeichnung"
+    return "produkt"
 
 
 def _line_art(rgba) -> bool:
@@ -644,14 +651,16 @@ def extract_images(pages) -> dict[str, list]:
                 continue
             if img.mode == "CMYK":
                 img = img.convert("RGB")
-            key = hashlib.sha1(img.tobytes()[:65536] + bytes(str(img.size), "ascii")).hexdigest()
+            # Anfang der Daten + verkleinertes Bild: gleich beginnende Fotos (dunkler Studiohintergrund) unterscheiden
+            key = hashlib.sha1(img.tobytes()[:65536] + img.resize((24, 24)).tobytes()
+                               + bytes(str(img.size), "ascii")).hexdigest()
             if key in seen:
                 if seen[key] != page_no:
                     seen[key] = -1  # auf mehreren Seiten: Logo/Deko
                 continue
             seen[key] = page_no
             found.append((key, page_no, img))
-    out: dict[str, list] = {"produkt": [], "zeichnung": [], "foto": []}
+    out: dict[str, list] = {"produkt": [], "produktfoto": [], "zeichnung": [], "diagramm": [], "foto": []}
     for key, page_no, img in found:
         if seen.get(key) == -1:
             continue
@@ -665,6 +674,22 @@ def extract_images(pages) -> dict[str, list]:
         out["produkt"] = [(pn, i) for pn, i in out["produkt"] if pn == first]
     return {k: [img for _p, img in sorted(v, key=lambda x: (x[0], -(x[1].size[0] * x[1].size[1])))]
             for k, v in out.items()}
+
+
+def _trim_white(img):
+    """Weißen/transparenten Rand abschneiden (Diagramme liegen oft klein mitten auf einer großen weißen Fläche)."""
+    from PIL import Image, ImageChops
+
+    flat = img.convert("RGBA")
+    base = Image.new("RGBA", flat.size, "white")
+    base.alpha_composite(flat)
+    rgb = base.convert("RGB")
+    box = ImageChops.difference(rgb, Image.new("RGB", rgb.size, "white")).convert("L").point(
+        lambda v: 255 if v > 18 else 0).getbbox()
+    if not box:
+        return rgb
+    pad = max(4, (box[2] - box[0]) // 40)
+    return rgb.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(rgb.width, box[2] + pad), min(rgb.height, box[3] + pad)))
 
 
 def _store(settings: Settings, sheet_id: int, img, product: bool) -> str:
@@ -1043,16 +1068,28 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     # Bilder
     step("Bilder einordnen")
     imgs = extract_images(pages)
-    content["bilder_oben"] = [_store(settings, sheet_id, i, True) for i in imgs["produkt"][:2]]
-    content["zeichnungen"] = [_store(settings, sheet_id, i, False) for i in imgs["zeichnung"][:2]]
-    content["bilder_unten"] = [_store(settings, sheet_id, i, False) for i in imgs["foto"][:2]]
+    # Oben rechts nur das Produkt selbst: freigestellt, sonst Studioaufnahme. Zeichnungen zur Spezifikation,
+    # Anwendungsfotos und Leuchtreichweite unten.
+    top = imgs["produkt"][:2]
+    from_photos = imgs["produktfoto"][:2 - len(top)]
+    content["bilder_oben"] = [_store(settings, sheet_id, i, True) for i in top] + \
+        [_store(settings, sheet_id, i, False) for i in from_photos]
+    content["zeichnungen"] = [_store(settings, sheet_id, _trim_white(i), False) for i in imgs["zeichnung"][:2]]
+    bottom = imgs["foto"] + imgs["produktfoto"][len(from_photos):]
+    content["bilder_unten"] = [_store(settings, sheet_id, i, False) for i in bottom[:2]]
+    for i in imgs["diagramm"][:2]:
+        block = ds.new_image_block()
+        block.update(bild=_store(settings, sheet_id, _trim_white(i), False), hoehe="M")
+        pos = next((k for k, b in enumerate(content["bloecke"]) if b.get("typ") == "tabelle"), len(content["bloecke"]))
+        content["bloecke"].insert(pos, block)  # vor den Bestellinformationen
     if not content["bilder_oben"]:
-        report.append("Kein freigestelltes Produktbild gefunden – Produktbilder bitte hochladen.")
-    extra = sum(max(0, len(v) - 2) for v in imgs.values())
+        report.append("Kein Produktbild gefunden – Produktbilder bitte hochladen.")
+    imgs["foto"] = bottom
+    extra = sum(max(0, len(v) - 2) for k, v in imgs.items() if k not in ("produktfoto",))
     if extra:
         report.append(f"{extra} weitere Bilder im PDF wurden nicht übernommen (je Platz höchstens 2).")
     stats = {"seiten": len(pages), "technische_daten": len(spec_rows), "artikel": total, "bilder":
-             sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten"))}
+             sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten")) + len(imgs["diagramm"][:2])}
     return ImportResult(content=content, report=report, stats=stats)
 
 

@@ -100,6 +100,9 @@ Muster: **Produktart Singular**, Ausstattung, Spannung, Leistung/Montage, Funkti
 
 ## 7. Im Import umgesetzt
 
+- Bilder: oben rechts immer nur das Produkt (freigestellt, sonst Studioaufnahme). Zeichnungen, Anwendungsfotos und
+  Leuchtreichweite darunter bzw. unten.
+
 - Wörterbuch aus Abschnitt 5 (`VALUE_DE`), Schreibweise aus Abschnitt 3 (`bb_value`) für die B&B-Zeilen.
 - Englische Überschriften („Models“, „Flash Patterns“), Datentabellen ohne Überschrift, „Part No.“ bei Blättern
   für ein Modell, Modelltabellen nur mit Merkmalsspalten (VOLTAGE, MOUNT): Beschreibung daraus, Spannungsbereich
