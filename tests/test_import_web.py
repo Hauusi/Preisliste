@@ -41,7 +41,7 @@ def test_full_import_flow(admin_client, tmp_path, app):
     assert r.status_code == 303, r.text
     assert r.headers["location"].startswith("/jobs/")
     job_page = admin_client.get(r.headers["location"]).text
-    assert "WARTEND" in job_page and 'http-equiv="refresh"' in job_page
+    assert "WARTEND" in job_page and "data-job-poll" in job_page and "/static/job.js" in job_page
     # Während der Job wartet, kann nicht erneut bestätigt werden
     assert admin_client.post(f"/import/{list_id}/confirm", data={"csrf_token": admin_client.csrf}).status_code == 409
     assert run_jobs(app) == 1
