@@ -448,6 +448,23 @@ def _property_for(label: str) -> str | None:
     return None
 
 
+def with_product_type(product: str, desc: str) -> str:
+    """Artikelart vor die Beschreibung, wie im B&B-Standard („LED Rundumleuchte, Rotation, gelb, …“):
+    „LED rot, 12 V DC“ wird zu „LED-Lichtsignalgeber, rot, 12 V DC“. Wörter der Beschreibung, die schon in der
+    Artikelart stehen (hier „LED“), entfallen; steht die Art schon vorne, bleibt alles wie es ist."""
+    product = product.strip()
+    if not product or not desc:
+        return desc
+    if desc.lower().startswith(product.lower()[:max(6, len(product) - 2)]):
+        return desc  # Mehrzahl/Einzahl („Rundumleuchten“/„Rundumleuchte“) gilt als gleich
+    known = {w.lower() for w in re.split(r"[\s\-/]+", product) if w}
+    words = desc.split(" ")
+    while words and words[0].strip(",").lower() in known:
+        words.pop(0)
+    rest = " ".join(words).lstrip(", ")
+    return f"{product}, {rest}" if rest else product
+
+
 def _spec_rank(label: str) -> int:
     low = label.lower()
     return next((i for i, w in enumerate(SPEC_PRIORITY) if w in low), len(SPEC_PRIORITY))
@@ -546,6 +563,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             if known_numbers is not None and normalize_article_number(nr) in known_numbers:
                 found += 1
             shown = f"{code}{nr}" if code and not nr.upper().startswith(code.upper()) else nr
+            if not g["zubehoer"]:
+                desc = with_product_type(titel, desc)
             rows.append({"bild": None, "artnr": shown[:40], "farbe": ds.guess_color(desc), "beschreibung": desc[:300],
                          "werte": []})
         table["zeilen"] = rows
