@@ -54,45 +54,56 @@ code { background: var(--surface-3); padding: 1px 5px; border-radius: 4px; font-
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-/* ---------- Kopfleiste ---------- */
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 28px; height: 60px; padding: 0 28px;
-  background: var(--surface); border-bottom: 1px solid var(--line); }
+/* ---------- Seitenleiste (Module) und Kopfleiste (Startseite, Datenblatt) ---------- */
 .brand { display: flex; align-items: center; gap: 10px; color: var(--fg); white-space: nowrap; }
 .brand:hover { text-decoration: none; }
 .brand-logo { height: 26px; width: auto; display: block; }
 .brand-logo.dark-only { display: none; }
 @media (prefers-color-scheme: dark) { .brand-logo { display: none; } .brand-logo.dark-only { display: block; } }
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 1.12rem; }
-.brand-module { color: var(--muted); font-weight: 500; padding-left: 10px; border-left: 1px solid var(--line-2); }
-.nav { display: flex; align-items: stretch; gap: 4px; height: 100%; }
-.nav-item { display: flex; align-items: center; padding: 0 10px; color: var(--fg-2); font-weight: 500; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
-.nav-item:hover { color: var(--fg); text-decoration: none; border-bottom-color: var(--line-2); }
-.nav-item.active { color: var(--fg); border-bottom-color: var(--accent); }
-.nav-more { position: relative; display: flex; }
-.nav-more > summary { list-style: none; }
-.nav-more > summary::-webkit-details-marker { display: none; }
-.nav-more > summary::after { content: ""; width: 6px; height: 6px; margin-left: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0;
-  transform: translateY(-2px) rotate(45deg); }
-.nav-menu { position: absolute; top: calc(100% + 4px); left: 0; min-width: 190px; padding: 6px; background: var(--surface);
-  border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; }
-.nav-menu a { padding: 7px 10px; border-radius: 4px; color: var(--fg-2); }
-.nav-menu a:hover { background: var(--surface-3); color: var(--fg); text-decoration: none; }
-.topbar-end { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.nav-cta { padding: 7px 14px; }
-.who-name { display: flex; align-items: center; gap: 6px; color: var(--fg-2); padding: 6px 8px; border-radius: var(--radius-sm); }
+.brand-module { color: var(--muted); font-size: .88rem; font-weight: 500; }
+.who-name { display: flex; align-items: center; gap: 8px; color: var(--fg-2); padding: 6px 8px; border-radius: var(--radius-sm); min-width: 0; }
 .who-name:hover { background: var(--surface-3); color: var(--fg); text-decoration: none; }
-.content { padding: 30px 32px 56px; max-width: 1440px; width: 100%; margin: 0 auto; }
+
+body.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+.sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 20px 14px 14px;
+  background: var(--surface); border-right: 1px solid var(--line); }
+.sidebar .brand { padding: 0 8px 18px; }
+.nav-cta { width: 100%; margin: 0 0 14px; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-item { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--fg-2); font-weight: 500;
+  white-space: nowrap; }
+.nav-item .icon { color: var(--muted); }
+.nav-item:hover { background: var(--surface-3); color: var(--fg); text-decoration: none; }
+.nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.nav-item.active .icon { color: var(--accent); }
+.nav-label { color: var(--muted); font-size: .85rem; margin: 18px 10px 4px; }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sidebar-foot .who { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.sidebar-foot .pill { align-self: flex-start; }
+
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 28px; height: 60px; padding: 0 28px;
+  background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar-end { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.content { padding: 30px 36px 56px; max-width: 1440px; width: 100%; margin: 0 auto; }
 body.public .content { max-width: none; min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 
-@media (max-width: 1000px) {
-  .topbar { flex-wrap: wrap; height: auto; padding: 10px 16px 0; gap: 6px 12px; }
-  .brand-module { display: none; }
-  .nav { order: 3; width: 100%; height: 42px; overflow-x: auto; margin: 0 -6px; }
-  .nav-more { position: static; }
-  .nav-menu { left: auto; right: 16px; top: auto; }
-  .topbar-end { gap: 6px; }
-  .who-name span, .nav-cta span { display: none; }
+@media (max-width: 900px) {
+  body.app { display: block; }
+  .sidebar { position: sticky; z-index: 20; height: auto; flex-direction: row; align-items: center; gap: 4px; overflow-x: auto;
+    padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar .brand { padding: 0 6px 0 0; }
+  .brand-text, .nav-label, .sidebar-foot .pill { display: none; }
+  .nav { flex-direction: row; }
+  .nav-item { padding: 8px 10px; }
+  .nav-item span { display: none; }
+  .nav-item.active span { display: inline; }
+  .nav-cta { width: auto; margin: 0 4px 0 0; padding: 8px 10px; }
+  .nav-cta span, .who-name span { display: none; }
+  .sidebar-foot { margin: 0 0 0 auto; padding: 0; border: 0; flex-direction: row; }
+  .topbar { padding: 0 16px; }
   .content { padding: 20px 16px 44px; }
 }
 
