@@ -164,7 +164,7 @@ Zahlen: „1.234,56 €“, „1234.56“, „1 234,56“, „CHF 1'234.50“ we
 
 ### Nach dem Start
 
-Der Import läuft als **Hintergrundjob** (Seite mit Fortschritt, abbrechbar). Danach automatisch:
+Der Import läuft als **Hintergrundjob** (Seite mit Fortschritt, abbrechbar; nur Status und Fortschritt werden alle 2 Sekunden nachgeladen, die Seite selbst lädt erst am Ende neu). Danach automatisch:
 
 - **Unsere Liste:** wird die neue aktuelle EK/VK-Liste des Herstellers.
 - **Herstellerliste:** der **Jahresabgleich** startet sofort, danach direkt die Prüfseite.
