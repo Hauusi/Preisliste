@@ -86,8 +86,8 @@
 .ds-doc .art-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
 .ds-doc .art-table th { background: var(--ds-grey); color: #fff; font-weight: 700; font-size: 10pt; padding: 1.1mm 1.5mm; text-align: center; }
 .ds-doc .art-table td { padding: 1.5mm; text-align: center; vertical-align: middle; border-bottom: .25mm solid var(--ds-line); overflow-wrap: anywhere; }
-.ds-doc .art-table td.nr { font-weight: 700; font-size: 10pt; }
-.ds-doc .art-table col.c-img { width: 26mm; } .ds-doc .art-table col.c-nr { width: 30mm; }
+.ds-doc .art-table td.nr { font-weight: 700; font-size: 10pt; white-space: nowrap; overflow-wrap: normal; letter-spacing: -.01em; }
+.ds-doc .art-table col.c-img { width: 26mm; } .ds-doc .art-table col.c-nr { width: 34mm; }
 .ds-doc .art-table col.c-dot { width: 9mm; } .ds-doc .art-table col.c-val { width: 27mm; }
 .ds-doc .art-table col.c-rowimg { width: 28mm; }
 .ds-doc .rows-gross .art-table col.c-rowimg { width: 44mm; }
@@ -145,3 +145,9 @@ body.ds-print { margin: 0; background: #d9dce3; overflow-x: auto; color-scheme: 
   .ds-doc .sheet:last-child { break-after: auto; }
 }
 .ds-doc .art-table .placeholder-row td:not(.img) { color: #94a3b8; font-style: italic; text-align: center; }
+
+/* Farbpunkte (SVG, mehrfarbig als Tortenstücke) und farbiger Zusatz in der Überschrift („TRICOLOUR“) */
+.ds-doc .color-dot { width: 3.2mm; height: 3.2mm; vertical-align: middle; display: inline-block; }
+.ds-doc .tc { font-weight: 700; }
+.ds-doc .tc-gelb { color: #f39200; } .ds-doc .tc-blau { color: #2aabe8; } .ds-doc .tc-rot { color: #e30613; }
+.ds-doc .tc-gruen { color: #2fa84f; } .ds-doc .tc-weiss, .ds-doc .tc-klar { color: #c3c8cf; }

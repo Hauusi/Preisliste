@@ -60,12 +60,35 @@ COLOR_WORDS = {"gelb": "gelb", "amber": "gelb", "orange": "gelb", "blau": "blau"
                "red": "rot", "grün": "gruen", "gruen": "gruen", "green": "gruen", "weiß": "weiss", "weiss": "weiss",
                "white": "weiss", "klar": "klar", "clear": "klar"}
 DEFAULT_COLUMNS = ["Zulassung", "Montage"]
+# Mehrfarbige Leuchten (z. B. Tricolour gelb/blau/klar): Punkt als Tortendiagramm, Auswahl im Editor
+COLOR_COMBOS = ["gelb/blau", "gelb/weiss", "gelb/klar", "blau/weiss", "blau/klar", "rot/blau", "rot/weiss",
+                "rot/gruen", "rot/gelb", "gelb/blau/klar", "gelb/blau/weiss", "rot/blau/weiss", "rot/gelb/gruen"]
+COLOR_HEX = {"gelb": "#f46e23", "blau": "#2aabe8", "rot": "#e30613", "gruen": "#2fa84f", "weiss": "#ffffff",
+             "klar": "#ffffff"}
+
+
+def valid_color(value) -> str:
+    """Eine Farbe oder bis zu 4 Farben mit „/“ (gelb/blau/klar); sonst leer."""
+    if not isinstance(value, str) or not value:
+        return ""
+    parts = list(dict.fromkeys(value.split("/")))
+    return "/".join(parts) if 1 <= len(parts) <= 4 and all(p in COLORS and p for p in parts) else ""
+
+
+def color_choices(current: str = "") -> dict[str, str]:
+    """Auswahl im Editor: einzelne Farben, gängige Kombinationen, ggf. die gespeicherte."""
+    out = dict(COLORS)
+    for combo in COLOR_COMBOS + ([current] if current and current not in COLORS else []):
+        out[combo] = "/".join(COLORS[c] for c in combo.split("/"))
+    return out
 
 
 # Vorbelegte Eigenschaften (nur Wert eintragen); je Produkt ein-/ausblenden, verschieben, eigene ergänzen
-DEFAULT_PROPERTIES = ["Spannung", "LED-Farbe", "Anzahl LEDs", "Schutzart", "Zulassung", "Montage", "Garantie"]
+# Braun-&-Braun-Standard (Reihenfolge wie in den Datenblättern); Garantie steht als Aufzählungspunkt
+DEFAULT_PROPERTIES = ["Spannungsbereich", "Wasserdicht", "Montage", "Zulassungen", "Gehäuse", "Abmessungen"]
 # Vorschläge beim Hinzufügen
-PROPERTY_SUGGESTIONS = ["Länge", "Breite", "Höhe", "Leistung", "Lichtstrom", "Abstrahlwinkel", "Blitzfunktionen",
+PROPERTY_SUGGESTIONS = ["Lichtleistung", "Leuchtbild", "Garantie", "Spannung", "Schutzart", "LED-Farbe", "Anzahl LEDs",
+                        "Länge", "Breite", "Höhe", "Leistung", "Lichtstrom", "Abstrahlwinkel", "Blitzfunktionen",
                         "Synchronisierbar", "Gehäuse", "Material", "Gewicht", "Kabellänge", "Betriebstemperatur",
                         "Stromaufnahme", "Linse", "Farbtemperatur"]
 
@@ -92,7 +115,7 @@ def empty_content() -> dict:
         "eigenschaften": [{"name": n, "wert": "", "sichtbar": True} for n in DEFAULT_PROPERTIES],
         "bilder_oben": [],
         "bild_versatz": {},  # Produktbilder oben rechts per Maus verschoben: {Bild-Kennung: [x_mm, y_mm]}
-        "spez": {"zeichen": [], "zeilen": []},
+        "spez": {"zeichen": [], "zeilen": [], "zusatz": "", "zusatz_farben": ""},
         "zeichnungen": [],
         "bilder_unten": [],
         "fuss": {"version": date.today().strftime("%d%m%Y")},
@@ -245,7 +268,7 @@ def _table(b: dict, valid: set[str]) -> dict:
     for r in _list(b.get("zeilen"), MAX_ROWS):
         werte = r.get("werte") if isinstance(r.get("werte"), list) else []
         row = {"bild": _image(r.get("bild"), valid), "artnr": _s(r.get("artnr"), 60),
-               "farbe": r.get("farbe") if r.get("farbe") in COLORS else "",
+               "farbe": valid_color(r.get("farbe")),
                "beschreibung": _s(r.get("beschreibung"), 300),
                "werte": [_s(werte[k] if k < len(werte) else "", 80) for k in range(len(spalten))]}
         if row["bild"] or row["artnr"] or row["beschreibung"] or any(row["werte"]):
@@ -273,7 +296,8 @@ def sanitize(raw, valid_images: set[str]) -> dict:
     spez = raw.get("spez") if isinstance(raw.get("spez"), dict) else {}
     c["spez"] = {"zeichen": [], "zeilen": [
         {"merkmal": _s(z.get("merkmal"), 60), "wert": _s(z.get("wert"), 300)}
-        for z in _list(spez.get("zeilen"), MAX_SPEC_ROWS) if _s(z.get("merkmal"), 60) or _s(z.get("wert"), 300)]}
+        for z in _list(spez.get("zeilen"), MAX_SPEC_ROWS) if _s(z.get("merkmal"), 60) or _s(z.get("wert"), 300)],
+        "zusatz": _s(spez.get("zusatz"), 40), "zusatz_farben": valid_color(spez.get("zusatz_farben"))}
     fuss = raw.get("fuss") if isinstance(raw.get("fuss"), dict) else {}
     c["fuss"] = {"version": _s(fuss.get("version"), 30)}
     blocks = []
@@ -413,6 +437,12 @@ def delete_images(settings: Settings, sheet_id: int) -> None:
 # ---------- Zeilen aus Excel einfügen ----------
 
 def guess_color(description: str) -> str:
+    """Farbpunkt aus der Beschreibung: Farbliste mit „/“ (gelb/blau/klar, rot/grün) = mehrfarbig,
+    sonst das letzte Farbwort."""
+    for group in re.findall(r"[a-zäöüß]+(?:\s*/\s*[a-zäöüß]+)+", description.lower()):
+        colors = [COLOR_WORDS.get(w.strip()) for w in group.split("/")]
+        if all(colors) and len(colors) <= 4:
+            return valid_color("/".join(colors))
     words = re.findall(r"[a-zäöüß]+", description.lower())
     for word in reversed(words):
         if word in COLOR_WORDS:
@@ -593,3 +623,47 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
         else:
             place(part, height)
     return [{"teile": p} for p in pages if p] or [{"teile": []}]
+
+
+# ---------- Darstellung: Farbpunkte und farbiger Zusatz ----------
+
+def color_dot(farbe: str):
+    """Farbpunkt als kleines SVG (keine Inline-Styles wegen CSP): eine Farbe = Kreis, mehrere = Tortenstücke."""
+    import math
+
+    from markupsafe import Markup
+
+    parts = [p for p in (valid_color(farbe) or "").split("/") if p]
+    if not parts:
+        return Markup("")
+    edge = '<circle cx="10" cy="10" r="9.2" fill="none" stroke="#888" stroke-width="1"/>' \
+        if any(p in ("weiss", "klar") for p in parts) else ""
+    if len(parts) == 1:
+        body = f'<circle cx="10" cy="10" r="9.5" fill="{COLOR_HEX[parts[0]]}"/>'
+    else:
+        body, step = "", 2 * math.pi / len(parts)
+        for i, part in enumerate(parts):  # im Uhrzeigersinn ab 12 Uhr
+            a0, a1 = -math.pi / 2 + i * step, -math.pi / 2 + (i + 1) * step
+            x0, y0 = 10 + 9.5 * math.cos(a0), 10 + 9.5 * math.sin(a0)
+            x1, y1 = 10 + 9.5 * math.cos(a1), 10 + 9.5 * math.sin(a1)
+            body += (f'<path d="M10 10 L{x0:.2f} {y0:.2f} A9.5 9.5 0 {1 if step > math.pi else 0} 1 {x1:.2f} {y1:.2f} Z" '
+                     f'fill="{COLOR_HEX[part]}"/>')
+    title = "/".join(COLORS[p] for p in parts)
+    return Markup(f'<svg class="color-dot" viewBox="0 0 20 20" width="12" height="12" role="img" aria-label="{title}">'
+                  f'<title>{title}</title>{body}{edge}</svg>')
+
+
+def color_word(text: str, farben: str):
+    """Wort in mehreren Farben, wie „TRICOLOUR“ beim Spartan: gleich lange Abschnitte je Farbe."""
+    from markupsafe import Markup, escape
+
+    parts = [p for p in (valid_color(farben) or "").split("/") if p]
+    text = (text or "").strip()
+    if not text:
+        return Markup("")
+    if not parts:
+        return Markup(f'<b class="tc">{escape(text)}</b>')
+    n = len(parts)
+    cuts = [round(len(text) * i / n) for i in range(n + 1)]
+    spans = "".join(f'<span class="tc-{p}">{escape(text[cuts[i]:cuts[i + 1]])}</span>' for i, p in enumerate(parts))
+    return Markup(f'<b class="tc">{spans}</b>')

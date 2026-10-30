@@ -119,7 +119,7 @@ def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user:
             imported = job.result
     return render(request, "datasheet_editor.html", {
         "portal": True, "wide": True, "sheet": sheet, "c": c, "pages_html": html, "page_count": count,
-        "colors": ds.COLORS, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
+        "colors": ds.COLORS, "color_choices": ds.color_choices, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
         "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,
         "max_columns": ds.MAX_COLUMNS, "new_table": ds.new_table(), "new_accessories": ds.new_table(zubehoer=True),
         "new_image": ds.new_image_block(), "twins": ds.twin_names(settings, sheet.id), "imported": imported,
