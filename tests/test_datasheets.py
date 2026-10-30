@@ -207,7 +207,9 @@ def test_copy_delete_and_user_isolation(admin_client, user_client, settings):
 
 def test_guess_color_from_description():
     assert ds.guess_color("LED Blitzmodul Gecko 3, 11-30V, gelb") == "gelb"
-    assert ds.guess_color("Blitzer, blau/weiß") == "weiss"
+    assert ds.guess_color("Blitzer, blau/weiß") == "blau/weiss"  # mehrfarbig: Tortenstücke
+    assert ds.guess_color("LED Leuchtbalken, Tricolour (gelb/blau/klar), klare Linsen") == "gelb/blau/klar"
+    assert ds.guess_color("LED rot/grün, 12 V DC") == "rot/gruen"
     assert ds.guess_color("Winkel für Gecko 3") == ""
 
 
@@ -384,3 +386,20 @@ def _saved(c, sid):
 
     with session_scope() as db:
         return db.get(Datasheet, sid).content
+
+
+def test_multicolor_dot_and_colored_heading_suffix(admin_client):
+    c = admin_client
+    sid = _new(c, "LED Leuchtbalken", "Serie Spartan")
+    content = _content(spez={"zeilen": [{"merkmal": "Spannungsbereich", "wert": "11-30V"}], "zusatz": "Tricolour",
+                             "zusatz_farben": "gelb/klar/blau"},
+                       bloecke=ds.empty_content()["bloecke"] + [{**ds.new_table("Bestellinformationen"), "zeilen": [
+                           {"bild": None, "artnr": "RTSB182", "farbe": "gelb/blau/klar", "beschreibung": "x", "werte": []},
+                           {"bild": None, "artnr": "RTSB183", "farbe": "gelb/lila", "beschreibung": "y", "werte": []}]}])
+    html = _save(c, sid, content).json()["html"]
+    # Zusatz in drei Farben: TRI | COL | OUR
+    assert '<b class="tc"><span class="tc-gelb">Tri</span><span class="tc-klar">col</span><span class="tc-blau">our</span></b>' in html
+    assert html.count('class="color-dot"') == 1 and html.count("<path ") == 3  # Tortenstücke; ungültige Farbe leer
+    assert "style=" not in html
+    editor = c.get(f"/datenblatt/{sid}").text
+    assert 'value="gelb/blau/klar" selected' in editor and 'value="Tricolour"' in editor

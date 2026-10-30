@@ -38,8 +38,11 @@ def test_build_fills_all_blocks(settings):
     assert c["kopf"] == {"titel": "LED-Blitzleuchte", "untertitel": "Serie Test"}
     assert c["einleitung"].startswith("Die Blitzleuchte ist robust") and "sehr hell" in c["einleitung"]
     props = {p["name"]: p["wert"] for p in c["eigenschaften"]}
-    assert props["Spannung"] == "12 V DC: 10 bis 15 V\n24 V DC: 20 bis 30 V"  # je Spalte untereinander
-    assert props["Schutzart"] == "IP 67" and props["Montage"] == "Schraubmontage\nMagnetfuß"  # Folgezeile
+    # B&B-Begriffe in B&B-Reihenfolge
+    assert [p["name"] for p in c["eigenschaften"] if p["name"]] == [
+        "Spannungsbereich", "Wasserdicht", "Montage", "Zulassungen", "Gehäuse", "Abmessungen"]
+    assert props["Spannungsbereich"] == "12 V DC: 10 bis 15 V\n24 V DC: 20 bis 30 V"  # je Spalte untereinander
+    assert props["Wasserdicht"] == "IP 67" and props["Montage"] == "Schraubmontage\nMagnetfuß"  # Folgezeile
     assert [p["wert"] for p in c["eigenschaften"] if not p["name"]] == ["5 Jahre Garantie", "Synchronisierbar"]
     assert c["spez"]["zeilen"] == [{"merkmal": "Leistung", "wert": "12 V DC: ca. 5 W\n24 V DC: ca. 6 W"}]
     tables = [b for b in c["bloecke"] if b["typ"] == "tabelle"]
@@ -66,9 +69,18 @@ def test_list_layout_with_multiline_descriptions():
              "          VG300                    LED Rundumleuchte, blau"]
     groups = dsi.parse_articles(lines, "Funktion: Rotation")
     assert groups[0]["titel"] == "Funktion: Rotation"
-    assert groups[0]["zeilen"] == [("VG100", "LED Rundumleuchte, gelb, Fixmontage"),
-                                   ("VG200", "LED Rundumleuchte, gelb, Rohrmontage OE-Teile Nummer: 12345"),
-                                   ("VG300", "LED Rundumleuchte, blau")]
+    assert groups[0]["zeilen"] == [("VG100", "LED Rundumleuchte, gelb, Fixmontage", []),
+                                   ("VG200", "LED Rundumleuchte, gelb, Rohrmontage OE-Teile Nummer: 12345", []),
+                                   ("VG300", "LED Rundumleuchte, blau", [])]
+
+
+def test_list_with_extra_columns():
+    lines = ["     Artikel            Beschreibung                          Zulassung          Montage",
+             "     RTG3HSA0CB         LED Blitzmodul Gecko 3, 11-30V, gelb  ECE-R65 Klasse I   Horizontal",
+             "     RTG3HSB0CB         LED Blitzmodul Gecko 3, 11-30V, blau  ECE-R65 Klasse I   Horizontal"]
+    g = dsi.parse_articles(lines, "GECKO 3 - HORIZONTALE MONTAGE")[0]
+    assert g["spalten"] == ["Zulassung", "Montage"]
+    assert g["zeilen"][0] == ("RTG3HSA0CB", "LED Blitzmodul Gecko 3, 11-30V, gelb", ["ECE-R65 Klasse I", "Horizontal"])
 
 
 def test_title_fallbacks():
@@ -153,3 +165,30 @@ def test_product_type_in_description():
     assert dsi.with_product_type("LED Rundumleuchten", "LED Rundumleuchte, Rotation, gelb") == "LED Rundumleuchte, Rotation, gelb"
     assert dsi.with_product_type("Arbeitsscheinwerfer", "rund, 1200 lm") == "Arbeitsscheinwerfer, rund, 1200 lm"
     assert dsi.with_product_type("", "LED rot") == "LED rot"
+
+
+def test_bb_terms_warranty_bullet_and_multicolor(settings):
+    page = [(50, 780, 22, "LED-LEUCHTBALKEN"),
+            (50, 740, 12, "TECHNISCHE DATEN"),
+            (50, 720, 10, "Betriebsspannung"), (300, 720, 10, "10-30 V"),
+            (50, 700, 10, "Lichtstrom"), (300, 700, 10, "1.600 lm"),
+            (50, 680, 10, "Garantie"), (300, 680, 10, "5 Jahre"),
+            (50, 660, 10, "Material"), (300, 660, 10, "Aluminium"),
+            (50, 620, 12, "ARTIKELNUMMERN"),
+            (50, 600, 10, "SB-100"), (250, 600, 10, "Leuchtbalken Tricolour (gelb/blau/klar)")]
+    c = dsi.build(make_pdf([page]), settings, 7).content
+    named = [(p["name"], p["wert"]) for p in c["eigenschaften"] if p["wert"]]
+    assert named == [("Spannungsbereich", "10-30 V"), ("Lichtleistung", "1.600 lm"), ("Gehäuse", "Aluminium"),
+                     ("", "5 Jahre Garantie")]
+    row = ds.tables(c)[0]["zeilen"][0]
+    assert row["farbe"] == "gelb/blau/klar"
+
+
+def test_tricolour_from_subtitle_becomes_colored_suffix(settings):
+    page = [(50, 780, 22, "LED LEUCHTBALKEN"), (50, 760, 12, "SERIE SPARTAN TRICOLOUR"),
+            (50, 620, 12, "ARTIKELNUMMERN"),
+            (50, 600, 10, "RTSB182"), (250, 600, 10, "Leuchtbalken Tricolour (gelb/blau/klar)"),
+            (50, 585, 10, "RTSB183"), (250, 585, 10, "Leuchtbalken Tricolour (gelb/blau/klar)")]
+    c = dsi.build(make_pdf([page]), settings, 8).content
+    assert c["kopf"] == {"titel": "LED Leuchtbalken", "untertitel": "Serie Spartan"}
+    assert (c["spez"]["zusatz"], c["spez"]["zusatz_farben"]) == ("Tricolour", "gelb/klar/blau")  # hell in der Mitte

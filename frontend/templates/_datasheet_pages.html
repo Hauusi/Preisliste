@@ -26,7 +26,7 @@
         {% endif %}
         {% if t.spez %}
         <div class="lead-spec" data-block="{{ t.spez.index }}">
-          <h2 class="part-title">{% if titel or untertitel %}<b>{{ titel }}</b>{% if titel and untertitel %} - {% endif %}{{ untertitel }}{% elif editor %}<span class="placeholder">Produkttyp - Serie</span>{% endif %}<small>Spezifikationen</small></h2>
+          <h2 class="part-title">{% if titel or untertitel %}<b>{{ titel }}</b>{% if titel and untertitel %} - {% endif %}{{ untertitel }}{% elif editor %}<span class="placeholder">Produkttyp - Serie</span>{% endif %}{% if c.spez.zusatz %} {{ color_word(c.spez.zusatz, c.spez.zusatz_farben) }}{% endif %}<small>Spezifikationen</small></h2>
           {% if t.spez.logos %}<div class="badges">{% for b in t.spez.logos %}{{ ece_badge(b) }}{% endfor %}</div>{% endif %}
           {% if t.spez.zeilen %}
           <table class="spec-table">
@@ -62,7 +62,7 @@
             {% if t.bild_links and loop.first %}<td class="img" rowspan="{{ t.zeilen | length }}"><img src="{{ img ~ t.bild }}" alt=""></td>{% endif %}
             {% if t.zeilen_bilder %}<td class="rowimg">{% if r.bild %}<img src="{{ img ~ r.bild }}" alt="">{% endif %}</td>{% endif %}
             <td class="nr">{{ r.artnr }}</td>
-            {% if t.farben %}<td class="dot">{% if r.farbe %}<span class="color {{ r.farbe }}" title="{{ r.farbe }}"></span>{% endif %}</td>{% endif %}
+            {% if t.farben %}<td class="dot">{{ r.farbe | color_dot }}</td>{% endif %}
             <td>{{ lines(r.beschreibung) }}</td>
             {% for s in t.spalten %}<td>{{ r.werte[loop.index0] if loop.index0 < r.werte | length }}</td>{% endfor %}
           </tr>

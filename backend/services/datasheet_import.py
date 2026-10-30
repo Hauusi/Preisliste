@@ -23,7 +23,7 @@ from backend.services.image_cutout import product_png
 
 MAX_PDF_BYTES = 25 * 1024 * 1024
 MAX_PAGES = 20
-MAX_SPEC_ROWS_AUTO = 8  # mehr Zeilen sprengen das Blatt; der Rest steht im Bericht
+MAX_SPEC_ROWS_AUTO = 3  # weitere Daten zusätzlich zu den B&B-Standardzeilen; der Rest steht im Bericht
 
 HEADING_SPEC = re.compile(r"TECHNISCHE\s+DATEN|TECHNICAL\s+DATA|SPEZIFIKATION|SPECIFICATION|KENNDATEN|DATENBLATT", re.I)
 HEADING_ARTICLES = re.compile(r"ARTIKEL|BESTELL|ORDER|TYPEN|VARIANTEN|AUSF[ÜU]HRUNGEN|PART\s*NO", re.I)
@@ -32,16 +32,20 @@ ACCESSORY = re.compile(r"^(ZUBEH[ÖO]R|ACCESSOR)", re.I)
 ARTNR = re.compile(r"^(?=.*\d)[A-Za-z0-9][A-Za-z0-9.\-/]{2,24}$")
 SKIP_LINE = re.compile(r"^(www\.|http|fon|fax|tel|e-?mail|seite|page)\b", re.I)
 
-# Technische Daten -> benannte Eigenschaften des Baukastens (die stehen gedruckt oben in der Spezifikation)
+# Technische Daten -> Braun-&-Braun-Begriffe in der Reihenfolge der B&B-Datenblätter
+# (Spannungsbereich, Lichtleistung, Wasserdicht, Montage, Zulassungen, Gehäuse, Abmessungen, Leuchtbild)
 PROPERTY_SYNONYMS = {
-    "Spannung": ("spannungsbereich", "betriebsspannung", "nennspannung", "spannung", "voltage", "supply voltage"),
-    "LED-Farbe": ("leuchtfarbe", "lichtfarbe", "led-farbe", "farbe der led", "light colour", "light color", "colour", "color"),
-    "Anzahl LEDs": ("anzahl leds", "anzahl led", "led anzahl", "number of leds", "leds"),
-    "Schutzart": ("schutzart", "schutzklasse", "ip-schutz", "protection", "ip rating", "wasserdicht"),
-    "Zulassung": ("zulassung", "zulassungen", "approval", "homologation", "prüfzeichen"),
+    "Spannungsbereich": ("spannungsbereich", "betriebsspannung", "nennspannung", "spannung", "voltage", "supply voltage",
+                         "operating voltage"),
+    "Lichtleistung": ("lichtleistung", "lichtstrom", "luminous flux", "lumen", "light output"),
+    "Wasserdicht": ("wasserdicht", "schutzart", "schutzklasse", "ip-schutz", "ip rating", "protection", "ingress"),
     "Montage": ("montage", "befestigung", "mounting", "installation"),
-    "Garantie": ("garantie", "gewährleistung", "warranty"),
+    "Zulassungen": ("zulassung", "zulassungen", "approval", "homologation", "prüfzeichen", "zertifizierung"),
+    "Gehäuse": ("gehäuse", "material", "housing"),
+    "Abmessungen": ("abmessung", "abmessungen", "maße", "dimension", "größe", "size"),
+    "Leuchtbild": ("leuchtbild", "abstrahlcharakteristik", "beam pattern", "lichtverteilung"),
 }
+BB_ORDER = list(PROPERTY_SYNONYMS)
 # Wichtige Technische Daten zuerst (Rest kommt in den Bericht, wenn das Blatt sonst zu voll wird)
 SPEC_PRIORITY = ("leistung", "power", "lichtstärke", "lichtstrom", "luminous", "abmessung", "dimension", "maße",
                  "gehäuse", "housing", "material", "temperatur", "temperature", "anschluss", "kabel", "connection",
@@ -86,7 +90,7 @@ def read_pdf(data: bytes):
         if reader.is_encrypted and not reader.decrypt(""):
             raise PdfError("Das PDF ist mit einem Passwort geschützt und kann nicht gelesen werden")
         pages = reader.pages[:MAX_PAGES]
-        texts = [p.extract_text(extraction_mode="layout") or "" for p in pages]
+        texts = [_clean_text(p.extract_text(extraction_mode="layout") or "") for p in pages]
     except PdfError:
         raise
     except PdfReadError as exc:
@@ -96,11 +100,29 @@ def read_pdf(data: bytes):
     return reader, pages, texts
 
 
+GLYPHS = {"hyphen": "-", "endash": "–", "emdash": "—", "bullet": "•", "quoteright": "’", "registered": "®",
+          "degree": "°", "multiply": "×"}
+SYMBOL_FONT = {"\uf0fc": "✓", "\uf0b7": "•", "\uf0a7": "•", "\uf0d8": "•", "\uf0e0": "→"}
+
+
+def _clean_text(text: str) -> str:
+    """Reste aus Schriften ohne Zeichentabelle: „/hyphen.cap“ -> „-“, Wingdings-Häkchen -> „✓“."""
+    text = re.sub(r"/([a-z]+)(?:\.[a-z0-9]+)?", lambda m: GLYPHS.get(m.group(1), m.group(0)), text)
+    text = "".join(SYMBOL_FONT.get(ch, ch) for ch in text)
+    return re.sub(r"[\ue000-\uf8ff]", "", text)  # übrige Symbolzeichen (Privatbereich) weglassen
+
+
+APPROVAL_ONLY = re.compile(r"^((ECE|UN)?[\s-]*R\s*-?\d{1,3}|KLASSE\s*\w+|CLASS\s*\w+|CISPR\s*\d+|E\d+)"
+                           r"(\s+((ECE|UN)?[\s-]*R\s*-?\d{1,3}|KLASSE\s*\w+|CISPR\s*\d+))*$", re.I)
+
+
 def _is_heading(line: str) -> bool:
     s = line.strip()
     letters = [c for c in s if c.isalpha()]
     if len(letters) < 4 or len(s) > 60 or re.search(r"\s{3,}", s) or s.endswith((".", ",", ":")):
         return False
+    if APPROVAL_ONLY.match(s):
+        return False  # Zulassungslogo als Text („ECE-R65 KLASSE 2“), keine Überschrift
     return sum(c.isupper() for c in letters) / len(letters) > .85
 
 
@@ -131,7 +153,18 @@ BULLET = re.compile(r"^[•▪●◦■\-–*]\s+")
 
 
 def _bullets(lines: list[str]) -> list[str]:
-    return [re.sub(r"\s+", " ", BULLET.sub("", l.strip())) for l in lines if BULLET.match(l.strip())]
+    """Aufzählungspunkte; eingerückte Folgezeile ohne Punkt gehört zum vorigen Punkt."""
+    out, open_ = [], False
+    for line in lines:
+        s = line.strip()
+        if BULLET.match(s):
+            out.append(re.sub(r"\s+", " ", BULLET.sub("", s)))
+            open_ = True
+        elif open_ and s and line.startswith("  ") and len(_cells(line)) == 1 and len(out[-1]) < 120:
+            out[-1] += " " + re.sub(r"\s+", " ", s)
+        else:
+            open_ = False
+    return out
 
 
 def _join_lines(lines: list[str]) -> list[str]:
@@ -139,6 +172,8 @@ def _join_lines(lines: list[str]) -> list[str]:
     paras, cur = [], ""
     for line in lines + [""]:
         s = re.sub(r"\s+", " ", line.strip())
+        if re.search(r"\S\s{3,}\S", line.strip()):
+            s = ""  # Tabellenzeile (breite Lücken), kein Fließtext; Blocksatz hat höchstens 2 Leerzeichen
         if not s or BULLET.match(s):
             if cur:
                 paras.append(cur)
@@ -178,6 +213,8 @@ def _title(texts: list[str], meta_title: str | None = None) -> tuple[str, str]:
         title, sub = m.group(1), sub or m.group(2)
     elif " - " in title:
         title, sub = (x.strip() for x in title.split(" - ", 1))
+    elif not sub and re.search(r"\s(Serie|Series)\s", title, re.I):
+        title, sub = re.split(r"\s(?=(?:Serie|Series)\s)", title, maxsplit=1, flags=re.I)
     if title.isupper():
         def word(w):
             return "-".join(x if any(c.isdigit() for c in x) or len(x) <= 3 else x.capitalize() for x in w.split("-"))
@@ -211,32 +248,59 @@ def _spans_all(cell: tuple[int, int, str], centers: list[float]) -> bool:
 
 def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
     """Technische Daten: Merkmal links, Wert(e) rechts. Mehrere Spaltenköpfe (z. B. 12 V / 24 V) werden als
-    „12 V DC: …“ untereinander geschrieben, Folgezeilen an den Wert der Spalte angehängt."""
-    rows: list[list] = []  # [Merkmal, {Spalte: Text} oder Text]
+    „12 V DC: …“ untereinander geschrieben. Mehrzeilige Werte gehören zur nächstgelegenen Merkmalszeile – auch
+    wenn sie darüber stehen (senkrecht mittig gesetzt). Text weit rechts der Tabelle (Zeichnungen) zählt nicht."""
     label_end, centers, heads = None, [], []
-    for line in lines:
+    anchors: list[list] = []  # [Zeile, Merkmal, Zellen]
+    loose: list[tuple[int, list]] = []
+    for i, line in enumerate(lines):
         cells = _cells(line)
         if not cells:
             continue
         first = cells[0]
-        if label_end is None and first[0] > 20 and len(cells) >= 2 and not rows:
+        if label_end is None and first[0] > 20 and len(cells) >= 2 and not anchors:
             heads, centers = [c[2] for c in cells], [(c[0] + c[1]) / 2 for c in cells]
             continue
         indented = first[0] > (label_end if label_end is not None else 20)
         if not indented and len(cells) >= 2:
             label_end = max(label_end or 0, first[1] + 2)
-            values = {}
-            for c in cells[1:]:
-                col = None if _spans_all(c, centers) else _column_of(c, centers)
-                values.setdefault(col, []).append(c[2])
-            rows.append([first[2], values])
-        elif rows:
-            for c in cells:
-                col = None if _spans_all(c, centers) else _column_of(c, centers)
-                target = rows[-1][1]
-                if col not in target and None in target and len(target) == 1:
-                    col = None
-                target.setdefault(col, []).append(c[2])
+            anchors.append([i, first[2], list(cells[1:])])
+        else:
+            loose.append((i, cells))
+    anchors = [a for a in anchors if not APPROVAL_ONLY.match(a[1].strip(" :"))]  # Zeile mit Zulassungslogos
+    if not anchors:
+        return []
+    ends = sorted(a[2][0][1] for a in anchors)
+    # typischer rechter Tabellenrand (bei Spaltenköpfen die letzte Spalte); Zellen, die weiter rechts beginnen,
+    # sind Beschriftungen einer Zeichnung daneben
+    right = max([ends[len(ends) // 2]] + [int(c) + 15 for c in centers[-1:]]) + 10
+    for a in anchors:
+        a[2] = [c for c in a[2] if c[0] <= right] or a[2][:1]
+    loose_rows = {i for i, _c in loose}
+    for i, cells in loose:
+        cells = [c for c in cells if c[0] <= right]
+        if not cells:
+            continue
+        before = [a for a in anchors if a[0] < i]
+        after = [a for a in anchors if a[0] > i]
+        nearest = min(anchors, key=lambda a: (abs(a[0] - i), a[0] > i))
+        if before and after and i - before[-1][0] == after[0][0] - i and after[0][0] + (after[0][0] - i) in loose_rows:
+            nearest = after[0]  # mittig gesetzter Wert: Zeilen darüber und darunter gehören zur nächsten Zeile
+        if i < anchors[0][0] and anchors[0][0] - i > 1:
+            continue  # Text über der Tabelle (z. B. Logos), nicht direkt an der ersten Zeile
+        if i < nearest[0]:
+            nearest[2][:0] = cells
+        else:
+            nearest[2].extend(cells)
+    rows = []
+    for _i, label, cells in anchors:
+        values: dict = {}
+        for c in cells:
+            col = None if _spans_all(c, centers) else _column_of(c, centers)
+            if col not in values and None in values and len(values) == 1:
+                col = None
+            values.setdefault(col, []).append(c[2])
+        rows.append([label, values])
     out = []
     def join(parts: list[str]) -> str:  # Folgezeile mit Großbuchstaben = eigene Angabe, sonst Zeilenumbruch im Wort
         out = ""
@@ -246,7 +310,7 @@ def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
 
     for label, values in rows:
         label = re.sub(r"\s+", " ", label).strip(" :")
-        if None in values or not heads:
+        if None in values or not heads or len(values) == 1:
             text = join([v for vs in values.values() for v in vs])
         else:
             parts = [(heads[k] if k is not None and k < len(heads) else "", " ".join(v)) for k, v in sorted(
@@ -254,6 +318,7 @@ def parse_spec(lines: list[str]) -> list[tuple[str, str]]:
             uniq = {p[1] for p in parts}
             text = parts[0][1] if len(uniq) == 1 else "\n".join(f"{h}: {v}" if h else v for h, v in parts)
         text = re.sub(r"(\w)- (\w)", r"\1\2", re.sub(r"[ \t]+", " ", text)).strip()
+        text = re.sub(r"(?<=\dmm)(?=[A-ZØ])|(?<=\))(?=\d)", "\n", text)  # zusammengeklebt: „64mmL x“, „(Gecko 3)123 x“
         text = re.sub(r"(?<=[a-zäöü])-\n(?=[a-zäöü])", "", text)
         if label and text and text != "/":
             out.append((label, text))
@@ -266,27 +331,49 @@ def _is_list(lines: list[str]) -> bool:
     return sum(1 for t in starts if ARTNR.match(t)) >= max(2, len(starts) // 4)
 
 
+HEAD_WORDS = re.compile(r"^(Artikel|Art\.?-?Nr\.?|Artikelnummer|Bestellnummer|Beschreibung|Bezeichnung|Description|Item|Part)",
+                        re.I)
+
+
 def _parse_list(lines: list[str], groups: list[dict]) -> None:
     """Nummer links, Beschreibung rechts – auch über mehrere Zeilen oberhalb/unterhalb der Nummer verteilt.
-    Jede Beschreibungszeile gehört zur nächstgelegenen Nummer (bei Gleichstand zur vorherigen)."""
+    Jede Beschreibungszeile gehört zur nächstgelegenen Nummer (bei Gleichstand zur vorherigen). Weitere Spalten
+    der Kopfzeile rechts der Beschreibung (z. B. Länge, Zulassung) werden Zusatzspalten."""
     anchors, loose = [], []
+    extra, extra_centers, desc_end = [], [], None
     for i, line in enumerate(lines):
         cells = _cells(line)
         if not cells:
             continue
         if ARTNR.match(cells[0][2]):
-            anchors.append([i, cells[0][2], [c[2] for c in cells[1:] if c[2] not in "●•○"]])
+            anchors.append([i, cells[0][2], [c for c in cells[1:] if c[2] not in "●•○"]])
+        elif HEAD_WORDS.match(cells[0][2]) and len(cells) >= 2 and not anchors:
+            heads = cells[2:] if HEAD_WORDS.match(cells[1][2]) else cells[1:]
+            if len(cells) >= 3 and HEAD_WORDS.match(cells[1][2]):
+                desc_end = (cells[1][1] + cells[2][0]) / 2
+                extra = [c[2] for c in heads][:ds.MAX_COLUMNS]
+                extra_centers = [(c[0] + c[1]) / 2 for c in heads][:ds.MAX_COLUMNS]
         elif len(cells) == 1 and cells[0][0] < 12 and not anchors:
             _new_group(groups, cells[0][2])
-        elif not re.fullmatch(r"(Artikel|Art\.?-?Nr\.?|Beschreibung|Description|Item)(\s.*)?", cells[0][2], re.I):
-            loose.append((i, " ".join(c[2] for c in cells)))
-    for i, text in loose:
+        elif not HEAD_WORDS.match(cells[0][2]):
+            loose.append((i, cells))
+    for i, cells in loose:
         if not anchors:
             break
         nearest = min(anchors, key=lambda a: (abs(a[0] - i), a[0] > i))
-        (nearest[2].insert(0, text) if i < nearest[0] else nearest[2].append(text))
-    for _i, nr, parts in anchors:
-        groups[-1]["zeilen"].append((nr, re.sub(r"\s+", " ", " ".join(parts)).strip(" ,")))
+        nearest[2][:0] = cells if i < nearest[0] else []
+        if i > nearest[0]:
+            nearest[2].extend(cells)
+    groups[-1]["spalten"] = extra
+    for _i, nr, cells in anchors:
+        desc, values = [], [""] * len(extra)
+        for c in cells:
+            if extra and desc_end is not None and c[0] > desc_end:
+                k = _column_of(c, extra_centers)
+                values[k] = f"{values[k]} {c[2]}".strip()
+            else:
+                desc.append(c[2])
+        groups[-1]["zeilen"].append((nr, re.sub(r"\s+", " ", " ".join(desc)).strip(" ,"), values))
 
 
 def parse_articles(lines: list[str], title: str = "") -> list[dict]:
@@ -314,6 +401,9 @@ def parse_articles(lines: list[str], title: str = "") -> list[dict]:
         if len(cells) == 1 and not ARTNR.match(texts[0]):
             _new_group(groups, texts[0])
             continue
+        if not numbers and ARTNR.match(texts[0]) and len(texts) >= 2:
+            groups[-1]["zeilen"].append((texts[0], " ".join(texts[1:])))  # einzelne Zeile „Nummer – Beschreibung“
+            continue
         if not numbers:
             continue  # z. B. „LED blau – auf Anfrage“
         label = texts[0]
@@ -329,9 +419,9 @@ def parse_articles(lines: list[str], title: str = "") -> list[dict]:
                 groups[-1]["zeilen"].append((nr, f"{label}, {' / '.join(cols)}"))
     seen, out = set(), []
     for g in groups:
-        rows = [r for r in g["zeilen"] if not (r[0] in seen or seen.add(r[0]))]
+        rows = [r if len(r) == 3 else (*r, []) for r in g["zeilen"] if not (r[0] in seen or seen.add(r[0]))]
         if rows:
-            out.append({**g, "zeilen": rows})
+            out.append({**g, "zeilen": rows, "spalten": g.get("spalten") or []})
     return out
 
 
@@ -441,9 +531,10 @@ def _store(settings: Settings, sheet_id: int, img, product: bool) -> str:
 # ---------- Zusammenbauen ----------
 
 def _property_for(label: str) -> str | None:
-    low = label.lower()
+    """B&B-Begriff für ein Merkmal: ganzes Wort am Anfang („Spannungsbereich DC“ ja, „Gehäusefarben“ nein)."""
+    low = label.lower().strip(" :")
     for name, words in PROPERTY_SYNONYMS.items():
-        if any(low == w or low.startswith(w) for w in words):
+        if any(low == w or re.match(re.escape(w) + r"\b", low) for w in words):
             return name
     return None
 
@@ -503,17 +594,21 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     for head, lines in secs:
         if HEADING_SPEC.search(head):
             spec_rows += parse_spec(lines)
-    props = {n: "" for n in ds.DEFAULT_PROPERTIES}
-    rest = []
+    props = {n: "" for n in BB_ORDER}
+    rest, warranty = [], ""
     for label, value in spec_rows:
         name = _property_for(label)
-        if name and not props.get(name):
+        if re.match(r"garantie|gewährleistung|warranty", label, re.I):
+            warranty = warranty or value
+        elif name and not props.get(name):
             props[name] = value
         else:
             rest.append((SPEC_DE.get(label.lower(), label), value))
     rest.sort(key=lambda r: _spec_rank(r[0]))
     used, dropped = rest[:MAX_SPEC_ROWS_AUTO], rest[MAX_SPEC_ROWS_AUTO:]
-    content["eigenschaften"] = [{"name": n, "wert": v[:150], "sichtbar": True} for n, v in props.items()]
+    # B&B-Standardzeilen immer anlegen (leer = nicht gedruckt), Lichtleistung/Leuchtbild nur wenn vorhanden
+    content["eigenschaften"] = [{"name": n, "wert": v[:150], "sichtbar": True} for n, v in props.items()
+                                if v or n in ds.DEFAULT_PROPERTIES]
     content["spez"] = {"zeichen": [], "zeilen": [{"merkmal": l[:60], "wert": v[:300]} for l, v in used]}
     if dropped:
         report.append("Nicht übernommene Technische Daten (Blatt sonst zu voll): "
@@ -522,7 +617,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
         report.append("Keine Technischen Daten gefunden – Spezifikation bitte von Hand eintragen.")
 
     # Beschreibung
-    text_secs = [(h, _join_lines(lines)) for h, lines in secs if not HEADING_SPEC.search(h) and not HEADING_ARTICLES.search(h)]
+    text_secs = [(h, _join_lines(lines)) for h, lines in secs
+                 if not HEADING_SPEC.search(h) and not HEADING_ARTICLES.search(h) and not _is_list(lines)]
     preferred = [p for h, ps in text_secs if HEADING_TEXT.search(h) for p in ps]
     paragraphs = preferred or [p for _h, ps in text_secs for p in ps]
     description = " ".join(paragraphs[:2])
@@ -540,6 +636,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             content["einleitung"] = _sentences(description, 450)
     else:
         content["einleitung"] = _sentences(description, 450)
+    if warranty and not any("garantie" in b.lower() for b in bullets):
+        bullets.insert(0, f"{warranty} Garantie")  # B&B: „2 Jahre Garantie“ als erster Punkt
     content["eigenschaften"] += [{"name": "", "wert": b[:150], "sichtbar": True} for b in bullets]
     if not description:
         report.append("Kein Beschreibungstext gefunden – Einleitung bitte von Hand schreiben.")
@@ -547,8 +645,15 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     # Artikelnummern
     groups = []
     for head, lines in secs:
-        if HEADING_ARTICLES.search(head) and not HEADING_SPEC.search(head):
-            zusatz = head.split(" - ", 1)[1] if " - " in head else ""
+        if HEADING_SPEC.search(head):
+            continue
+        named = HEADING_ARTICLES.search(head)
+        if named or _is_list(lines):
+            if named:
+                split = re.split(r"\s*[-–]\s+", head, maxsplit=1)
+                zusatz = split[1] if len(split) == 2 else ""
+            else:
+                zusatz = head  # z. B. „GECKO 3 - HORIZONTALE MONTAGE“
             groups += parse_articles(lines, zusatz)
     found = total = 0
     blocks = [b for b in content["bloecke"]]
@@ -558,7 +663,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
         if not g["zubehoer"]:
             table["titel"], table["zusatz"] = "Bestellinformationen", g["titel"]
         rows = []
-        for nr, desc in g["zeilen"][:ds.MAX_ROWS]:
+        table["spalten"] = g["spalten"]
+        for nr, desc, werte in g["zeilen"][:ds.MAX_ROWS]:
             total += 1
             if known_numbers is not None and normalize_article_number(nr) in known_numbers:
                 found += 1
@@ -566,10 +672,21 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             if not g["zubehoer"]:
                 desc = with_product_type(titel, desc)
             rows.append({"bild": None, "artnr": shown[:40], "farbe": ds.guess_color(desc), "beschreibung": desc[:300],
-                         "werte": []})
+                         "werte": [w[:80] for w in werte]})
         table["zeilen"] = rows
         blocks.append(table)
     content["bloecke"] = blocks
+    m = re.search(r"\s+((?:tri|dual|bi|multi)[- ]?colou?r)$", content["kopf"]["untertitel"], re.I)
+    multi = [r["farbe"] for b in blocks if b.get("typ") == "tabelle" for r in b["zeilen"] if "/" in r["farbe"]]
+    if m:
+        content["kopf"]["untertitel"] = content["kopf"]["untertitel"][:m.start()]
+        content["spez"]["zusatz"] = m.group(1)
+        farben = (max(set(multi), key=multi.count) if multi else "").split("/")
+        light = [f for f in farben if f in ("klar", "weiss")]
+        if len(farben) == 3 and len(light) == 1:  # wie im B&B-Muster: hell in der Mitte („TRI CO LOUR“)
+            rest = [f for f in farben if f not in light]
+            farben = [rest[0], light[0], rest[1]]
+        content["spez"]["zusatz_farben"] = "/".join(f for f in farben if f)
     if not groups:
         report.append("Keine Artikelnummern gefunden – Artikeltabelle bitte von Hand füllen oder aus Excel einfügen.")
     elif known_numbers is not None:

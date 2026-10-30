@@ -71,3 +71,17 @@ def price(value) -> str:
 
 
 templates.env.filters["price"] = price
+
+
+def _color_dot(farbe):
+    from backend.services.datasheets import color_dot
+    return color_dot(farbe)
+
+
+def _color_word(text, farben):
+    from backend.services.datasheets import color_word
+    return color_word(text, farben)
+
+
+templates.env.filters["color_dot"] = _color_dot
+templates.env.globals["color_word"] = _color_word

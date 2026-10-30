@@ -47,7 +47,8 @@
       }),
       bilder_oben: slotNames($('[data-imgs="bilder_oben"]', intro)),
       bild_versatz: offsets,
-      spez: { zeilen: own($('[data-list="spez"]', spez), "[data-row]").map(function (r) {
+      spez: { zusatz: val(spez, '[data-f="spez.zusatz"]'), zusatz_farben: $('[data-f="spez.zusatz_farben"]', spez).value,
+        zeilen: own($('[data-list="spez"]', spez), "[data-row]").map(function (r) {
         return { merkmal: val(r, '[data-f="merkmal"]'), wert: $('[data-f="wert"]', r).value.trim() };
       }) },
       zeichnungen: slotNames($('[data-imgs="zeichnungen"]', spez)),
@@ -479,7 +480,11 @@
         data.zeilen.forEach(function (z) {
           var row = fromTemplate("trow");
           $('[data-f="artnr"]', row).value = z.artnr;
-          $('[data-f="farbe"]', row).value = z.farbe;
+          var sel = $('[data-f="farbe"]', row);
+          if (z.farbe && !sel.querySelector('option[value="' + z.farbe + '"]')) {  // seltene Farbkombination
+            var opt = document.createElement("option"); opt.value = opt.textContent = z.farbe; sel.appendChild(opt);
+          }
+          sel.value = z.farbe;
           $('[data-f="beschreibung"]', row).value = z.beschreibung;
           z.werte.forEach(function (w, k) { var input = $('[data-w="' + k + '"]', row); if (input) { input.value = w; } });
           list.appendChild(row);

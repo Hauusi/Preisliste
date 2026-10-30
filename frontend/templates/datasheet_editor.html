@@ -46,7 +46,7 @@
   {{ row_tools() }}
   {{ slot(r.bild, small=true) }}
   <input data-f="artnr" value="{{ r.artnr }}" maxlength="60" placeholder="Artikelnr." class="t-nr">
-  <select data-f="farbe" title="Farbpunkt">{% for v, l in colors.items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select data-f="farbe" title="Farbpunkt (mehrfarbig: Tortenstücke)">{% for v, l in color_choices(r.farbe).items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   <input data-f="beschreibung" value="{{ r.beschreibung }}" maxlength="300" placeholder="Beschreibung" class="t-desc">
   {% for k in range(max_columns) %}<input data-w="{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="t-val">{% endfor %}
   {{ row_del() }}
@@ -76,7 +76,11 @@
     <h4>Produktbilder <small>rechts, untereinander; einfarbiger Hintergrund wird automatisch entfernt (PNG, transparent)</small></h4>
     <div class="dse-slots" data-imgs="bilder_oben">{% for i in range(2) %}{{ slot(c.bilder_oben[i] if i < c.bilder_oben | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "spez" %}
-    <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassung“.</p>
+    <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassungen“.</p>
+    <div class="dse-inline">
+      <label>Zusatz in der Überschrift <input data-f="spez.zusatz" value="{{ c.spez.zusatz or '' }}" maxlength="40" placeholder="z. B. Tricolour"></label>
+      <label>Farben des Zusatzes <select data-f="spez.zusatz_farben">{% for v, l in color_choices(c.spez.zusatz_farben or '').items() %}<option value="{{ v }}"{% if (c.spez.zusatz_farben or '') == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    </div>
     <div class="dse-list" data-sortable data-list="spez">{% for z in c.spez.zeilen %}{{ spec_row(z) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="spec">{{ icon("plus", 16) }} Zeile</button>
     <h4>Bilder rechts <small>z. B. Maßzeichnungen, unter den Produktbildern</small></h4>

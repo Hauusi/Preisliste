@@ -30,6 +30,7 @@ Alle Lizenzen sind freizügig (MIT, BSD, Apache-2.0, PSF). Es gibt keine Copylef
 | pydantic-settings | 2.15.0 | MIT | Konfiguration |
 | pypdf | 6.21.4 | BSD-3-Clause | Hersteller-Datenblätter (PDF) lesen: Text und Bilder |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | indirekt für pypdf: gegen Bearbeiten geschützte (AES) PDFs öffnen |
+| fonttools | 4.68.0 | MIT | für pypdf: Zeichen eingebetteter Schriften richtig lesen (z. B. Bindestriche in Überschriften) |
 | python-dotenv | 1.2.4 | BSD-3-Clause | indirekt (pydantic-settings) |
 | annotated-types, typing-inspection, typing_extensions, annotated-doc | – | MIT / PSF | indirekt |
 | pyyaml | 6.0.3 | MIT | Synonymliste lesen |
