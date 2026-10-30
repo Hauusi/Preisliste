@@ -45,7 +45,8 @@ def test_build_fills_all_blocks(settings):
     tables = [b for b in c["bloecke"] if b["typ"] == "tabelle"]
     assert [(t["titel"], t["zusatz"]) for t in tables] == [("Bestellinformationen", "Typ rund"), ("Zubehör", "")]
     rows = [(z["artnr"], z["beschreibung"], z["farbe"]) for z in tables[0]["zeilen"]]
-    assert rows == [("BL4711-A", "LED gelb, 12 V DC", "gelb"), ("BL4711-B", "LED gelb, 24 V DC", "gelb")]  # ohne „auf Anfrage“
+    assert rows == [("BL4711-A", "LED-Blitzleuchte, gelb, 12 V DC", "gelb"),  # Artikelart vorne, ohne „auf Anfrage“
+                    ("BL4711-B", "LED-Blitzleuchte, gelb, 24 V DC", "gelb")]
     assert [(z["artnr"], z["beschreibung"]) for z in tables[1]["zeilen"]] == [("BL900", "Magnetfuß")]  # gleiche Nr. einmal
     assert len(c["bilder_oben"]) == 1 and c["bilder_oben"][0].endswith(".png")  # freigestelltes Produktbild
     assert "1 von 3 Artikelnummern stehen in eurer aktuellen Preisliste des Herstellers." in r.report
@@ -145,3 +146,10 @@ def test_local_ai_writes_description_but_never_invents_numbers(settings):
         assert "Die Blitzleuchte ist robust" in ai.prompts[-1]
     finally:
         set_provider(None)
+
+
+def test_product_type_in_description():
+    assert dsi.with_product_type("LED-Lichtsignalgeber", "LED rot, 12 V DC") == "LED-Lichtsignalgeber, rot, 12 V DC"
+    assert dsi.with_product_type("LED Rundumleuchten", "LED Rundumleuchte, Rotation, gelb") == "LED Rundumleuchte, Rotation, gelb"
+    assert dsi.with_product_type("Arbeitsscheinwerfer", "rund, 1200 lm") == "Arbeitsscheinwerfer, rund, 1200 lm"
+    assert dsi.with_product_type("", "LED rot") == "LED rot"
