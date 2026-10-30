@@ -26,6 +26,7 @@ Barlow (Verkehrsschild-Grotesk) für Text, Barlow Semi Condensed für Überschri
 - Erkennungszeichen: blauer Balken vor dem Seitentitel (wie im Datenblatt-Kopf). Sonst keine Deko.
 - Keine Schatten auf Karten, nur 1px-Linien. Radien: 10px Flächen, 6px Bedienelemente, 4px Status-Tags.
 - Keine Großbuchstaben-Labels, keine Überzeilen („Eyebrows“), keine Pfeile in Buttontexten, keine Farbverläufe.
-- Navigation oben: Kernablauf als Reiter, Seltenes unter „Weitere“; ein Hauptknopf „Liste einspielen“.
+- Navigation: helle Seitenleiste links mit Symbolen, Kernablauf oben, Seltenes unter „Weitere“; ein Hauptknopf
+  „Liste einspielen“. Aktiver Eintrag blau hinterlegt mit Balken links. Startseite und Datenblatt: schmale Kopfleiste.
 - Offene Zeilen/Aufgaben: Amber-Streifen links. Rot nur für echte Fehler.
 - Schnell bleiben: Server-HTML, reines CSS, nur kleine Scripts; keine Frameworks, keine externen Ressourcen.
