@@ -332,3 +332,45 @@ def ai_update_match(ctx: JobContext, p: dict) -> dict:
             db.get(PriceUpdateItem, item_id).ai_hint = hint
         ctx.progress(done, total, f"{done} von {total}")
     return {"update_id": upd_id, "anfragen": total, **counts}
+
+
+# ---------- Datenblatt aus Hersteller-PDF ----------
+
+@handler("DATENBLATT_IMPORT")
+def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
+    """Hersteller-PDF lesen und den Baukasten des (leeren) Datenblatts füllen. Die lokale KI formuliert nur den
+    Beschreibungstext, wenn sie läuft; sonst gekürzter Originaltext."""
+    from backend.models.entities import Datasheet
+    from backend.services import datasheet_import as dsi
+    from backend.services import datasheets as ds
+
+    sheet_id = p["datasheet_id"]
+    path = ds.image_dir(ctx.settings, sheet_id) / "hersteller.pdf"
+    code, known = None, None
+    if p.get("manufacturer_id"):
+        with session_scope() as db:
+            m = db.get(Manufacturer, p["manufacturer_id"])
+            code = m.code if m else None
+            current = db.scalar(select(PriceList).where(PriceList.manufacturer_id == p["manufacturer_id"],
+                                                        PriceList.kind == "UNSERE", PriceList.status == "IMPORTIERT")
+                                .order_by(PriceList.id.desc()))
+            if current:
+                known = {n for n in db.scalars(select(Article.article_number_normalized)
+                                               .where(Article.price_list_id == current.id)) if n}
+    ai = get_provider(ctx.settings)
+    ai = ai if ai.status().active else None
+    steps = iter(range(1, 10))
+
+    def progress(message):
+        ctx.check_cancel()
+        ctx.progress(next(steps), 4, message)
+
+    result = dsi.build(path.read_bytes(), ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
+                       progress=progress)
+    with session_scope() as db:
+        sheet = db.get(Datasheet, sheet_id)
+        content = ds.sanitize(result.content, ds.image_names(ctx.settings, sheet_id))
+        sheet.content = content
+        sheet.title = ds.title_of(content)
+    path.unlink(missing_ok=True)  # Herstellerblatt wird nicht aufbewahrt
+    return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None}

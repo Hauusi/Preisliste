@@ -27,6 +27,10 @@ def _job(db: Session, job_id: int, user: User) -> Job:
 def result_link(job: Job) -> tuple[str, str] | None:
     r = job.result or {}
     p = job.params or {}
+    if job.type == "DATENBLATT_IMPORT":
+        if job.status == "FERTIG":
+            return f"/datenblatt/{r.get('datasheet_id')}?import={job.id}", "Datenblatt öffnen"
+        return ("/datenblatt", "Zurück zu den Datenblättern") if job.status in ("FEHLER", "ABGEBROCHEN") else None
     if job.status != "FERTIG":
         if job.type == "IMPORT":
             return f"/import/{p.get('price_list_id')}", "Zurück zur Import-Vorschau"
@@ -57,6 +61,8 @@ def result_link(job: Job) -> tuple[str, str] | None:
 def _auto_go(job: Job) -> bool:
     """Nach dem Import automatisch weiter zum Ergebnis (Abgleich bzw. neue eigene Liste)."""
     r = job.result or {}
+    if job.type == "DATENBLATT_IMPORT":
+        return job.status == "FERTIG"
     return job.type == "IMPORT" and job.status == "FERTIG" and bool(r.get("update_id") or r.get("kind") == "UNSERE")
 
 

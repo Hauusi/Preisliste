@@ -129,6 +129,14 @@
       <a class="button" href="/datenblatt/{{ sheet.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 18) }} Drucken / PDF</a>
     </div>
   </div>
+  {% if imported %}
+  <section class="msg UNKLAR import-report">
+    <b>Aus dem Herstellerblatt erstellt – bitte prüfen.</b>
+    {{ imported.zahlen.technische_daten }} Technische Daten, {{ imported.zahlen.artikel }} Artikelnummern, {{ imported.zahlen.bilder }} Bilder übernommen.
+    Beschreibung {{ "von der lokalen KI formuliert" if imported.ki else "als gekürzter Originaltext" }}.
+    {% if imported.bericht %}<ul>{% for r in imported.bericht %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
 
   <div class="dse-grid">
     <div class="dse-edit">

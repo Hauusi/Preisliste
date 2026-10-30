@@ -14,7 +14,8 @@ from backend.api.render import render
 from backend.api.templating import templates
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
-from backend.models.entities import Datasheet, User, utcnow
+from backend.models.entities import Datasheet, Job, Manufacturer, User, utcnow
+from backend.services import datasheet_import as dsi
 from backend.services import datasheets as ds
 from backend.services.access import get_visible, is_admin, visible
 from backend.services.audit import audit
@@ -48,7 +49,40 @@ def overview(request: Request, error: str | None = None, db: Session = Depends(g
              user: User = Depends(current_user)):
     sheets = db.scalars(visible(select(Datasheet).order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
     owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
-    return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error})
+    manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
+    return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
+                                               "manufacturers": manufacturers})
+
+
+@router.post("/datenblatt/aus-pdf", dependencies=[Depends(check_csrf)])
+async def create_from_pdf(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user),
+                          settings: Settings = Depends(get_settings)):
+    """Hersteller-Datenblatt (PDF) hochladen: leeres Datenblatt anlegen, Baukasten im Hintergrund füllen."""
+    from urllib.parse import quote
+
+    from backend.jobs.runner import enqueue
+
+    form = await request.form()
+    upload = form.get("datei")
+    if not ds.is_upload(upload):
+        return RedirectResponse("/datenblatt?error=" + quote("Bitte ein PDF auswählen"), status_code=303)
+    data = await upload.read(dsi.MAX_PDF_BYTES + 1)
+    try:
+        dsi.check_pdf(data)
+    except dsi.PdfError as exc:
+        return RedirectResponse("/datenblatt?error=" + quote(str(exc)), status_code=303)
+    mid = str(form.get("hersteller") or "")
+    manufacturer = get_visible(db, Manufacturer, int(mid), user) if mid.isdigit() else None
+    content = ds.empty_content()
+    content["kopf"]["titel"] = "Wird aus dem Herstellerblatt erstellt"
+    sheet = Datasheet(owner_id=user.id, title=content["kopf"]["titel"], content=content)
+    db.add(sheet)
+    db.flush()
+    dsi.save_pdf(settings, sheet.id, data)
+    job = enqueue(db, "DATENBLATT_IMPORT", {"datasheet_id": sheet.id, "manufacturer_id": manufacturer.id if manufacturer else None,
+                                           "datei": str(upload.filename)[:200]}, user)
+    audit(db, user, "datenblatt_aus_pdf", "datasheet", sheet.id, {"datei": str(upload.filename)[:200]}, client_ip(request))
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
 
 @router.get("/datenblatt/neu")
@@ -77,12 +111,18 @@ def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user:
     sheet = get_visible(db, Datasheet, sheet_id, user)
     c = ds.normalized(sheet.content)
     html, count = _pages_html(sheet, c)
+    imported = None  # Bericht nach „aus Herstellerblatt erstellen“
+    job_id = request.query_params.get("import")
+    if job_id and job_id.isdigit():
+        job = db.get(Job, int(job_id))
+        if job and job.type == "DATENBLATT_IMPORT" and (job.result or {}).get("datasheet_id") == sheet.id:
+            imported = job.result
     return render(request, "datasheet_editor.html", {
         "portal": True, "wide": True, "sheet": sheet, "c": c, "pages_html": html, "page_count": count,
         "colors": ds.COLORS, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
         "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,
         "max_columns": ds.MAX_COLUMNS, "new_table": ds.new_table(), "new_accessories": ds.new_table(zubehoer=True),
-        "new_image": ds.new_image_block(), "twins": ds.twin_names(settings, sheet.id),
+        "new_image": ds.new_image_block(), "twins": ds.twin_names(settings, sheet.id), "imported": imported,
     })
 
 

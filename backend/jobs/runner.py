@@ -26,6 +26,7 @@ JOB_LABELS = {
     "AI_MATCH": "KI-Zuordnung",
     "AI_UPDATE_MATCH": "KI-Prüfung Jahresabgleich",
     "AI_RULE": "KI-Regelvorschlag",
+    "DATENBLATT_IMPORT": "Datenblatt aus Herstellerblatt",
 }
 
 
