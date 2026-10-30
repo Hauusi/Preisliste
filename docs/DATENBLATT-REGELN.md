@@ -31,9 +31,9 @@ Zeilen ohne Angabe beim Hersteller entfallen (ECCO: keine Lichtleistung, kein Le
 
 | B&B | Englisch beim Hersteller | Beispiel Hersteller → B&B |
 |---|---|---|
-| Spannungsbereich | Voltage (DC), Voltage, Operating voltage | „10-40 V DC“ → „10-32V“ *(siehe offene Fragen)*; „10-30V“ → „10-30V“ |
+| Spannungsbereich | Voltage (DC), Voltage, Operating voltage | „10-40 V DC“ → „10-40V“; „10-30V“ → „10-30V“ |
 | Lichtleistung | Actual lumen, Raw lumen, Luminous flux | Serie: Spanne „1.520 - 21.600lm (931 - 13.000lm gemessen)“ – theoretisch zuerst, gemessen in Klammern |
-| Wasserdicht | IP-class, IP rating | „IP67/69K“ → „IP67 & IP69k“; keine IP-Angabe → „✓“ (ECCO) |
+| Wasserdicht | IP-class, IP rating | „IP67/69K“ → „IP67, IP69k“; keine IP-Angabe → „✓“ (ECCO) |
 | Montage | Mount, Mounting | „3 Bolt / 1 Bolt“ → „Fixmontage“, „Mag 50/70“ → „Magnetmontage“, „Flexi DIN Pole“ → „flexible Rohrmontage“, „DIN Pole“ → „Rohrmontage“, Schraube allgemein → „Schraubmontage“; mehrere: „Fix-, Magnet-, flexible Rohrmontage“ |
 | Zulassungen | ECE approval, Approvals, „R65“/„R10“-Logos | „R10.06“ → „ECE-R10“; Logos R65/R10 → „ECE-R65, ECE-R10“; Sonderfall mit Artikel: „ECE-R23 (ST809234)“. „E-approved: No“ entfällt |
 | Gehäuse | Material housing/chassi, Housing | „Aluminium“ → „Aluminium“; Kunststoff/Polycarbonat → „Kunststoff“ |
@@ -50,7 +50,7 @@ ECCO: Flash-Pattern-Liste (wird zu „7 Funktionen“ / „Doppelblitz“ in Tex
 - Tausenderpunkt: „21.600lm“.
 - Bereiche mit Bindestrich ohne Leerzeichen: „10-32V“; Spannen in Lichtleistung mit „ - “.
 - Maße „B x H x T mm“, rund „ø D x H mm“.
-- Mehrere Werte: „&“ bei IP („IP67 & IP69k“), sonst Komma.
+- Mehrere Werte mit Komma („IP67, IP69k“).
 
 ## 4. Artikelbeschreibung
 
@@ -66,10 +66,10 @@ Muster: **Produktart Singular**, Ausstattung, Spannung, Leistung/Montage, Funkti
 
 | Englisch | B&B |
 |---|---|
-| work light, worklight | Scheinwerfer *(siehe offene Fragen)* |
+| work light, worklight | Arbeitsscheinwerfer (gemischte Serie: Scheinwerfer) |
 | reversing light, reverse light | Rückfahrscheinwerfer |
 | beacon (rotierend) | Rundumleuchte |
-| beacon (blitzend), flash beacon, strobe | Blitzleuchte *(siehe offene Fragen)* |
+| beacon (blitzend), flash beacon, strobe | Blitzleuchte |
 | amber | gelb (Linse: „gelbe Linse“) |
 | clear | klar |
 | bolt mount, 1/3 bolt | Fixmontage |
@@ -87,12 +87,26 @@ Muster: **Produktart Singular**, Ausstattung, Spannung, Leistung/Montage, Funkti
 | polycarbonate (Gehäuse) | Kunststoff |
 | X year warranty | X Jahre Garantie |
 
-## 6. Offene Fragen (vom Besitzer zu klären)
+## 6. Entscheidungen des Besitzers
 
-1. **Work light:** B&B schreibt bei Unity „LED Scheinwerfer“, der Import macht bisher „LED Arbeitsscheinwerfer“
-   (Scorpius). Welche Bezeichnung gilt?
-2. **ECCO 400:** Titel „LED RUNDUMLEUCHTEN“, Spezifikation und Beschreibung „LED Blitzleuchte(n)“, Dateiname
-   „Blitzleuchten“. Was ist richtig für blitzende LED-Beacons?
-3. **Spannung Unity:** Hersteller „10-40 V DC“, B&B „10-32V“. Bewusst eingeschränkt oder aus anderer Quelle?
-4. **Lumen Unity 809237:** Hersteller „Actual lumen 2200 lm“, B&B-Tabelle „2.750lm“. Welche Quelle gilt
-   (theoretisch/gemessen)?
+1. **Work light:** einheitlich „Arbeitsscheinwerfer“. Unity heißt bei B&B „LED Scheinwerfer“, weil die Serie
+   Arbeits- und Rückfahrscheinwerfer enthält (Oberbegriff bei gemischten Serien).
+2. **Blitzend ohne rotierendes Leuchtbild = Blitzleuchte**, rotierend = Rundumleuchte. Der Titel
+   „LED RUNDUMLEUCHTEN“ beim ECCO-400-Blatt ist ein Tippfehler.
+3. **Spannung:** Herstellerwert übernehmen (B&B „10-32V“ bei Unity war vermutlich ein Tippfehler).
+4. **Lichtleistung:** theoretischer Wert zuerst, gemessener in Klammern („1.600-4.800lm (1.000-3.000lm gemessen)“).
+   Nennt der Hersteller nur den gemessenen Wert („Actual lumen“), steht „2.200lm gemessen“.
+5. **Schutzart:** Komma wie in den meisten B&B-Blättern („IP68, IP6K9K“, „IP67, IP69k“).
+
+## 7. Im Import umgesetzt
+
+- Wörterbuch aus Abschnitt 5 (`VALUE_DE`), Schreibweise aus Abschnitt 3 (`bb_value`) für die B&B-Zeilen.
+- Englische Überschriften („Models“, „Flash Patterns“), Datentabellen ohne Überschrift, „Part No.“ bei Blättern
+  für ein Modell, Modelltabellen nur mit Merkmalsspalten (VOLTAGE, MOUNT): Beschreibung daraus, Spannungsbereich
+  und Montage daraus („Fix-, Magnet-, flexible Rohrmontage“).
+- Serienname ohne Produktart/Leistung („Unity Work Light 31W“ → „Serie Unity“, „400 Series“ → „Serie 400“).
+- Kabellänge + Deutsch-Stecker → Aufzählungspunkt und Artikelbeschreibung.
+- Zulassung aus dem Text, wenn keine Datenzeile („ECE R65 Approved“).
+
+Nicht automatisch: deutscher Beschreibungstext (nur mit lokaler KI, sonst bleibt der englische Text), Garantie aus
+Logos, Auswahl der Varianten, „gelbe Linse“ wenn die Farbe nur im Bild steht, Wasserdicht „✓“ ohne IP-Angabe.

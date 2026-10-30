@@ -41,10 +41,10 @@ def test_build_fills_all_blocks(settings):
     # B&B-Begriffe in B&B-Reihenfolge
     assert [p["name"] for p in c["eigenschaften"] if p["name"]] == [
         "Spannungsbereich", "Wasserdicht", "Montage", "Zulassungen", "Gehäuse", "Abmessungen"]
-    assert props["Spannungsbereich"] == "12 V DC: 10 bis 15 V\n24 V DC: 20 bis 30 V"  # je Spalte untereinander
-    assert props["Wasserdicht"] == "IP 67" and props["Montage"] == "Schraubmontage\nMagnetfuß"  # Folgezeile
+    assert props["Spannungsbereich"] == "12V: 10 bis 15V\n24V: 20 bis 30V"  # je Spalte untereinander, B&B-Schreibweise
+    assert props["Wasserdicht"] == "IP67" and props["Montage"] == "Schraubmontage\nMagnetfuß"  # Folgezeile
     assert [p["wert"] for p in c["eigenschaften"] if not p["name"]] == ["5 Jahre Garantie", "Synchronisierbar"]
-    assert c["spez"]["zeilen"] == [{"merkmal": "Leistung", "wert": "12 V DC: ca. 5 W\n24 V DC: ca. 6 W"}]
+    assert c["spez"]["zeilen"] == [{"merkmal": "Leistung", "wert": "12V DC: ca. 5W\n24V DC: ca. 6W"}]
     tables = [b for b in c["bloecke"] if b["typ"] == "tabelle"]
     assert [(t["titel"], t["zusatz"]) for t in tables] == [("Bestellinformationen", "Typ rund"), ("Zubehör", "")]
     rows = [(z["artnr"], z["beschreibung"], z["farbe"]) for z in tables[0]["zeilen"]]
@@ -178,7 +178,7 @@ def test_bb_terms_warranty_bullet_and_multicolor(settings):
             (50, 600, 10, "SB-100"), (250, 600, 10, "Leuchtbalken Tricolour (gelb/blau/klar)")]
     c = dsi.build(make_pdf([page]), settings, 7).content
     named = [(p["name"], p["wert"]) for p in c["eigenschaften"] if p["wert"]]
-    assert named == [("Spannungsbereich", "10-30 V"), ("Lichtleistung", "1.600 lm"), ("Gehäuse", "Aluminium"),
+    assert named == [("Spannungsbereich", "10-30V"), ("Lichtleistung", "1.600lm"), ("Gehäuse", "Aluminium"),
                      ("", "5 Jahre Garantie")]
     row = ds.tables(c)[0]["zeilen"][0]
     assert row["farbe"] == "gelb/blau/klar"
@@ -209,7 +209,7 @@ def test_manufacturer_sheet_side_by_side_gets_product_type_and_numbers(settings)
     c = dsi.build(make_pdf([page]), settings, 9).content
     assert c["kopf"] == {"titel": "LED Arbeitsscheinwerfer", "untertitel": "Serie Scorpius GO 410"}
     props = {p["name"]: p["wert"] for p in c["eigenschaften"] if p["name"]}
-    assert props["Spannungsbereich"] == "12 - 24 V\n36 - 48 V"
+    assert props["Spannungsbereich"] == "12-24V\n36-48V"
     assert props["Wasserdicht"] == "IP68"
     rows = [(r["artnr"], r["beschreibung"]) for t in ds.tables(c) for r in t["zeilen"]]
     assert rows == [("988-202B", "LED Arbeitsscheinwerfer Scorpius GO 410, Flood (12-24 V)"),
@@ -232,3 +232,69 @@ def test_black_line_drawing_on_transparency_is_drawing():
     filled = Image.new("RGBA", (400, 300), (0, 0, 0, 0))
     ImageDraw.Draw(filled).rectangle((40, 40, 360, 260), fill=(5, 7, 8, 255))
     assert dsi._image_kind(filled) is None  # Silhouette/Schattenmaske
+
+
+def test_english_values_in_bb_spelling():
+    assert dsi.bb_value("Spannungsbereich", "10-40 V DC") == "10-40V"
+    assert dsi.bb_value("Lichtleistung", "2200 lm") == "2.200lm"
+    assert dsi.bb_value("Wasserdicht", "IP67/69K") == "IP67, IP69k"
+    assert dsi.bb_value("Wasserdicht", "IP68, IP6K9K") == "IP68, IP6K9K"
+    assert dsi.bb_value("Zulassungen", "R10.06") == "ECE-R10"
+    assert dsi.bb_value("Gehäuse", "Polycarbonate") == "Kunststoff"
+    assert dsi.bb_value("Leuchtbild", "Flood beam") == "Flood"
+    assert dsi.bb_value("Zulassungen", "No") == ""
+    assert dsi.translate_value("Flexi DIN Pole") == "flexible Rohrmontage"
+    assert dsi.translate_value("Mag 70") == "Magnetmontage"
+    assert dsi.translate_value("3 Bolt") == "Fixmontage"
+    assert dsi.translate_value("DT-2PIN") == "Deutsch Stecker"
+    assert dsi.join_mounts(["Fixmontage", "flexible Rohrmontage", "Magnetmontage"]) == "Fix-, Magnet-, flexible Rohrmontage"
+    assert dsi.series_name("UNITY WORK LIGHT 31W UNITY WORK LIGHT 31W") == "UNITY"
+    assert dsi.series_name("Beacons Serie 400") == "400"
+
+
+def test_english_sheet_with_model_table(settings):
+    """Wie ECCO: Kategorie als Überschrift, „400 Series“, Modelltabelle mit Merkmalsspalten, blitzende Beacons."""
+    page = [(50, 790, 20, "BEACONS"), (50, 770, 16, "400 Series"), (50, 755, 12, "R65 LED Beacons"),
+            (50, 730, 10, "The 400 Series LED Beacons produce a 360 degree flash pattern for maximum visibility on site."),
+            (50, 700, 12, "Models"),
+            (50, 685, 9, "PART NO."), (150, 685, 9, "VOLTAGE"), (250, 685, 9, "FPM"), (350, 685, 9, "MOUNT"),
+            (50, 672, 9, "V11050*"), (150, 672, 9, "10-30V"), (250, 672, 9, "125"), (350, 672, 9, "3 Bolt"),
+            (50, 660, 9, "V11054"), (150, 660, 9, "10-30V"), (250, 660, 9, "125"), (350, 660, 9, "Mag 70"),
+            (50, 648, 9, "V11055"), (150, 648, 9, "10-30V"), (250, 648, 9, "125"), (350, 648, 9, "Flexi DIN Pole")]
+    c = dsi.build(make_pdf([page]), settings, 10).content
+    assert c["kopf"] == {"titel": "LED Blitzleuchten", "untertitel": "Serie 400"}
+    props = {p["name"]: p["wert"] for p in c["eigenschaften"] if p["name"]}
+    assert props["Spannungsbereich"] == "10-30V"
+    assert props["Montage"] == "Fix-, Magnet-, flexible Rohrmontage"
+    assert props["Zulassungen"] == "ECE-R65"
+    rows = [(r["artnr"], r["beschreibung"]) for t in ds.tables(c) for r in t["zeilen"]]
+    assert rows[0] == ("V11050", "LED Blitzleuchte, 10-30V, Fixmontage")
+    assert rows[2] == ("V11055", "LED Blitzleuchte, 10-30V, flexible Rohrmontage")
+
+
+def test_english_single_model_sheet(settings):
+    """Wie Strands: ein Modell, „Part No.“, Datentabelle ohne Überschrift, zwei Spalten nebeneinander."""
+    page = [(50, 800, 10, "Part No. 809237"), (50, 780, 18, "UNITY WORK LIGHT 31W"), (50, 765, 10, "10-40V | FLOOD BEAM"),
+            (50, 740, 10, "Become a professional with the Unity series. Comes with a smooth look and strong light."),
+            (50, 700, 9, "Voltage (DC)"), (180, 700, 9, "10-40 V DC"), (320, 700, 9, "Cable length"), (450, 700, 9, "520 mm"),
+            (50, 688, 9, "Consumption"), (180, 688, 9, "29 W"), (320, 688, 9, "Color lens"), (450, 688, 9, "Clear"),
+            (50, 676, 9, "Actual lumen"), (180, 676, 9, "2200 lm"), (320, 676, 9, "IP-class"), (450, 676, 9, "IP67/69K"),
+            (50, 664, 9, "Beam pattern"), (180, 664, 9, "Flood beam"), (320, 664, 9, "E-approved"), (450, 664, 9, "No"),
+            (50, 652, 9, "Connection"), (180, 652, 9, "DT-2PIN"), (320, 652, 9, "ECE approval"), (450, 652, 9, "R10.06")]
+    c = dsi.build(make_pdf([page]), settings, 11).content
+    assert c["kopf"] == {"titel": "LED Arbeitsscheinwerfer", "untertitel": "Serie Unity"}
+    props = {p["name"]: p["wert"] for p in c["eigenschaften"] if p["name"]}
+    assert props["Spannungsbereich"] == "10-40V"
+    assert props["Lichtleistung"] == "2.200lm gemessen"
+    assert props["Wasserdicht"] == "IP67, IP69k"
+    assert props["Zulassungen"] == "ECE-R10"
+    assert props["Leuchtbild"] == "Flood"
+    bullets = [p["wert"] for p in c["eigenschaften"] if not p["name"]]
+    assert "52cm Anschlusskabel mit Deutsch Stecker" in bullets
+    rows = [(r["artnr"], r["beschreibung"]) for t in ds.tables(c) for r in t["zeilen"]]
+    assert rows == [("809237", "LED Arbeitsscheinwerfer, mit 52cm Anschlusskabel & Deutsch Stecker, 10-40V, 31W")]
+
+
+def test_rotating_beacon_stays_rundumleuchte():
+    assert dsi.product_type("", "LED beacon with rotating light and flash mode") == "Rundumleuchte"
+    assert dsi.product_type("", "LED beacon, 125 FPM double flash") == "Blitzleuchte"

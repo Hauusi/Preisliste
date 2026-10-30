@@ -26,10 +26,13 @@ MAX_PAGES = 20
 MAX_SPEC_ROWS_AUTO = 3  # weitere Daten zusätzlich zu den B&B-Standardzeilen; der Rest steht im Bericht
 
 HEADING_SPEC = re.compile(r"TECHNISCHE\s+DATEN|TECHNICAL\s+DATA|SPEZIFIKATION|SPECIFICATION|KENNDATEN|DATENBLATT", re.I)
-HEADING_ARTICLES = re.compile(r"ARTIKEL|BESTELL|ORDER|TYPEN|VARIANTEN|AUSF[ÜU]HRUNGEN|PART\s*NO", re.I)
+HEADING_ARTICLES = re.compile(r"ARTIKEL|BESTELL|ORDER|TYPEN|VARIANTEN|AUSF[ÜU]HRUNGEN|PART\s*NO|^MODELS?$", re.I)
+# Englische Abschnittsüberschriften in normaler Schreibweise („Models“, „Flash Patterns“)
+HEADING_EN = re.compile(r"^(models?|technical data|technical specifications?|specifications?|features|key features|"
+                        r"dimensions|flash patterns?|ordering information|accessories|applications?|description)$", re.I)
 HEADING_TEXT = re.compile(r"ANWENDUNG|BESCHREIBUNG|PRODUKT|VORTEIL|EIGENSCHAFT|DESCRIPTION|FEATURE|ALLGEMEIN|EINSATZ", re.I)
 ACCESSORY = re.compile(r"^(ZUBEH[ÖO]R|ACCESSOR)", re.I)
-ARTNR = re.compile(r"^(?=.*\d)[A-Za-z0-9][A-Za-z0-9.\-/]{2,24}$")
+ARTNR = re.compile(r"^(?=.*\d)[A-Za-z0-9][A-Za-z0-9.\-/]{2,24}\*?$")  # „V11050*“: Stern = Fußnote
 FOOTER = re.compile(r"\b(ltd|gmbh|inc|oy|s\.r\.l)\b\.?[ ,:]|www\.|https?://|\bp\.?\s?o\.? box\b|postfach|\bfon\b|\btel\.?\s*[+0-9(]|\bfax\b|@[\w-]+\.\w", re.I)
 SKIP_LINE = re.compile(r"^(www\.|http|fon|fax|tel|e-?mail|seite|page)\b", re.I)
 
@@ -37,14 +40,16 @@ SKIP_LINE = re.compile(r"^(www\.|http|fon|fax|tel|e-?mail|seite|page)\b", re.I)
 # (Spannungsbereich, Lichtleistung, Wasserdicht, Montage, Zulassungen, Gehäuse, Abmessungen, Leuchtbild)
 PROPERTY_SYNONYMS = {
     "Spannungsbereich": ("spannungsbereich", "betriebsspannung", "nennspannung", "spannung", "nominale spannung",
-                         "eingangsspannung", "voltage", "supply voltage", "operating voltage", "nominal voltage"),
+                         "eingangsspannung", "voltage", "supply voltage", "operating voltage", "nominal voltage",
+                         "voltage (dc)", "input voltage"),
     "Lichtleistung": ("lichtleistung", "lichtstrom", "lichtausbeute", "theoretische lichtausbeute", "luminous flux",
-                      "lumen", "light output", "effective lumens", "raw lumens"),
+                      "lumen", "light output", "effective lumens", "raw lumens", "actual lumen", "theoretical lumen"),
     "Wasserdicht": ("wasserdicht", "schutzart", "internationale schutzart", "schutzklasse", "ip-schutz", "ip rating",
-                    "protection", "ingress", "ip class"),
-    "Montage": ("montage", "befestigung", "mounting", "installation"),
-    "Zulassungen": ("zulassung", "zulassungen", "approval", "homologation", "prüfzeichen", "zertifizierung", "emv", "emc"),
-    "Gehäuse": ("gehäuse", "material", "housing"),
+                    "protection", "ingress", "ip class", "ip-class"),
+    "Montage": ("montage", "befestigung", "mounting", "mount", "installation"),
+    "Zulassungen": ("zulassung", "zulassungen", "approval", "ece approval", "e-approved", "homologation", "prüfzeichen",
+                    "zertifizierung", "emv", "emc"),
+    "Gehäuse": ("gehäuse", "material", "housing", "material housing"),
     "Abmessungen": ("abmessung", "abmessungen", "maße", "dimension", "größe", "size"),
     "Leuchtbild": ("leuchtbild", "abstrahlcharakteristik", "beam pattern", "lichtverteilung"),
 }
@@ -64,6 +69,7 @@ PRODUCT_TYPES = {
     "Signalsäule": "Signalsäulen", "Sirene": "Sirenen", "Signalhorn": "Signalhörner", "Ampel": "Ampeln",
 }
 PRODUCT_TYPES_EN = {"work light": "Arbeitsscheinwerfer", "worklight": "Arbeitsscheinwerfer", "work lamp": "Arbeitsscheinwerfer",
+                    "reverse light": "Rückfahrscheinwerfer", "reversing lamp": "Rückfahrscheinwerfer",
                     "beacon": "Rundumleuchte", "light bar": "Leuchtbalken", "lightbar": "Leuchtbalken",
                     "reversing light": "Rückfahrscheinwerfer", "flasher": "Blitzleuchte", "strobe": "Blitzleuchte",
                     "camera system": "Kamerasystem", "headlight": "Scheinwerfer", "driving light": "Fernscheinwerfer"}
@@ -78,7 +84,30 @@ SPEC_DE = {"power": "Leistung", "power consumption": "Leistungsaufnahme", "volta
            "Betriebstemperatur", "temperature": "Temperatur", "cable length": "Kabellänge", "connection": "Anschluss",
            "luminous intensity": "Lichtstärke", "luminous flux": "Lichtstrom", "light colour": "Lichtfarbe",
            "light color": "Lichtfarbe", "lens colour": "Linsenfarbe", "flash pattern": "Blitzmuster",
-           "protection class": "Schutzart", "approval": "Zulassung", "mounting": "Montage", "warranty": "Garantie"}
+           "protection class": "Schutzart", "approval": "Zulassung", "mounting": "Montage", "warranty": "Garantie",
+           "consumption": "Leistungsaufnahme", "power consumption (w)": "Leistungsaufnahme",
+           "color temperature": "Farbtemperatur", "colour temperature": "Farbtemperatur", "color lens": "Linsenfarbe",
+           "colour lens": "Linsenfarbe", "material lens": "Linsenmaterial", "lens material": "Linsenmaterial",
+           "functions": "Funktion", "function": "Funktion", "flash rate": "Blitzfrequenz", "fpm": "Blitze/min"}
+# Englische Werte -> B&B-Wörter (Reihenfolge zählt: längere Ausdrücke zuerst). Siehe docs/DATENBLATT-REGELN.md.
+VALUE_DE = [
+    (r"\bflexi(ble)?\s+din\s+pole(\s+mount)?\b", "flexible Rohrmontage"),
+    (r"\b(din\s+)?pole\s+mount\b|\bdin\s+pole\b", "Rohrmontage"),
+    (r"\b\d?\s*bolt\s+flexi\b", "flexible Fixmontage"),
+    (r"\b\d?\s*bolt(\s+conical)?(\s+mount)?\b|\bbolt-on\b|\bpermanent\s+mount\b", "Fixmontage"),
+    (r"\bmag(netic)?(\s+\d+)?(\s+mount)?\b", "Magnetmontage"),
+    (r"\bsingle\s+bolt\b|\bscrew\s+mount(ing)?\b", "Schraubmontage"),
+    (r"\b(DT-?\d{1,2}\s*-?\s*PIN|DT0?\d-\dP|deutsch\s+(DT-?\d+\s*)?connector)\b", "Deutsch Stecker"),
+    (r"\b(die-?cast\s+)?alumin(i)?um\b", "Aluminium"),
+    (r"\bpolycarbonate\b", "Polycarbonat"),
+    (r"\bdouble\s+flash\b", "Doppelblitz"), (r"\btriple\s+flash\b", "Dreifachblitz"),
+    (r"\bsingle\s+flash\b", "Einzelblitz"), (r"\bsteady\s+burn\b", "Dauerlicht"), (r"\brotating\b", "Rotation"),
+    (r"\bamber\b", "gelb"), (r"\byellow\b", "gelb"), (r"\bclear\b", "klar"), (r"\bred\b", "rot"),
+    (r"\bblue\b", "blau"), (r"\bgreen\b", "grün"), (r"\bwhite\b", "weiß"),
+    (r"\b(\d+)\s*years?\b", r"\1 Jahre"), (r"\bwork\s*light\b", "Arbeitsscheinwerfer"),
+]
+NO_VALUE = re.compile(r"^(no|nein|n/?a|-|–|none|keine?)$", re.I)
+MEASURED = re.compile(r"actual|effective|gemessen|betrieb|measured|effektiv|tatsächlich", re.I)
 
 
 @dataclass
@@ -166,7 +195,7 @@ def sections(texts: list[str]) -> list[tuple[str, list[str]]]:
                 out[-1][1].append("")
                 continue
             cells = _cells(line)
-            if _is_heading(line):
+            if _is_heading(line) or (len(cells) == 1 and cells[0][0] < 20 and HEADING_EN.match(cells[0][2])):
                 out.append((_clean_heading(line), []))
             elif len(cells) >= 2 and all(_is_heading(c[2]) for c in cells):
                 out.append((" / ".join(_clean_heading(c[2]) for c in cells), []))  # „ANSCHLUSS   HAUPTMERKMALE“
@@ -199,7 +228,9 @@ def _join_lines(lines: list[str]) -> list[str]:
     for line in lines + [""]:
         s = re.sub(r"\s+", " ", line.strip())
         if re.search(r"\S\s{3,}\S", line.strip()):
-            s = ""  # Tabellenzeile (breite Lücken), kein Fließtext; Blocksatz hat höchstens 2 Leerzeichen
+            first = _cells(line)[0]
+            # Tabellenzeile (breite Lücken) – außer langer Text links mit einer rechten Spalte daneben
+            s = re.sub(r"\s+", " ", first[2]) if first[0] < 4 and len(first[2]) > 50 else ""
         if not s or BULLET.match(s):
             if cur:
                 paras.append(cur)
@@ -225,12 +256,18 @@ def _title(texts: list[str], meta_title: str | None = None) -> tuple[str, str]:
     for i, line in enumerate(first[:12]):
         if _is_heading(line) and not (HEADING_SPEC.search(line) or HEADING_ARTICLES.search(line) or HEADING_TEXT.search(line)):
             title = line
-            nxt = first[i + 1] if i + 1 < len(first) else ""
+            after = [x for x in first[i + 1:i + 4] if x.lower() != line.lower()]  # doppelte Überschrift überspringen
+            nxt = after[0] if after else ""
             if nxt.startswith("(") or (nxt and _is_heading(nxt) and len(nxt) <= 30 and not HEADING_SPEC.search(nxt)
                                         and not HEADING_TEXT.search(nxt)):
                 sub = nxt.strip("()")
             elif re.fullmatch(r"[A-Z0-9][A-Z0-9 .\-/+]{0,10}", nxt or "") and any(c.isdigit() for c in nxt):
                 title = f"{title} {nxt}"  # Modellnummer in eigener Zeile, z. B. „SCORPIUS GO“ / „410“
+            break
+    for line in first[:10]:  # „400 Series“ / „Serie Atlas“ in eigener Zeile
+        m = re.fullmatch(r"(?:(.{1,20}?)\s+series|(?:serie|series)\s+(.{1,20}))", line, re.I)
+        if m and not sub and line.lower() != title.lower():
+            sub = "Serie " + (m.group(1) or m.group(2))
             break
     if not title and meta_title:
         title = re.sub(r"\.(indd|docx?|pdf|ai|qxp)$", "", meta_title.strip(), flags=re.I)
@@ -275,7 +312,8 @@ def _spans_all(cell: tuple[int, int, str], centers: list[float]) -> bool:
 
 
 def _is_label(text: str) -> bool:
-    return bool(re.match(r"^[A-ZÄÖÜ][a-zäöüß]", text)) and sum(c.isalpha() for c in text) >= 4
+    # „Spannung“, auch „IP-class“, „E-approved“
+    return bool(re.match(r"^[A-ZÄÖÜ]([a-zäöüß]|[A-Z]?-[a-zäöüß])", text)) and sum(c.isalpha() for c in text) >= 4
 
 
 def split_side_by_side(lines: list[str]) -> list[list[str]]:
@@ -411,15 +449,19 @@ def _parse_list(lines: list[str], groups: list[dict]) -> None:
     der Kopfzeile rechts der Beschreibung (z. B. Länge, Zulassung) werden Zusatzspalten."""
     anchors, loose = [], []
     extra, extra_centers, desc_end = [], [], None
+    attrs, attr_end = [], None  # Kopfzeile nur mit Merkmalen („PART NO. VOLTAGE FPM MOUNT“), ohne Beschreibung
     for i, line in enumerate(lines):
         cells = _cells(line)
         if not cells:
             continue
         if ARTNR.match(cells[0][2]):
-            anchors.append([i, cells[0][2], [c for c in cells[1:] if c[2] not in "●•○"]])
+            anchors.append([i, cells[0][2].rstrip("*"), [c for c in cells[1:] if c[2] not in "●•○"]])
         elif HEAD_WORDS.match(cells[0][2]) and len(cells) >= 2 and not anchors:
             heads = cells[2:] if HEAD_WORDS.match(cells[1][2]) else cells[1:]
-            if len(cells) >= 3 and HEAD_WORDS.match(cells[1][2]):
+            if cells[0][2].isupper() and not HEAD_WORDS.match(cells[1][2]):
+                attrs = [c for c in heads if c[2].isupper()][:6]  # klein Geschriebenes rechts: Bildbeschriftung
+                attr_end = attrs[-1][1] + 8 if attrs else None
+            elif len(cells) >= 3 and HEAD_WORDS.match(cells[1][2]):
                 desc_end = (cells[1][1] + cells[2][0]) / 2
                 extra = [c[2] for c in heads][:ds.MAX_COLUMNS]
                 extra_centers = [(c[0] + c[1]) / 2 for c in heads][:ds.MAX_COLUMNS]
@@ -435,6 +477,22 @@ def _parse_list(lines: list[str], groups: list[dict]) -> None:
         if i > nearest[0]:
             nearest[2].extend(cells)
     groups[-1]["spalten"] = extra
+    if attrs:
+        centers = [(c[0] + c[1]) / 2 for c in attrs]
+        table = {c[2]: [] for c in attrs}
+        for _i, nr, cells in anchors:
+            values = [""] * len(attrs)
+            for c in cells:
+                if c[0] <= attr_end:
+                    k = _column_of(c, centers)
+                    values[k] = f"{values[k]} {c[2]}".strip()
+            for c, v in zip(attrs, values):
+                table[c[2]].append(v)
+            # Beschreibung aus den Merkmalen; reine Zahlen ohne Einheit (z. B. Blitze/min) weglassen
+            desc = ", ".join(translate_value(v) for v in values if v and not re.fullmatch(r"[\d.,]+", v))
+            groups[-1]["zeilen"].append((nr, desc, []))
+        groups[-1]["attrs"] = table
+        return
     for _i, nr, cells in anchors:
         desc, values = [], [""] * len(extra)
         for c in cells:
@@ -642,11 +700,59 @@ def _property_for(label: str) -> str | None:
     """B&B-Begriff für ein Merkmal: ganzes Wort am Anfang oder als eigenes Wort („Nominale Spannung (GS)“,
     „Montage / Befestigung“ ja; „Gehäusefarben“ nein)."""
     low = re.sub(r"\s+", " ", label.lower().strip(" :"))
+    if re.search(r"lens|linse|streuscheibe|lux\b|temperat", low):
+        return None  # „Material lens“, „Color temperature“: eigene Zeilen, kein B&B-Standardbegriff
     for name, words in PROPERTY_SYNONYMS.items():
         if any(low == w or re.match(re.escape(w) + r"\b", low) or re.search(r"(^|[\s/(])" + re.escape(w) + r"\b", low)
                for w in words):
             return name
     return None
+
+
+def translate_value(value: str) -> str:
+    """Englische Werte in B&B-Wörter (VALUE_DE); unbekannte Wörter bleiben stehen."""
+    for pattern, repl in VALUE_DE:
+        value = re.sub(pattern, repl, value, flags=re.I)
+    return value
+
+
+def _thousands(m: re.Match) -> str:
+    return f"{int(m.group()):,}".replace(",", ".")
+
+
+def bb_value(name: str, value: str) -> str:
+    """Wert in B&B-Schreibweise: Einheit ohne Leerzeichen („10-30V“, „1.520lm“), „IP67, IP69k“, „ECE-R10“."""
+    value = translate_value(value.strip())
+    if NO_VALUE.match(value):
+        return ""
+    value = re.sub(r"(\d)\s+(V|W|A|mm|cm|kg|lm|K|Hz)\b", r"\1\2", value)
+    if name == "Spannungsbereich":
+        value = re.sub(r"\s*\(?\bDC\b\)?", "", value)
+        value = re.sub(r"(\d)\s*-\s*(\d)", r"\1-\2", value)
+    elif name == "Lichtleistung":
+        value = re.sub(r"(?<![\d.,])\d{4,6}(?![\d.,])", _thousands, value)
+    elif name == "Wasserdicht":
+        value = re.sub(r"\bIP\s+(\d)", r"IP\1", value)
+        parts = [x for x in re.split(r"\s*(?:/|,|&|\+|\bund\b|\band\b)\s*", value) if x]
+        if parts and all(re.match(r"^(IP)?\d", x, re.I) for x in parts):
+            value = ", ".join(x if x.upper().startswith("IP") else f"IP{x}" for x in parts)
+            value = re.sub(r"\b(IP\d\d)K\b", r"\1k", value)  # „IP69k“ wie bei B&B, „IP6K9K“ bleibt
+    elif name == "Zulassungen":
+        value = re.sub(r"(?<![A-Za-z])(?:ECE|UN)?[\s-]*R\s?-?(\d{1,3})(?:\.\d+)?\b", r" ECE-R\1", value).strip()
+        value = re.sub(r"\s+", " ", value).replace(" ,", ",")
+    elif name == "Gehäuse":
+        value = re.sub(r"\b(Polycarbonat|PC|plastic|nylon|ABS)\b", "Kunststoff", value, flags=re.I)
+    elif name == "Leuchtbild":
+        value = re.sub(r"\s+beam\b", "", value, flags=re.I)
+    return value
+
+
+def join_mounts(mounts: list[str]) -> str:
+    """„Fixmontage, Magnetmontage, flexible Rohrmontage“ -> „Fix-, Magnet-, flexible Rohrmontage“ (wie bei B&B)."""
+    mounts = sorted(dict.fromkeys(m for m in mounts if m), key=lambda m: m.startswith("flexible"))
+    if len(mounts) < 2 or not all(m.endswith("montage") for m in mounts):
+        return ", ".join(mounts)
+    return ", ".join(m[:-len("montage")] + "-" for m in mounts[:-1]) + ", " + mounts[-1]
 
 
 def with_product_type(product: str, desc: str) -> str:
@@ -685,8 +791,29 @@ def product_type(title: str, text: str) -> str | None:
     for hay in (title, text):
         counts = find(hay)
         if counts:
-            return max(counts, key=lambda k: (counts[k], len(k)))
+            kind = max(counts, key=lambda k: (counts[k], len(k)))
+            # B&B: nur blitzend, ohne rotierendes Leuchtbild = Blitzleuchte
+            if kind == "Rundumleuchte" and re.search(r"\bbeacon", hay, re.I) \
+                    and re.search(r"flash|blitz|\bfpm\b|strobe", text, re.I) and not re.search(r"rotat|rotier", text, re.I):
+                kind = "Blitzleuchte"
+            return kind
     return None
+
+
+def series_name(text: str) -> str:
+    """Serienname ohne Produktart, Leistung, Spannung und Doppelungen: „Unity Work Light 31W“ -> „Unity“,
+    „Beacons 400 Series“ -> „400“."""
+    s = re.sub(r"\s+", " ", text)
+    for en in PRODUCT_TYPES_EN:
+        s = re.sub(r"\b" + en + r"s?\b", " ", s, flags=re.I)
+    for de, plural in PRODUCT_TYPES.items():
+        s = re.sub(r"\b(" + re.escape(plural) + "|" + re.escape(de) + r")\b", " ", s, flags=re.I)
+    s = re.sub(r"\b((wide\s+)?(flood|spot|combo|pencil)(\s+beam)?|LED|R\d{2,3}|\d+(\.\d+)?\s?W|\d+\s?-\s?\d+\s?V( DC)?|serie|series)\b|[|]", " ", s, flags=re.I)
+    words = s.split()
+    half = len(words) // 2  # „Unity Unity“ (Überschrift doppelt im PDF)
+    if half and len(words) % 2 == 0 and [w.lower() for w in words[:half]] == [w.lower() for w in words[half:]]:
+        words = words[:half]
+    return " ".join(words).strip(" -,")
 
 
 def numbers_in_text(text: str) -> list[tuple[str, str]]:
@@ -736,8 +863,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     named = kind and (kind.lower() in titel.lower()
                       or any(len(w) >= 5 and w.lower() in kind.lower() for w in re.findall(r"[\w-]+", titel)))
     if kind and not named:
-        series = " ".join(x for x in (titel, untertitel) if x)
-        untertitel = series if re.match(r"(serie|series)\b", series, re.I) else f"Serie {series}"
+        series = series_name(" ".join(x for x in (titel, untertitel) if x))
+        untertitel = f"Serie {series}" if series else ""
         titel = ("LED " if led else "") + PRODUCT_TYPES.get(kind, kind)
     article_kind = titel if not kind or named else ("LED " if led else "") + kind
     content["kopf"] = {"titel": titel[:60], "untertitel": untertitel[:80]}
@@ -747,20 +874,36 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     for head, lines in secs:
         if HEADING_SPEC.search(head):
             spec_rows += parse_spec(lines)
+    if not spec_rows:  # Datentabelle ohne Überschrift (z. B. Strands): Zeilen „Merkmal  Wert“ mit bekannten Merkmalen
+        for head, lines in secs:
+            known = [i for i, l in enumerate(lines) if len(_cells(l)) >= 2
+                     and (_property_for(_cells(l)[0][2]) or _cells(l)[0][2].lower() in SPEC_DE)]
+            if len(known) >= 3:
+                spec_rows += parse_spec([l for l in lines[known[0]:known[-1] + 1] if len(_cells(l)) >= 2])
     props = {n: "" for n in BB_ORDER}
-    rest, warranty, numbered = [], "", []
+    rest, warranty, numbered, measured = [], "", [], ""
     for label, value in spec_rows:
         name = _property_for(label)
         if re.match(r"(artikel|art\.?-?nr|bestell|part\s*n|order)", label, re.I):
             numbered += numbers_in_text(value)  # „Wide Flood (36-48 V): 988-208B, …“
         elif re.match(r"garantie|gewährleistung|warranty", label, re.I):
-            warranty = warranty or value
-        elif name == "Lichtleistung" and props[name] and re.search(r"betrieb|gemessen|effektiv|effective", label, re.I):
-            props[name] += f" ({value} im Betrieb)"
+            warranty = warranty or translate_value(value)
+        elif NO_VALUE.match(value.strip()):
+            continue  # „E-approved: No“
+        elif name == "Lichtleistung" and MEASURED.search(label):
+            measured = measured or value  # B&B: theoretischer Wert, gemessener in Klammern
         elif name and not props.get(name):
             props[name] = value
         else:
-            rest.append((SPEC_DE.get(label.lower(), label), value))
+            rest.append((SPEC_DE.get(re.sub(r"\s+", " ", label.lower()), label), bb_value("", value)))
+    props = {n: bb_value(n, v) if v else "" for n, v in props.items()}
+    if measured:
+        measured = bb_value("Lichtleistung", measured)
+        props["Lichtleistung"] = (f"{props['Lichtleistung']} ({measured} gemessen)" if props["Lichtleistung"]
+                                  else f"{measured} gemessen")
+    if not props["Zulassungen"]:  # Zulassung nur im Text („ECE R65 Approved“, „R65 LED Beacons“)
+        found_r = re.findall(r"\bECE[\s-]*R\s?-?(\d{1,3})\b|\bR(\d{2,3})\s+(?:LED|approved|approval)", alltext, re.I)
+        props["Zulassungen"] = ", ".join(dict.fromkeys(f"ECE-R{a or b}" for a, b in found_r))
     rest.sort(key=lambda r: _spec_rank(r[0]))
     used, dropped = rest[:MAX_SPEC_ROWS_AUTO], rest[MAX_SPEC_ROWS_AUTO:]
     # B&B-Standardzeilen immer anlegen (leer = nicht gedruckt), Lichtleistung/Leuchtbild nur wenn vorhanden
@@ -770,7 +913,7 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     if dropped:
         report.append("Nicht übernommene Technische Daten (Blatt sonst zu voll): "
                       + "; ".join(f"{l}: {v.replace(chr(10), ' / ')}" for l, v in dropped))
-    if not spec_rows:
+    if not spec_rows and not any(props.values()):
         report.append("Keine Technischen Daten gefunden – Spezifikation bitte von Hand eintragen.")
 
     # Beschreibung
@@ -782,6 +925,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     preferred = [p for h, ps in text_secs if HEADING_TEXT.search(h) for p in ps]
     paragraphs = preferred or [p for _h, ps in text_secs for p in ps]
     description = " ".join(paragraphs[:2])
+    description = re.sub(r"\s*read more\s*$|\s*mehr lesen\s*$", "", description, flags=re.I)
+    description = re.sub(r"(?<=[.!?])[^.!?]*…\s*$", "", description).strip()  # „… from 10…“ (gekürzt im PDF)
     bullets = [b for h, lines in secs if not HEADING_SPEC.search(h) and not HEADING_ARTICLES.search(h)
                for b in _bullets(lines)][:6]
     for h, lines in secs:  # „HAUPTMERKMALE“ u. ä.: kurze Zeilen sind Stichpunkte, auch ohne Aufzählungszeichen
@@ -801,6 +946,16 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             content["einleitung"] = _sentences(description, 450)
     else:
         content["einleitung"] = _sentences(description, 450)
+    extras = dict(rest)
+    cable = ""
+    if extras.get("Kabellänge"):
+        mm = re.match(r"(\d+)\s*mm$", extras["Kabellänge"])
+        cable = f"{int(mm.group(1)) // 10}cm Anschlusskabel" if mm and int(mm.group(1)) % 10 == 0 else \
+            f"{extras['Kabellänge']} Anschlusskabel"
+        if "Deutsch Stecker" in extras.get("Anschluss", ""):
+            cable += " mit Deutsch Stecker"
+        if not any("kabel" in b.lower() for b in bullets):
+            bullets.append(cable)  # B&B: „52cm Anschlusskabel mit Deutsch Stecker“
     if warranty and not any("garantie" in b.lower() for b in bullets):
         bullets.insert(0, f"{warranty} Garantie")  # B&B: „2 Jahre Garantie“ als erster Punkt
     content["eigenschaften"] += [{"name": "", "wert": b[:150], "sichtbar": True} for b in bullets]
@@ -820,6 +975,27 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             else:
                 zusatz = head  # z. B. „GECKO 3 - HORIZONTALE MONTAGE“
             groups += parse_articles(lines, zusatz)
+    # Merkmalsspalten der Modelltabelle füllen leere B&B-Zeilen („VOLTAGE“ -> Spannungsbereich, „MOUNT“ -> Montage)
+    filled = {}
+    for g in groups:
+        for head, values in g.get("attrs", {}).items():
+            name = _property_for(head)
+            if name and not props.get(name):
+                vals = list(dict.fromkeys(bb_value(name, v) for v in values if v))
+                filled[name] = join_mounts(vals) if name == "Montage" else ", ".join(vals)
+    if filled:
+        props.update(filled)
+        for e in content["eigenschaften"]:
+            if e["name"] in filled:
+                e["wert"] = filled[e["name"]][:150]
+    if not groups and not numbered:  # Blatt für ein Modell: „Part No. 809237“
+        m = re.search(r"\b(?:part\s*no\.?|art(?:ikel)?\.?\s*-?\s*nr\.?)\s*:?\s*([A-Z0-9][\w\-./]{2,24})", texts[0], re.I)
+        if m:
+            watt = re.search(r"\b(\d+(?:[.,]\d+)?)\s?W\b", " ".join(texts[0].splitlines()[:6]))
+            parts = ["mit " + cable.replace(" mit ", " & ") if cable else "", props["Spannungsbereich"],
+                     f"{watt.group(1)}W" if watt else ""]
+            groups.append({"titel": "", "zubehoer": False, "spalten": [],
+                           "zeilen": [(m.group(1), ", ".join(x for x in parts if x), [])]})
     if numbered:
         groups.insert(0, {"titel": "", "zubehoer": False, "spalten": [],
                           "zeilen": [(nr, f"{article_kind} {content['kopf']['untertitel'].removeprefix('Serie ')}, {label}", [])
@@ -838,6 +1014,7 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             if known_numbers is not None and normalize_article_number(nr) in known_numbers:
                 found += 1
             shown = f"{code}{nr}" if code and not nr.upper().startswith(code.upper()) else nr
+            desc = translate_value(desc)
             if not g["zubehoer"]:
                 desc = with_product_type(article_kind, desc)
             rows.append({"bild": None, "artnr": shown[:40], "farbe": ds.guess_color(desc), "beschreibung": desc[:300],
