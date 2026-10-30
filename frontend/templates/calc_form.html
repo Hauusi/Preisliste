@@ -39,7 +39,7 @@
   {% if update_manufacturer %}<p class="hint">Einstellungen ändern: <a href="/hersteller/{{ update_manufacturer.id }}">Hersteller {{ update_manufacturer.name }}</a></p>
   {% else %}<p class="msg UNKLAR">Hersteller der Liste nicht eindeutig – es gelten die Standardwerte (EK-Liste in EUR, Prüfschwelle 5 %).</p>{% endif %}
   {% if st.basis == "UVP" and st.discount is none %}<p class="msg FEHLER">Beim Hersteller ist kein Händlerrabatt hinterlegt. Ohne ihn kann kein EK berechnet werden.</p>{% endif %}
-  <div class="actions"><button type="submit">Abgleich starten →</button></div>
+  <div class="actions"><button type="submit">Abgleich starten</button></div>
 </form>
 {% elif pl.kind == "HERSTELLER" %}
 <p class="msg UNKLAR">Für den Jahresabgleich fehlt noch unsere Liste (EK/VK Vorjahr). Bitte zuerst importieren und in Schritt 3 „Unsere Liste“ wählen.</p>
@@ -50,7 +50,7 @@
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 <p class="hint">{{ article_count }} Artikel{% if list_manufacturer %} von {{ list_manufacturer.name }}{% if list_manufacturer.code %} ({{ list_manufacturer.code }}){% endif %}{% endif %}.</p>
 {% if pl.kind == "HERSTELLER" %}{{ abgleich() }}<h2>Oder: alle Artikel dieser Liste kalkulieren</h2>{% endif %}
-{% if pl.kind == "UNSERE" %}<p class="msg OK">Das ist unsere Liste (EK/VK Vorjahr). Sie wird beim Jahresabgleich verwendet: als Nächstes die neue Herstellerliste importieren und dort „Neue Herstellerliste“ wählen. <a href="/import">Herstellerliste importieren →</a></p>{% endif %}
+{% if pl.kind == "UNSERE" %}<p class="msg OK">Das ist unsere Liste (EK/VK Vorjahr). Sie wird beim Jahresabgleich verwendet: als Nächstes die neue Herstellerliste importieren und dort „Neue Herstellerliste“ wählen. <a href="/import">Herstellerliste importieren</a></p>{% endif %}
 
 {% if rules %}
 <form method="post" class="card">
@@ -65,7 +65,7 @@
   </div>
   {% if preselect_hint %}<p class="hint">{{ preselect_hint }}</p>{% endif %}
   <div class="actions">
-    <button type="submit">Jetzt kalkulieren →</button>
+    <button type="submit">Jetzt kalkulieren</button>
     <a class="button secondary-link" href="/listen/{{ pl.id }}">Ohne Kalkulation: Liste ansehen</a>
   </div>
 </form>

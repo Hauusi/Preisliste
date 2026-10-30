@@ -4,20 +4,18 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <div class="eyebrow">Preisliste</div>
     <h1>Hallo {{ user.username }}</h1>
     <p class="greeting">{% if todo %}{{ todo | length }} {{ "Aufgabe wartet" if todo | length == 1 else "Aufgaben warten" }} auf dich.{% else %}Alles erledigt – nichts offen.{% endif %}</p>
   </div>
   <div class="actions m0">
     <a class="button secondary" href="/neue-artikel">{{ icon("plus", 18) }} Neue Artikel</a>
-    <a class="button" href="/import">{{ icon("upload", 18) }} Liste einspielen</a>
   </div>
 </div>
 
 <div class="kpis">
-  <a class="kpi" href="/hersteller"><span class="kpi-icon">{{ icon("factory", 18) }}</span>Hersteller<span class="kpi-value">{{ kpis.manufacturers }}</span><div class="kpi-sub">mit Kürzel und Regel</div></a>
-  <a class="kpi" href="/listen"><span class="kpi-icon">{{ icon("box", 18) }}</span>Artikel aktuell<span class="kpi-value">{{ "{:,}".format(kpis.articles).replace(",", ".") }}</span><div class="kpi-sub">unsere finalen EK/VK</div></a>
-  <a class="kpi" href="/aktualisierungen"><span class="kpi-icon {{ 'err' if kpis.open else 'ok' }}">{{ icon("alert" if kpis.open else "check", 18) }}</span>Offene Prüfungen<span class="kpi-value">{{ kpis.open }}</span><div class="kpi-sub">{{ "müssen bestätigt werden" if kpis.open else "alles geprüft" }}</div></a>
+  <a class="kpi" href="/hersteller">Hersteller<span class="kpi-value">{{ kpis.manufacturers }}</span><div class="kpi-sub">mit Kürzel und Regel</div></a>
+  <a class="kpi" href="/listen">Artikel aktuell<span class="kpi-value">{{ "{:,}".format(kpis.articles).replace(",", ".") }}</span><div class="kpi-sub">unsere finalen EK/VK</div></a>
+  <a class="kpi{{ ' attention' if kpis.open }}" href="/aktualisierungen">Offene Prüfungen<span class="kpi-value">{{ kpis.open }}</span><div class="kpi-sub">{{ "müssen bestätigt werden" if kpis.open else "alles geprüft" }}</div></a>
 </div>
 
 <div class="grid grid-2">
@@ -26,7 +24,7 @@
     {% if todo %}
     <ul class="todo">
       {% for kind, title, sub, href, cta in todo[:8] %}
-      <li><span class="dot {{ kind }}">{{ icon({"err": "alert", "warn": "alert", "info": "arrow", "ok": "check"}[kind], 18) }}</span>
+      <li class="{{ kind }}"><span class="dot {{ kind }}">{{ icon({"err": "alert", "warn": "alert", "info": "arrow", "ok": "check"}[kind], 18) }}</span>
         <div class="todo-text"><b>{{ title }}</b><span>{{ sub }}</span></div>
         {% if href.startswith("post:") %}<form method="post" action="{{ href[5:] }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">{{ cta }}</button></form>
         {% else %}<a class="button {{ '' if kind == 'err' else 'secondary' }}" href="{{ href }}">{{ cta }}</a>{% endif %}</li>
@@ -42,9 +40,9 @@
     {% if not (setup.manufacturer and setup.ours and setup.abgleich) %}
     <h2>So funktioniert's</h2>
     <ol class="flow">
-      <li class="{{ 'done' if setup.manufacturer }}"><b>Hersteller anlegen</b><span>Name, Kürzel (z. B. ST) und Faktor (VK = EK × 2,6).</span> <a href="/hersteller">Hersteller →</a></li>
-      <li class="{{ 'done' if setup.ours }}"><b>Unsere EK/VK-Liste einspielen</b><span>Einmalig, wird die aktuelle Liste.</span> <a href="/import">Einspielen →</a></li>
-      <li class="{{ 'done' if setup.abgleich }}"><b>Neue Herstellerliste einspielen</b><span>Abgleich läuft automatisch: prüfen, abschließen, Excel fertig.</span> <a href="/import">Einspielen →</a></li>
+      <li class="{{ 'done' if setup.manufacturer }}"><b>Hersteller anlegen</b><span>Name, Kürzel (z. B. ST) und Faktor (VK = EK × 2,6).</span> <a href="/hersteller">Hersteller öffnen</a></li>
+      <li class="{{ 'done' if setup.ours }}"><b>Unsere EK/VK-Liste einspielen</b><span>Einmalig, wird die aktuelle Liste.</span> <a href="/import">Liste einspielen</a></li>
+      <li class="{{ 'done' if setup.abgleich }}"><b>Neue Herstellerliste einspielen</b><span>Abgleich läuft automatisch: prüfen, abschließen, Excel fertig.</span> <a href="/import">Liste einspielen</a></li>
     </ol>
     {% else %}
     <h2>Letzte Aktivitäten</h2>
@@ -59,7 +57,7 @@
 
 <div class="page-head mt-lg">
   <div><h2 class="m0">Hersteller</h2><p>Aktuelle EK/VK-Liste, letzter Abgleich und Kalkulation auf einen Blick.</p></div>
-  <a class="button ghost" href="/hersteller">Alle verwalten {{ icon("arrow", 16) }}</a>
+  <a class="button ghost" href="/hersteller">Alle Hersteller</a>
 </div>
 {% if cards %}
 <div class="grid grid-3">
@@ -76,7 +74,7 @@
       <div><dt>Ø EK-Änderung</dt><dd class="{{ 'up' if c.ek_avg and c.ek_avg > 0 else 'down' if c.ek_avg and c.ek_avg < 0 else '' }}">{{ ("+" if c.ek_avg > 0 else "") ~ (c.ek_avg | num) ~ " %" if c.ek_avg is not none else "–" }}</dd></div>
       <div><dt>Ø VK-Änderung</dt><dd>{{ ("+" if c.vk_avg > 0 else "") ~ (c.vk_avg | num) ~ " %" if c.vk_avg is not none else "–" }}</dd></div>
       <div><dt>Letzter Abgleich</dt><dd>{% if u %}<a href="/aktualisierungen/{{ u.id }}">{{ u.created_at | dt }}</a>{% else %}–{% endif %}</dd></div>
-      <div><dt>Status</dt><dd>{% if not u %}–{% elif s.offen %}<span class="badge FEHLER">{{ s.offen }} offen</span>{% elif u.adopted_list_id %}<span class="badge OK">übernommen</span>{% else %}<span class="badge PRUEFEN">geprüft</span>{% endif %}</dd></div>
+      <div><dt>Status</dt><dd>{% if not u %}–{% elif s.offen %}<span class="badge PRUEFEN">{{ s.offen }} offen</span>{% elif u.adopted_list_id %}<span class="badge OK">übernommen</span>{% else %}<span class="badge PRUEFEN">geprüft</span>{% endif %}</dd></div>
     </dl>
     <div class="mfr-actions">
       {% if c.pending_source %}<form method="post" action="/hersteller/{{ m.id }}/abgleich" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">{{ icon("sync", 16) }} Abgleich starten</button></form>
@@ -88,7 +86,7 @@
   {% endfor %}
 </div>
 {% else %}
-<section class="card"><div class="empty-state"><div class="dot info">{{ icon("factory", 22) }}</div>Noch keine Hersteller. <a href="/hersteller">Ersten Hersteller anlegen →</a></div></section>
+<section class="card"><div class="empty-state"><div class="dot info">{{ icon("factory", 22) }}</div>Noch keine Hersteller. <a href="/hersteller">Ersten Hersteller anlegen</a></div></section>
 {% endif %}
 
 {% if user.role == "admin" %}

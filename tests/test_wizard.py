@@ -27,7 +27,7 @@ def test_full_wizard(admin_client, tmp_path, app):
     # Schritt 2
     page = c.get(step2).text
     assert 'class="current"><span>2</span>Prüfen' in page and "Alles erkannt" in page
-    assert "Weiter: Prüfen" in c.get(step2 + "/spalten").text  # Spalten von Hand anpassen
+    assert "Weiter zur Prüfung" in c.get(step2 + "/spalten").text  # Spalten von Hand anpassen
     list_id = int(step2.rsplit("/", 1)[1])
     r = c.post(f"/import/{list_id}/spalten", data={"csrf_token": c.csrf, "sheet": "Preise", "header_row": "1",
                                                    "col_0": "article_number"})

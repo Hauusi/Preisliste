@@ -7,6 +7,7 @@ Server-Anwendung zur Verarbeitung von Excel-Preislisten (.xlsx): Import, Prüfun
 - Architektur und Plan (Phase 1, freigegeben): `docs/phase1-architektur.md`
 - Betrieb, Backup, Wiederherstellung: `docs/betrieb.md`
 - Lizenzen und Telemetrie der Abhängigkeiten: `docs/abhaengigkeiten.md`
+- Design der Oberfläche: `docs/DESIGN.md`
 
 ## Stand
 
