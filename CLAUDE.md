@@ -11,6 +11,7 @@
 Bei jeder Änderung an Bedienung, Abläufen oder Begriffen im selben PR anpassen:
 - `docs/HANDBUCH.md` (Bedienung, Betrieb, Technik – maßgeblich)
 - `README.md` (Kurzüberblick)
+- `docs/DATENBLATT-REGELN.md` (Übersetzung/Platzierung Hersteller → B&B; neue Vergleichspaare dort eintragen)
 - diese Datei, wenn sich Arbeitsregeln ändern
 
 ## Kommunikation

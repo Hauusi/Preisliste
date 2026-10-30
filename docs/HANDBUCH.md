@@ -358,7 +358,7 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 | eingebettete Bilder (nur die tatsächlich auf der Seite gezeichneten) | freigestellte Produktfotos der ersten Seite → Produktbilder, Maßzeichnungen (auch freigestellte Strichzeichnungen) → Spezifikation, Fotos → Anwendungsbilder (je höchstens 2; Logos und Kleinteile werden übersprungen) |
 
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
-Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
+Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Wie B&B Herstellerangaben übersetzt und platziert, steht in `docs/DATENBLATT-REGELN.md`. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
 
 **Bedienung:**
 
