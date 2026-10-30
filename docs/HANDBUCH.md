@@ -342,6 +342,23 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 
+**Aus Hersteller-Datenblatt erstellen:** In der Datenblatt-Übersicht das PDF des Herstellers hochladen, optional
+den Hersteller wählen → „Datenblatt erstellen“. Ein Hintergrundjob füllt den Baukasten, danach öffnet sich der
+Editor mit einem Prüfbericht oben. Übernommen werden:
+
+| Aus dem PDF | In den Baukasten |
+|---|---|
+| erste Überschrift auf Seite 1 (sonst Titel aus den PDF-Eigenschaften); Klammerzusatz oder „ - …“ | Titel und Serie |
+| Abschnitt „Anwendung/Beschreibung/Produkt…“ (sonst erster längerer Text) | Beschreibungstext, gekürzt auf 2–3 Sätze; läuft die **lokale KI**, formuliert sie ihn kurz auf Deutsch (Zahlen, die nicht im PDF stehen, werden verworfen) |
+| Aufzählungspunkte (•) | Eigenschaften ohne Namen |
+| „Technische Daten“: Spannung, Leuchtfarbe, Schutzart, Zulassung, Montage, Garantie | gleichnamige Eigenschaften |
+| übrige Technische Daten | Spezifikation, höchstens 8 Zeilen (wichtige zuerst); der Rest steht im Prüfbericht. Mehrere Spalten (z. B. 12 V / 24 V) werden untereinander geschrieben |
+| „Artikelnummern/Bestellinformationen“, auch als Matrix (Ausführung × Spannung) | je Gruppe eine Tabelle „Bestellinformationen – Gruppe“, eine Zeile je Nummer mit Beschreibung und Farbpunkt; „Zubehör“ als Zubehörtabelle. Mit Hersteller: Kürzel davor und Abgleich mit der aktuellen Preisliste (Anzahl im Bericht) |
+| eingebettete Bilder | freigestellte Produktfotos → Produktbilder, Maßzeichnungen → Spezifikation, Fotos → Anwendungsbilder (je höchstens 2; Logos und Kleinteile werden übersprungen) |
+
+Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
+Herstellerblatt wird nach dem Einlesen gelöscht. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
+
 **Bedienung:**
 
 - **Verschieben:** am Griff (⋮⋮) ziehen – Bausteine, Eigenschaften, Spezifikationszeilen und Tabellenzeilen.

@@ -11,6 +11,27 @@
 </div>
 
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="card from-pdf">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h2>Aus Hersteller-Datenblatt erstellen</h2>
+  <p class="hint">PDF des Herstellers hochladen: Titel, Beschreibung, Technische Daten, Artikelnummern und Bilder kommen
+    in den Baukasten, im Braun-&amp;-Braun-Layout. Danach nur noch prüfen und korrigieren.</p>
+  <div class="row">
+    <label class="dropzone grow">
+      <span class="dropzone-icon">{{ icon("doc", 24) }}</span>
+      <b data-file-label>PDF hierher ziehen oder klicken</b>
+      <span class="hint">Nur PDF mit echtem Text, bis 25 MB</span>
+      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
+    </label>
+  </div>
+  <div class="row">
+    <label>Hersteller (optional)
+      <select name="hersteller"><option value="">– ohne –</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}</select></label>
+    <span class="hint grow">Mit Hersteller: Kürzel vor die Artikelnummern und Abgleich mit eurer aktuellen Preisliste.</span>
+    <button type="submit">{{ icon("upload", 18) }} Datenblatt erstellen</button>
+  </div>
+</form>
+
 <form method="post" action="/datenblatt/neu" class="card row dse-new">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label class="grow">Titel (Produktgruppe) <input name="titel" maxlength="60" required placeholder="z. B. LED Leuchtbalken"></label>
@@ -44,4 +65,5 @@
 {% else %}
 <section class="card"><div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Datenblätter. Oben Titel eingeben und anlegen.</div></section>
 {% endif %}
+<script src="/static/app.js"></script>
 {% endblock %}

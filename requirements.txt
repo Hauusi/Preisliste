@@ -13,3 +13,5 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 RapidFuzz==3.14.6
 Pillow==12.3.0
+pypdf==6.21.4
+cryptography==50.0.2

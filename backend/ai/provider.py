@@ -10,6 +10,7 @@ Grundregeln:
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -19,7 +20,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ValidationError
 
-from backend.ai.schemas import ColumnSuggestion, MatchJudgement, RuleSuggestion
+from backend.ai.schemas import ColumnSuggestion, DatasheetText, MatchJudgement, RuleSuggestion
 from backend.config import Settings
 from backend.excel.columns import FIELDS
 
@@ -68,12 +69,13 @@ class AIProvider:
     def _complete(self, system: str, prompt: str, schema: dict) -> str:  # pragma: no cover - abstrakt
         raise AIUnavailable("KI ist deaktiviert")
 
-    def ask(self, prompt: str, model: type[T], extra_check: Callable[[T], None] | None = None) -> T:
+    def ask(self, prompt: str, model: type[T], extra_check: Callable[[T], None] | None = None,
+            system: str = SYSTEM) -> T:
         """Fragt die KI und validiert die Antwort. Wiederholt bei ungültiger Antwort begrenzt."""
         schema = model.model_json_schema()
         last_error = None
         for _attempt in range(1 + self.settings.ai_retries):
-            raw = self._complete(SYSTEM, prompt, schema)
+            raw = self._complete(system, prompt, schema)
             try:
                 parsed = model.model_validate_json(raw)
                 if extra_check:
@@ -159,6 +161,30 @@ class AIProvider:
             "Beschreibung: " + text[:1000]
         )
         return self.ask(prompt, RuleSuggestion)
+
+
+    def datasheet_text(self, product: str, text: str, more: list[str]) -> DatasheetText:
+        """Beschreibung für das Datenblatt: kurz, sachlich, Deutsch. Nur umformulieren, nichts erfinden."""
+        prompt = (
+            "Schreibe den Beschreibungstext für ein Produktdatenblatt eines Fahrzeug- und Signaltechnik-Händlers. "
+            "beschreibung: 2 bis 3 sachliche Sätze auf Deutsch, höchstens 450 Zeichen, ohne Herstellernamen, ohne "
+            "Werbefloskeln. punkte: bis zu 4 kurze Stichpunkte (je höchstens 6 Wörter) mit den wichtigsten "
+            "Merkmalen. Verwende nur Angaben aus dem Text; erfinde keine Zahlen, Zulassungen oder Eigenschaften. "
+            "Ist der Text englisch, übersetze ihn.\n"
+            "Produkt: " + product[:100] + "\nText: " + text[:2500]
+            + ("\nWeitere Abschnitte: " + " | ".join(m[:400] for m in more) if more else "")
+        )
+        source = (text + " " + " ".join(more)).lower()
+
+        def check(t: DatasheetText):
+            # Zahlen in der Antwort müssen im Original vorkommen (keine erfundenen Werte)
+            for number in re.findall(r"\d+(?:[.,]\d+)?", t.beschreibung + " " + " ".join(t.punkte)):
+                if number not in source:
+                    raise ValueError(f"Zahl {number} steht nicht im Original")
+
+        system = ("Du formulierst Produkttexte für Datenblätter. Antworte ausschließlich mit JSON nach dem "
+                  "vorgegebenen Schema. Erfinde keine Fakten.")
+        return self.ask(prompt, DatasheetText, check, system=system)
 
 
 def _cell(v) -> str | None:

@@ -44,3 +44,10 @@ class RuleSuggestion(BaseModel):
     start_price: Literal["LISTE", "EK", "UVP"]
     steps: list[dict] = Field(min_length=1, max_length=12)
     explanation: str = Field(max_length=1000)
+
+
+class DatasheetText(BaseModel):
+    """Beschreibungstext für ein Braun-&-Braun-Datenblatt (nur Formulierung, keine neuen Fakten)."""
+    model_config = ConfigDict(extra="forbid")
+    beschreibung: str = Field(min_length=20, max_length=700)
+    punkte: list[str] = Field(default_factory=list, max_length=4)
