@@ -50,3 +50,14 @@ Nur für die Entwicklung (nicht im Image): pytest (MIT), httpx (BSD-3-Clause).
 github.com/adobe-fonts/source-sans), Lizenz **SIL Open Font License 1.1** (`SourceSans3-LICENSE.md` liegt daneben).
 Wird nur für die Datenblätter verwendet, wenn Myriad Pro nicht installiert ist. Keine Netzwerkzugriffe: die Dateien
 werden von der App selbst ausgeliefert.
+
+`frontend/static/fonts/Barlow-*.woff2`, `BarlowSemiCondensed-*.woff2`: **Barlow** von Jeremy Tribby (aus
+github.com/google/fonts, `ofl/barlow` und `ofl/barlowsemicondensed`), Lizenz **SIL Open Font License 1.1**
+(`Barlow-OFL.txt` liegt daneben). Auf lateinische Zeichen reduziert und als WOFF2 gespeichert (je ca. 23 KB).
+Schrift der App-Oberfläche, von der App selbst ausgeliefert, keine Netzwerkzugriffe.
+
+## Design-Anleitung für Claude
+
+`.claude/skills/frontend-design/`: Anleitung „frontend-design“ von Anthropic (aus github.com/anthropics/
+claude-plugins-official, Commit f8c5e7a), Lizenz **Apache 2.0** (`LICENSE.txt` liegt daneben). Nur Text für die
+Arbeit mit Claude, nicht Teil der App und nicht im Docker-Image.

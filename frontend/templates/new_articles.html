@@ -19,7 +19,7 @@
   <label>Artikel einfügen – eine Zeile pro Artikel, z. B. direkt aus Excel kopiert
     <textarea name="text" rows="8" cols="80" placeholder="ST12345&#10;ST12346	Leuchte Nova&#10;RT999;Spezialteil;12,50">{{ text }}</textarea></label>
   <p class="hint">Spalten: Artikelnummer mit Kürzel · optional Bezeichnung · optional EK in € (wenn der Artikel in keiner Herstellerliste steht). Getrennt durch Tab oder Semikolon. Höchstens {{ max_lines }} Zeilen.</p>
-  <div class="actions"><button type="submit">Prüfen →</button></div>
+  <div class="actions"><button type="submit">Prüfen</button></div>
 </form>
 
 {% if rows is not none %}

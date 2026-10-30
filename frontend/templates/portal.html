@@ -3,9 +3,8 @@
 {% block title %}Start{% endblock %}
 {% block content %}
 <section class="portal-hero">
-  <div class="eyebrow">Sales Assistant</div>
-  <h1>Hallo {{ user.username }}, was steht heute an?</h1>
-  <p>Wähle ein Werkzeug.</p>
+  <h1>Hallo {{ user.username }}</h1>
+  <p>Preislisten abgleichen oder ein Datenblatt erstellen.</p>
 </section>
 
 <div class="tiles">
@@ -14,21 +13,21 @@
     <h2>Preisliste</h2>
     <p>Neue Herstellerlisten abgleichen, EK/VK kalkulieren, prüfen und exportieren.</p>
     <div class="tile-meta">
-      {% if stats.open %}<span class="badge FEHLER">{{ stats.open }} zu prüfen</span>{% else %}<span class="badge OK">alles erledigt</span>{% endif %}
+      {% if stats.open %}<span class="badge PRUEFEN">{{ stats.open }} zu prüfen</span>{% else %}<span class="badge OK">alles erledigt</span>{% endif %}
       <span class="badge">{{ stats.manufacturers }} Hersteller</span>
     </div>
-    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+    <span class="tile-go">Öffnen</span>
   </a>
   <a class="tile tile-active" href="/datenblatt">
     <span class="tile-icon">{{ icon("doc", 28) }}</span>
     <h2>Datenblatt erstellen</h2>
-    <p>Produktdatenblätter im festen Layout Schritt für Schritt erstellen, als PDF speichern.</p>
+    <p>Produktdatenblätter im Firmenlayout mit Live-Vorschau erstellen und als PDF speichern.</p>
     <div class="tile-meta"><span class="badge">{{ stats.datasheets }} {{ "Datenblatt" if stats.datasheets == 1 else "Datenblätter" }}</span></div>
-    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+    <span class="tile-go">Öffnen</span>
   </a>
   <div class="tile tile-soon" aria-disabled="true">
     <span class="tile-icon">{{ icon("sparkle", 28) }}</span>
-    <h2>Weitere Tools</h2>
+    <h2>Weitere Werkzeuge</h2>
     <p>Hier kommen künftige Module des Sales Assistant dazu.</p>
     <div class="tile-meta"><span class="badge">folgt</span></div>
   </div>
@@ -37,7 +36,7 @@
     <span class="tile-icon">{{ icon("shield", 28) }}</span>
     <h2>Verwaltung</h2>
     <p>Benutzer anlegen, Passwörter, Protokoll.</p>
-    <span class="tile-go">Öffnen {{ icon("arrow", 16) }}</span>
+    <span class="tile-go">Öffnen</span>
   </a>
   {% endif %}
 </div>

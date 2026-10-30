@@ -7,58 +7,56 @@
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}Sales Assistant{% endblock %} – Sales Assistant</title>
   {% block head %}{% endblock %}
+  <link rel="preload" href="/static/fonts/Barlow-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="{{ ('portal' if portal else 'app') if user else 'public' }}{{ ' wide' if wide }}">
-{% if user and portal %}
-<header class="portal-bar">
-  <a href="/" class="brand"><span class="brand-mark">SA</span><span>Sales Assistant</span></a>
-  <div class="portal-user">
-    <a href="/konto" class="who-name">{{ icon("user", 18) }}<span>{{ user.username }}</span></a>
+{% if user %}
+{% macro nav(href, label, match=None) -%}
+  {%- set active = request.url.path.startswith(match or href) -%}
+  <a href="{{ href }}" class="nav-item{{ ' active' if active }}"{% if active %} aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+<header class="topbar">
+  <a href="/" class="brand" title="Alle Tools">
+    <img class="brand-logo" src="/static/bb-mark.png" alt="" width="46" height="32">
+    <img class="brand-logo dark-only" src="/static/bb-mark-light.png" alt="" width="46" height="32">
+    <span class="brand-name">Sales Assistant</span>
+    {% if not portal %}<span class="brand-module">Preisliste</span>{% endif %}
+  </a>
+  {% if not portal %}
+  <nav class="nav" aria-label="Preisliste">
+    {{ nav("/preisliste", "Übersicht") }}
+    {{ nav("/aktualisierungen", "Jahresabgleich") }}
+    {{ nav("/neue-artikel", "Neue Artikel") }}
+    {{ nav("/listen", "Preislisten") }}
+    {{ nav("/hersteller", "Hersteller") }}
+    {% set more = ["/regeln", "/vergleiche", "/jobs", "/benutzer", "/audit"] %}
+    <details class="nav-more" data-nav-more>
+      <summary class="nav-item{{ ' active' if more | select('in', request.url.path) | list }}">Weitere</summary>
+      <div class="nav-menu">
+        <a href="/regeln">Regeln</a>
+        <a href="/vergleiche">Vergleiche</a>
+        <a href="/jobs">Jobs</a>
+        {% if user.role == "admin" %}<a href="/benutzer">Benutzer</a><a href="/audit">Protokoll</a>{% endif %}
+        <a href="/">Alle Tools</a>
+      </div>
+    </details>
+  </nav>
+  {% endif %}
+  <div class="topbar-end">
+    {% if not portal %}<a href="/import" class="button nav-cta">{{ icon("upload", 17) }}<span>Liste einspielen</span></a>{% endif %}
+    {% if ai_status and ai_status.active %}<span class="pill ok" title="{{ ai_status.provider }} / {{ ai_status.model }}">{{ icon("sparkle", 14) }} KI aktiv</span>{% endif %}
+    <a href="/konto" class="who-name" title="Konto">{{ icon("user", 18) }}<span>{{ user.username }}</span></a>
     <form method="post" action="/logout" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="icon-btn" title="Abmelden" aria-label="Abmelden">{{ icon("logout", 18) }}</button>
     </form>
   </div>
 </header>
-{% elif user %}
-{% macro nav(href, label, ico, match=None) -%}
-  {%- set active = (request.url.path == href) if href == "/" else request.url.path.startswith(match or href) -%}
-  <a href="{{ href }}" class="nav-item{{ ' active' if active }}"{% if active %} aria-current="page"{% endif %}>{{ icon(ico) }}<span>{{ label }}</span></a>
-{%- endmacro %}
-<aside class="sidebar">
-  <a href="/" class="brand"><span class="brand-mark">SA</span><span>Sales Assistant<small>Preisliste</small></span></a>
-  <a href="/import" class="nav-cta">{{ icon("upload", 18) }}<span>Liste einspielen</span></a>
-  <nav class="nav">
-    {{ nav("/preisliste", "Übersicht", "home") }}
-    {{ nav("/aktualisierungen", "Jahresabgleich", "sync") }}
-    {{ nav("/neue-artikel", "Neue Artikel", "plus") }}
-    {{ nav("/listen", "Preislisten", "list") }}
-    {{ nav("/hersteller", "Hersteller", "factory") }}
-    <div class="nav-label">Weitere</div>
-    {{ nav("/regeln", "Regeln", "calc") }}
-    {{ nav("/vergleiche", "Vergleiche", "compare") }}
-    {{ nav("/jobs", "Jobs", "jobs") }}
-    {% if user.role == "admin" %}
-    {{ nav("/benutzer", "Benutzer", "users") }}
-    {{ nav("/audit", "Protokoll", "log") }}
-    {% endif %}
-    <a href="/" class="nav-item">{{ icon("grid") }}<span>Alle Tools</span></a>
-  </nav>
-  <div class="sidebar-foot">
-    {% if ai_status and ai_status.active %}<span class="pill ok" title="{{ ai_status.provider }} / {{ ai_status.model }}">{{ icon("sparkle", 14) }} KI aktiv</span>{% endif %}
-    <div class="who">
-      <a href="/konto" class="who-name">{{ icon("user", 18) }}<span>{{ user.username }}</span></a>
-      <form method="post" action="/logout" class="inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="icon-btn" title="Abmelden" aria-label="Abmelden">{{ icon("logout", 18) }}</button>
-      </form>
-    </div>
-  </div>
-</aside>
 {% endif %}
 <main class="content">
 {% block content %}{% endblock %}
 </main>
+{% if user %}<script src="/static/nav.js" defer></script>{% endif %}
 </body>
 </html>

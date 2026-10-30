@@ -16,6 +16,10 @@ Bei jeder Änderung an Bedienung, Abläufen oder Begriffen im selben PR anpassen
 ## Kommunikation
 Antworten auf Deutsch, kurz und ungeschönt, keine Emojis. Keine Fakten erfinden – bei Unklarheit nachfragen.
 
+## Design
+Oberfläche nach `docs/DESIGN.md` (Farben, Schrift, Regeln) und `.claude/skills/frontend-design/SKILL.md`.
+Nach Änderungen an der Oberfläche Screenshots prüfen (hell, dunkel, Handy).
+
 ## Projekt
 Überblick und Entwicklung: `README.md`. Bedienung und Technik: `docs/HANDBUCH.md`.
 Tests: `.venv/bin/pytest -q`; Beispieldaten für den kompletten Ablauf: `beispiel-daten/`.
