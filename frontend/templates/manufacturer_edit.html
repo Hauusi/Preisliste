@@ -69,6 +69,7 @@
 <details class="card"{% if exceptions %} open{% endif %}>
   <summary>Artikel mit eigener Kalkulation ({{ exceptions | length }})</summary>
   <p class="hint">Für diese Artikel gilt ein anderer Faktor als der Standard (z. B. EK × 2,8, wenn die Marge sonst zu klein ist). Am einfachsten im Jahresabgleich: Artikel anhaken und Faktor eingeben. Einzelne Artikel gehen vor „beginnt mit“; passen mehrere Ausnahmen, wird nicht geraten, der Artikel landet in der Prüfung.</p>
+  <div class="scroll">
   <table>
     <thead><tr><th>Gilt für</th><th>Wert</th><th>Regel</th><th>Notiz</th><th></th></tr></thead>
     <tbody>
@@ -81,6 +82,7 @@
     {% else %}<tr><td colspan="5">Keine – für alle Artikel gilt die Standardregel.</td></tr>{% endfor %}
     </tbody>
   </table>
+  </div>
   {% if admin %}
   <form method="post" action="/hersteller/{{ m.id }}/ausnahmen" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

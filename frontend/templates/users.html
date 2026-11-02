@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Benutzer</h1>
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+<div class="scroll">
 <table>
   <thead><tr><th>Benutzer</th><th>Rolle</th><th>Status</th><th>Letzte Anmeldung</th><th>Aktionen</th></tr></thead>
   <tbody>
@@ -28,6 +29,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 <section class="card">
   <h2>Benutzer anlegen</h2>
   <form method="post" action="/benutzer" class="row">

@@ -43,6 +43,7 @@
 <h2>Kalkulierte Artikel</h2>
 {% set base_query = ({"status": status or ""} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
+<div class="scroll">
 <table>
   <thead><tr><th>Zeile</th><th>Artikelnummer</th><th>Bezeichnung</th><th>Ausgangspreis</th><th>Ergebnis</th><th>Status</th><th>Rechenweg</th></tr></thead>
   <tbody>
@@ -58,5 +59,6 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% include "_pager.html" %}
 {% endblock %}
