@@ -8,6 +8,7 @@
     <h1>Datenblätter</h1>
     <p>Festes Layout mit Kopf- und Fußzeile, Inhalt aus verschiebbaren Bausteinen mit Live-Vorschau.</p>
   </div>
+  {% if user.role == "admin" %}<a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a>{% endif %}
 </div>
 
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
@@ -25,9 +26,10 @@
     </label>
   </div>
   <div class="row">
-    <label>Hersteller (optional)
-      <select name="hersteller"><option value="">– ohne –</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}</select></label>
-    <span class="hint grow">Mit Hersteller: Kürzel vor die Artikelnummern und Abgleich mit eurer aktuellen Preisliste.</span>
+    <label>Hersteller
+      <select name="hersteller"><option value="">automatisch erkennen</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}</select></label>
+    <span class="hint grow">Bestimmt Kürzel vor den Artikelnummern, Abgleich mit eurer Preisliste und das Wörterbuch
+      dieses Herstellers. „Automatisch“ sucht den Herstellernamen im PDF.</span>
     <button type="submit">{{ icon("upload", 18) }} Datenblatt erstellen</button>
   </div>
 </form>

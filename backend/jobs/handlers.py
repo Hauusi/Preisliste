@@ -344,19 +344,36 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
     from backend.services import datasheet_import as dsi
     from backend.services import datasheets as ds
 
+    from backend.models.entities import Job, User
+    from backend.services import datasheet_terms
+
     sheet_id = p["datasheet_id"]
     path = ds.image_dir(ctx.settings, sheet_id) / "hersteller.pdf"
-    code, known = None, None
-    if p.get("manufacturer_id"):
-        with session_scope() as db:
-            m = db.get(Manufacturer, p["manufacturer_id"])
-            code = m.code if m else None
-            current = db.scalar(select(PriceList).where(PriceList.manufacturer_id == p["manufacturer_id"],
+    data = path.read_bytes()
+    code, known, name, detected = None, None, None, False
+    with session_scope() as db:
+        m = db.get(Manufacturer, p["manufacturer_id"]) if p.get("manufacturer_id") else None
+        if m is None:  # nicht ausgewählt: Hersteller im PDF suchen (nur unter den Herstellern des Benutzers)
+            job = db.get(Job, ctx.job_id)
+            creator = db.get(User, job.created_by) if job and job.created_by else None
+            stmt = select(Manufacturer)
+            if not (creator and creator.role == "admin"):
+                stmt = stmt.where(Manufacturer.owner_id == (creator.id if creator else None))
+            try:
+                text = "\n".join(dsi.read_pdf(data)[2])
+            except Exception:  # noqa: BLE001 - Fehler meldet build() verständlich
+                text = ""
+            m = datasheet_terms.detect_manufacturer(text, db.scalars(stmt).all())
+            detected = m is not None
+        if m is not None:
+            code, name = m.code, m.name
+            current = db.scalar(select(PriceList).where(PriceList.manufacturer_id == m.id,
                                                         PriceList.kind == "UNSERE", PriceList.status == "IMPORTIERT")
                                 .order_by(PriceList.id.desc()))
             if current:
                 known = {n for n in db.scalars(select(Article.article_number_normalized)
                                                .where(Article.price_list_id == current.id)) if n}
+        terms = datasheet_terms.load(db, name)
     ai = get_provider(ctx.settings)
     ai = ai if ai.status().active else None
     steps = iter(range(1, 10))
@@ -365,12 +382,16 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         ctx.check_cancel()
         ctx.progress(next(steps), 4, message)
 
-    result = dsi.build(path.read_bytes(), ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
-                       progress=progress)
+    result = dsi.build(data, ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
+                       progress=progress, terms=terms)
+    if detected:
+        result.report.insert(0, f"Hersteller im PDF erkannt: {name} (Kürzel, Preislisten-Abgleich und Wörterbuch "
+                                f"dieses Herstellers verwendet). Falsch? PDF neu einspielen und Hersteller auswählen.")
     with session_scope() as db:
         sheet = db.get(Datasheet, sheet_id)
         content = ds.sanitize(result.content, ds.image_names(ctx.settings, sheet_id))
         sheet.content = content
         sheet.title = ds.title_of(content)
     path.unlink(missing_ok=True)  # Herstellerblatt wird nicht aufbewahrt
-    return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None}
+    return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None,
+            "hersteller": name, "unbekannt": result.unknown}

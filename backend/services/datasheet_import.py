@@ -13,6 +13,7 @@ import hashlib
 import io
 import re
 import secrets
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -90,21 +91,21 @@ SPEC_DE = {"power": "Leistung", "power consumption": "Leistungsaufnahme", "volta
            "colour lens": "Linsenfarbe", "material lens": "Linsenmaterial", "lens material": "Linsenmaterial",
            "functions": "Funktion", "function": "Funktion", "flash rate": "Blitzfrequenz", "fpm": "Blitze/min"}
 # Englische Werte -> B&B-Wörter (Reihenfolge zählt: längere Ausdrücke zuerst). Siehe docs/DATENBLATT-REGELN.md.
-VALUE_DE = [
-    (r"\bflexi(ble)?\s+din\s+pole(\s+mount)?\b", "flexible Rohrmontage"),
-    (r"\b(din\s+)?pole\s+mount\b|\bdin\s+pole\b", "Rohrmontage"),
-    (r"\b\d?\s*bolt\s+flexi\b", "flexible Fixmontage"),
-    (r"\b\d?\s*bolt(\s+conical)?(\s+mount)?\b|\bbolt-on\b|\bpermanent\s+mount\b", "Fixmontage"),
-    (r"\bmag(netic)?(\s+\d+)?(\s+mount)?\b", "Magnetmontage"),
-    (r"\bsingle\s+bolt\b|\bscrew\s+mount(ing)?\b", "Schraubmontage"),
-    (r"\b(DT-?\d{1,2}\s*-?\s*PIN|DT0?\d-\dP|deutsch\s+(DT-?\d+\s*)?connector)\b", "Deutsch Stecker"),
-    (r"\b(die-?cast\s+)?alumin(i)?um\b", "Aluminium"),
-    (r"\bpolycarbonate\b", "Polycarbonat"),
-    (r"\bdouble\s+flash\b", "Doppelblitz"), (r"\btriple\s+flash\b", "Dreifachblitz"),
-    (r"\bsingle\s+flash\b", "Einzelblitz"), (r"\bsteady\s+burn\b", "Dauerlicht"), (r"\brotating\b", "Rotation"),
-    (r"\bamber\b", "gelb"), (r"\byellow\b", "gelb"), (r"\bclear\b", "klar"), (r"\bred\b", "rot"),
-    (r"\bblue\b", "blau"), (r"\bgreen\b", "grün"), (r"\bwhite\b", "weiß"),
-    (r"\b(\d+)\s*years?\b", r"\1 Jahre"), (r"\bwork\s*light\b", "Arbeitsscheinwerfer"),
+VALUE_DE = [  # (Muster, Ersatz, Beispiel für die Wörterbuch-Seite)
+    (r"\bflexi(ble)?\s+din\s+pole(\s+mount)?\b", "flexible Rohrmontage", "Flexi DIN Pole"),
+    (r"\b(din\s+)?pole\s+mount\b|\bdin\s+pole\b", "Rohrmontage", "DIN Pole"),
+    (r"\b\d?\s*bolt\s+flexi\b", "flexible Fixmontage", "1 Bolt Flexi"),
+    (r"\b\d?\s*bolt(\s+conical)?(\s+mount)?\b|\bbolt-on\b|\bpermanent\s+mount\b", "Fixmontage", "3 Bolt"),
+    (r"\bmag(netic)?(\s+\d+)?(\s+mount)?\b", "Magnetmontage", "Mag 70"),
+    (r"\bsingle\s+bolt\b|\bscrew\s+mount(ing)?\b", "Schraubmontage", "Single bolt"),
+    (r"\b(DT-?\d{1,2}\s*-?\s*PIN|DT0?\d-\dP|deutsch\s+(DT-?\d+\s*)?connector)\b", "Deutsch Stecker", "DT-2PIN"),
+    (r"\b(die-?cast\s+)?alumin(i)?um\b", "Aluminium", "Die-cast aluminium"),
+    (r"\bpolycarbonate\b", "Polycarbonat", "Polycarbonate"),
+    (r"\bdouble\s+flash\b", "Doppelblitz", "Double flash"), (r"\btriple\s+flash\b", "Dreifachblitz", "Triple flash"),
+    (r"\bsingle\s+flash\b", "Einzelblitz", "Single flash"), (r"\bsteady\s+burn\b", "Dauerlicht", "Steady burn"), (r"\brotating\b", "Rotation", "Rotating"),
+    (r"\bamber\b", "gelb", "Amber"), (r"\byellow\b", "gelb", "Yellow"), (r"\bclear\b", "klar", "Clear"), (r"\bred\b", "rot", "Red"),
+    (r"\bblue\b", "blau", "Blue"), (r"\bgreen\b", "grün", "Green"), (r"\bwhite\b", "weiß", "White"),
+    (r"\b(\d+)\s*years?\b", r"\1 Jahre", "3 years"), (r"\bwork\s*light\b", "Arbeitsscheinwerfer", "Work light"),
 ]
 NO_VALUE = re.compile(r"^(no|nein|n/?a|-|–|none|keine?)$", re.I)
 MEASURED = re.compile(r"actual|effective|gemessen|betrieb|measured|effektiv|tatsächlich", re.I)
@@ -115,6 +116,22 @@ class ImportResult:
     content: dict
     report: list[str] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
+    unknown: list[dict] = field(default_factory=list)  # [{art, begriff}] für „ins Wörterbuch“
+
+
+# Wörterbuch des Admins für den laufenden Import (siehe datasheet_terms.load): {Art: {Herstellerbegriff: B&B-Begriff}}.
+# Eigene Einträge gehen den eingebauten Regeln vor.
+_TERMS: ContextVar[dict | None] = ContextVar("datasheet_terms", default=None)
+
+
+def term_key(text: str) -> str:
+    """Vergleichsform eines Begriffs: klein, ohne Doppelpunkt am Ende, einfache Leerzeichen."""
+    return re.sub(r"\s+", " ", text.lower()).strip(" :")
+
+
+def _term(kind: str, text: str) -> str | None:
+    terms = _TERMS.get()
+    return (terms or {}).get(kind, {}).get(term_key(text))
 
 
 class PdfError(ValueError):
@@ -724,6 +741,9 @@ def _store(settings: Settings, sheet_id: int, img, product: bool) -> str:
 def _property_for(label: str) -> str | None:
     """B&B-Begriff für ein Merkmal: ganzes Wort am Anfang oder als eigenes Wort („Nominale Spannung (GS)“,
     „Montage / Befestigung“ ja; „Gehäusefarben“ nein)."""
+    mapped = _term("MERKMAL", label)
+    if mapped:
+        return mapped if mapped in BB_ORDER else None
     low = re.sub(r"\s+", " ", label.lower().strip(" :"))
     if re.search(r"lens|linse|streuscheibe|lux\b|temperat", low):
         return None  # „Material lens“, „Color temperature“: eigene Zeilen, kein B&B-Standardbegriff
@@ -735,8 +755,11 @@ def _property_for(label: str) -> str | None:
 
 
 def translate_value(value: str) -> str:
-    """Englische Werte in B&B-Wörter (VALUE_DE); unbekannte Wörter bleiben stehen."""
-    for pattern, repl in VALUE_DE:
+    """Werte in B&B-Wörter: zuerst das Wörterbuch des Admins, dann VALUE_DE; unbekannte Wörter bleiben stehen."""
+    own = (_TERMS.get() or {}).get("WERT", {})
+    for source in sorted(own, key=len, reverse=True):
+        value = re.sub(r"(?<!\w)" + re.escape(source) + r"(?!\w)", own[source].replace("\\", "\\\\"), value, flags=re.I)
+    for pattern, repl, _example in VALUE_DE:
         value = re.sub(pattern, repl, value, flags=re.I)
     return value
 
@@ -807,10 +830,11 @@ def product_type(title: str, text: str) -> str | None:
             if n:
                 counts[word] = n
                 hay = hay.replace(word.lower(), " ")
-        for en, de in PRODUCT_TYPES_EN.items():
-            n = len(re.findall(r"\b" + en + r"s?\b", hay))
+        own = (_TERMS.get() or {}).get("PRODUKTART", {})
+        for en, de in [*own.items(), *PRODUCT_TYPES_EN.items()]:
+            n = len(re.findall(r"\b" + re.escape(en) + r"s?\b", hay))
             if n:
-                counts[de] = counts.get(de, 0) + n
+                counts[de] = counts.get(de, 0) + n * (100 if en in own else 1)  # eigener Eintrag gewinnt
         return counts
 
     for hay in (title, text):
@@ -829,8 +853,8 @@ def series_name(text: str) -> str:
     """Serienname ohne Produktart, Leistung, Spannung und Doppelungen: „Unity Work Light 31W“ -> „Unity“,
     „Beacons 400 Series“ -> „400“."""
     s = re.sub(r"\s+", " ", text)
-    for en in PRODUCT_TYPES_EN:
-        s = re.sub(r"\b" + en + r"s?\b", " ", s, flags=re.I)
+    for en in [*(_TERMS.get() or {}).get("PRODUKTART", {}), *PRODUCT_TYPES_EN]:
+        s = re.sub(r"\b" + re.escape(en) + r"s?\b", " ", s, flags=re.I)
     for de, plural in PRODUCT_TYPES.items():
         s = re.sub(r"\b(" + re.escape(plural) + "|" + re.escape(de) + r")\b", " ", s, flags=re.I)
     s = re.sub(r"\b((wide\s+)?(flood|spot|combo|pencil)(\s+beam)?|LED|R\d{2,3}|\d+(\.\d+)?\s?W|\d+\s?-\s?\d+\s?V( DC)?|serie|series)\b|[|]", " ", s, flags=re.I)
@@ -865,9 +889,48 @@ def _sentences(text: str, limit: int) -> str:
 
 
 def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = None,
-          known_numbers: set[str] | None = None, ai=None, progress=None) -> ImportResult:
+          known_numbers: set[str] | None = None, ai=None, progress=None, terms: dict | None = None) -> ImportResult:
     """Baukasten-Inhalt aus einem Hersteller-PDF. code: Kürzel des Herstellers (vor die Artikelnummern),
-    known_numbers: normalisierte Nummern der aktuellen Liste (für den Bericht), ai: KI-Anbieter oder None."""
+    known_numbers: normalisierte Nummern der aktuellen Liste (für den Bericht), ai: KI-Anbieter oder None,
+    terms: Wörterbuch des Admins für diesen Hersteller (datasheet_terms.load)."""
+    token = _TERMS.set(terms)
+    try:
+        return _build(data, settings, sheet_id, code, known_numbers, ai, progress)
+    finally:
+        _TERMS.reset(token)
+
+
+# Wörter, die auch in B&B-Datenblättern so stehen (kein Übersetzungsbedarf)
+KEEP_WORDS = {"flood", "spot", "wide", "combo", "pencil", "beam", "deutsch", "stecker", "aluminium", "kunststoff",
+              "polycarbonat", "class", "level", "klasse", "montage", "fixmontage", "magnetmontage", "rohrmontage"}
+ENGLISH = re.compile(r"\b(the|and|with|for|of|is|are)\b", re.I)
+GERMAN = re.compile(r"\b(und|mit|für|der|die|das|ist|sind)\b", re.I)
+
+
+def unknown_terms(texts: list[str], labels: list[str], values: list[str]) -> list[dict]:
+    """Begriffe aus englischen Blättern, für die es keine Übersetzung gibt: Merkmalsnamen ohne Zuordnung und
+    Werte, die nach der Übersetzung noch englische Wörter enthalten. Für „ins Wörterbuch“ im Prüfbericht."""
+    text = " ".join(texts)
+    if len(ENGLISH.findall(text)) <= len(GERMAN.findall(text)):
+        return []
+    out, seen = [], set()
+    for label in labels:
+        if term_key(label) not in seen:
+            seen.add(term_key(label))
+            out.append({"art": "MERKMAL", "begriff": re.sub(r"\s+", " ", label).strip(" :")})
+    for value in values:
+        for line in value.splitlines():
+            line = line.strip()
+            words = [w for w in re.findall(r"[a-z]{4,}", translate_value(line).lower()) if w not in KEEP_WORDS]
+            if words and translate_value(line) == line and not re.search(r"[äöüÄÖÜß]", line) \
+                    and term_key(line) not in seen and len(line) <= 60:
+                seen.add(term_key(line))
+                out.append({"art": "WERT", "begriff": line.strip()})
+    return out[:15]
+
+
+def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, known_numbers: set[str] | None,
+           ai, progress) -> ImportResult:
     def step(msg):
         if progress:
             progress(msg)
@@ -902,16 +965,19 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
     if not spec_rows:  # Datentabelle ohne Überschrift (z. B. Strands): Zeilen „Merkmal  Wert“ mit bekannten Merkmalen
         for head, lines in secs:
             known = [i for i, l in enumerate(lines) if len(_cells(l)) >= 2
-                     and (_property_for(_cells(l)[0][2]) or _cells(l)[0][2].lower() in SPEC_DE)]
+                     and (_property_for(_cells(l)[0][2]) or _cells(l)[0][2].lower() in SPEC_DE
+                          or _term("MERKMAL", _cells(l)[0][2]))]
             if len(known) >= 3:
                 spec_rows += parse_spec([l for l in lines[known[0]:known[-1] + 1] if len(_cells(l)) >= 2])
     props = {n: "" for n in BB_ORDER}
     rest, warranty, numbered, measured = [], "", [], ""
+    unknown_labels = []
     for label, value in spec_rows:
         name = _property_for(label)
-        if re.match(r"(artikel|art\.?-?nr|bestell|part\s*n|order)", label, re.I):
+        own = _term("MERKMAL", label)
+        if re.match(r"(artikel|art\.?-?nr|bestell|part\s*n|order)", own or label, re.I):
             numbered += numbers_in_text(value)  # „Wide Flood (36-48 V): 988-208B, …“
-        elif re.match(r"garantie|gewährleistung|warranty", label, re.I):
+        elif re.match(r"garantie|gewährleistung|warranty", own or label, re.I):
             warranty = warranty or translate_value(value)
         elif NO_VALUE.match(value.strip()):
             continue  # „E-approved: No“
@@ -920,7 +986,10 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
         elif name and not props.get(name):
             props[name] = value
         else:
-            rest.append((SPEC_DE.get(re.sub(r"\s+", " ", label.lower()), label), bb_value("", value)))
+            german = own or SPEC_DE.get(re.sub(r"\s+", " ", label.lower()))
+            if not german and not name:
+                unknown_labels.append(label)
+            rest.append((german or label, bb_value("", value)))
     props = {n: bb_value(n, v) if v else "" for n, v in props.items()}
     if measured:
         measured = bb_value("Lichtleistung", measured)
@@ -983,6 +1052,7 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
             bullets.append(cable)  # B&B: „52cm Anschlusskabel mit Deutsch Stecker“
     if warranty and not any("garantie" in b.lower() for b in bullets):
         bullets.insert(0, f"{warranty} Garantie")  # B&B: „2 Jahre Garantie“ als erster Punkt
+    bullets = [translate_value(b) for b in bullets]
     content["eigenschaften"] += [{"name": "", "wert": b[:150], "sichtbar": True} for b in bullets]
     if not description:
         report.append("Kein Beschreibungstext gefunden – Einleitung bitte von Hand schreiben.")
@@ -1089,7 +1159,8 @@ def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = Non
         report.append(f"{extra} weitere Bilder im PDF wurden nicht übernommen (je Platz höchstens 2, Produktbilder nur oben).")
     stats = {"seiten": len(pages), "technische_daten": len(spec_rows), "artikel": total, "bilder":
              sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten")) + len(imgs["diagramm"][:2])}
-    return ImportResult(content=content, report=report, stats=stats)
+    return ImportResult(content=content, report=report, stats=stats,
+                        unknown=unknown_terms(texts, unknown_labels, [v for _l, v in spec_rows]))
 
 
 def save_pdf(settings: Settings, sheet_id: int, data: bytes) -> Path:

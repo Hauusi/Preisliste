@@ -342,8 +342,10 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 
-**Aus Hersteller-Datenblatt erstellen:** In der Datenblatt-Übersicht das PDF des Herstellers hochladen, optional
-den Hersteller wählen → „Datenblatt erstellen“. Ein Hintergrundjob füllt den Baukasten, danach öffnet sich der
+**Aus Hersteller-Datenblatt erstellen:** In der Datenblatt-Übersicht das PDF des Herstellers hochladen, den
+Hersteller wählen (oder „automatisch erkennen“: der Herstellername bzw. ein Alias wird im PDF gesucht, unter den
+eigenen Herstellern; der Prüfbericht nennt den erkannten Hersteller) → „Datenblatt erstellen“. Der Hersteller bestimmt
+Kürzel, Preislisten-Abgleich und das Wörterbuch. Ein Hintergrundjob füllt den Baukasten, danach öffnet sich der
 Editor mit einem Prüfbericht oben. Übernommen werden:
 
 | Aus dem PDF | In den Baukasten |
@@ -360,6 +362,16 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
 Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Wie B&B Herstellerangaben übersetzt und platziert, steht in `docs/DATENBLATT-REGELN.md`. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
+
+**Wörterbuch (nur Admin):** Datenblätter → „Wörterbuch“. Einträge „Begriff im Herstellerblatt → unser Begriff“, je
+Eintrag eine Art: **Merkmal** (Zeilenname, z. B. „Actual lumen“ → „Lichtleistung“; Standardzeile oder eigene
+Spezifikationszeile), **Wert** (Ausdruck in Werten, Aufzählungen und Artikelbeschreibungen, z. B. „Mag 70“ →
+„Magnetmontage“), **Produktart** (z. B. „work light“ → „Arbeitsscheinwerfer“, Einzahl). „Gilt für“: alle Hersteller
+oder einer (Name; gleich benannte Hersteller verschiedener Benutzer teilen sich die Einträge). Reihenfolge: Eintrag des
+Herstellers vor „alle Hersteller“ vor den eingebauten Regeln (unten auf der Seite aufklappbar). Gleicher Begriff
+nochmal speichern = überschreiben. Groß-/Kleinschreibung egal. Wirkt beim nächsten Import, bestehende Datenblätter
+bleiben unverändert. Bei englischen Blättern listet der Prüfbericht Begriffe ohne Übersetzung; der Admin sieht daneben
+„ins Wörterbuch“ (öffnet das Formular vorausgefüllt mit Art, Begriff und Hersteller).
 
 **Bedienung:**
 

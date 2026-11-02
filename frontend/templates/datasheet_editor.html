@@ -139,6 +139,11 @@
     {{ imported.zahlen.technische_daten }} Technische Daten, {{ imported.zahlen.artikel }} Artikelnummern, {{ imported.zahlen.bilder }} Bilder übernommen.
     Beschreibung {{ "von der lokalen KI formuliert" if imported.ki else "als gekürzter Originaltext" }}.
     {% if imported.bericht %}<ul>{% for r in imported.bericht %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+    {% if imported.unbekannt %}
+      <p class="m0">Ohne Übersetzung übernommen{% if imported.hersteller %} ({{ imported.hersteller }}){% endif %}:
+      {% for u in imported.unbekannt %}<span class="term-chip">{{ u.begriff }}{% if user.role == "admin" %}
+        <a href="/datenblatt/woerterbuch?{{ {'art': u.art, 'begriff': u.begriff, 'hersteller': imported.hersteller or ''} | urlencode }}" target="_blank" rel="noopener">ins Wörterbuch</a>{% endif %}</span>{% endfor %}</p>
+    {% endif %}
   </section>
   {% endif %}
 

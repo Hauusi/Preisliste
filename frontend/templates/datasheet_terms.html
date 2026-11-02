@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, trash %}
+{% block title %}Datenblatt-Wörterbuch{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
+    <h1>Wörterbuch für den Import</h1>
+    <p>Wie Begriffe aus Herstellerblättern bei uns heißen. Gilt für alle Hersteller oder nur für einen; der Eintrag des
+      Herstellers geht vor, eigene Einträge gehen den eingebauten Regeln vor. Wirkt beim nächsten Import.</p>
+  </div>
+</div>
+
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+
+<form method="post" action="/datenblatt/woerterbuch" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h2>Eintrag hinzufügen</h2>
+  <div class="row terms-form">
+    <label>Art
+      <select name="art">{% for k, label in kinds.items() %}<option value="{{ k }}"{% if prefill.art == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="grow">Begriff im Herstellerblatt <input name="begriff" maxlength="120" required value="{{ prefill.begriff }}" placeholder="z. B. Actual lumen"></label>
+    <label class="grow">Unser Begriff <input name="ziel" maxlength="200" required placeholder="z. B. Lichtleistung" list="bb-terms"{% if prefill.begriff %} autofocus{% endif %}></label>
+    <label>Gilt für
+      <select name="hersteller"><option value="">alle Hersteller</option>{% for n in manufacturers %}<option value="{{ n }}"{% if prefill.hersteller == n %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+    <button type="submit">{{ icon("plus", 18) }} Speichern</button>
+  </div>
+  <ul class="hint terms-hints">{% for k, h in hints.items() %}<li><b>{{ kinds[k] }}:</b> {{ h }}</li>{% endfor %}</ul>
+  <datalist id="bb-terms">{% for n in ["Spannungsbereich", "Lichtleistung", "Wasserdicht", "Montage", "Zulassungen", "Gehäuse", "Abmessungen", "Leuchtbild", "Garantie"] %}<option value="{{ n }}">{% endfor %}</datalist>
+</form>
+
+<section class="card">
+  <form method="get" action="/datenblatt/woerterbuch" class="row">
+    <h2 class="grow">Einträge ({{ terms | length }})</h2>
+    <label>Anzeigen
+      <select name="hersteller" data-autosubmit>
+        <option value="*"{% if filter == "*" %} selected{% endif %}>alle Einträge</option>
+        <option value=""{% if filter == "" %} selected{% endif %}>nur „alle Hersteller“</option>
+        {% for n in manufacturers %}<option value="{{ n }}"{% if filter == n %} selected{% endif %}>nur {{ n }}</option>{% endfor %}
+      </select></label>
+    <noscript><button type="submit" class="secondary">Anzeigen</button></noscript>
+  </form>
+  {% if terms %}
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Art</th><th>Herstellerbegriff</th><th>Unser Begriff</th><th>Gilt für</th><th></th></tr></thead>
+    <tbody>
+    {% for t in terms %}
+      <tr>
+        <td>{{ kinds.get(t.kind, t.kind) }}</td>
+        <td><b>{{ t.source }}</b></td>
+        <td>
+          <form method="post" action="/datenblatt/woerterbuch/{{ t.id }}/aendern" class="inline row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="filter" value="{{ '' if filter == '*' else filter }}">
+            <input name="ziel" value="{{ t.target }}" maxlength="200" required aria-label="Unser Begriff für {{ t.source }}">
+            <button type="submit" class="secondary">Ändern</button>
+          </form>
+        </td>
+        <td>{{ t.manufacturer or "alle Hersteller" }}</td>
+        <td class="row-actions">
+          <form method="post" action="/datenblatt/woerterbuch/{{ t.id }}/loeschen" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="filter" value="{{ '' if filter == '*' else filter }}">
+            <button type="submit" class="icon-btn danger" title="Eintrag löschen" aria-label="Eintrag {{ t.source }} löschen">{{ trash() }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine eigenen Einträge. Unbekannte Begriffe
+    zeigt der Prüfbericht nach einem Import mit „ins Wörterbuch“ an.</div>
+  {% endif %}
+</section>
+
+<details class="card">
+  <summary>Eingebaute Regeln ({{ builtin | length }}) – gelten immer, eigene Einträge gehen vor</summary>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Art</th><th>Herstellerbegriff (Beispiel)</th><th>Unser Begriff</th></tr></thead>
+    <tbody>{% for k, src, dst in builtin %}<tr><td>{{ kinds.get(k, k) }}</td><td>{{ src }}</td><td>{{ dst }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</details>
+<script src="/static/app.js"></script>
+{% endblock %}
