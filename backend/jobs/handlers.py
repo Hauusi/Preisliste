@@ -378,15 +378,34 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
             {"titel": t.title, "art": t.template_kind, "content": t.content, "geaendert": t.updated_at.isoformat()}
             for t in db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True), Datasheet.id != sheet_id))]
     ai = get_provider(ctx.settings)
-    ai = ai if ai.status().active else None
-    steps = iter(range(1, 10))
+    ai = ai if ai.status().active and not p.get("vorlage") else None  # Vorlage: unser Text bleibt wörtlich
+    steps = iter(range(1, 12))
 
     def progress(message):
         ctx.check_cancel()
         ctx.progress(next(steps), 4, message)
 
     result = dsi.build(data, ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
-                       progress=progress, terms=terms, templates=templates)
+                       progress=progress, terms=terms, templates=templates, own_sheet=bool(p.get("vorlage")))
+    suggestions = []
+    compare = ds.image_dir(ctx.settings, sheet_id) / "vergleich.pdf"
+    if p.get("vorlage") and compare.exists():
+        # Herstellerblatt desselben Produkts: Wortwahl vergleichen (Bilder in einen Wegwerf-Ordner)
+        import tempfile
+        from pathlib import Path
+
+        from backend.services import datasheet_templates
+
+        progress("Herstellerblatt vergleichen")
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                other = dsi.build(compare.read_bytes(), ctx.settings.model_copy(update={"data_dir": Path(tmp)}),
+                                  sheet_id, terms=terms)
+                suggestions = datasheet_templates.suggest_terms(result.content, other.rows)
+                result.report.append(f"Herstellerblatt verglichen: {len(suggestions)} Wortvorschläge fürs Wörterbuch.")
+            except dsi.PdfError as exc:
+                result.report.append(f"Herstellerblatt nicht verglichen: {exc}")
+        compare.unlink(missing_ok=True)
     if detected:
         result.report.insert(0, f"Hersteller im PDF erkannt: {name} (Kürzel, Preislisten-Abgleich und Wörterbuch "
                                 f"dieses Herstellers verwendet). Falsch? PDF neu einspielen und Hersteller auswählen.")
@@ -397,7 +416,8 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         sheet.title = ds.title_of(content)
         if p.get("vorlage"):  # eigenes B&B-Blatt als Design-Vorlage eingelesen
             sheet.is_template = True
-            sheet.template_kind = result.stats.get("produktart") or None
+            sheet.template_kind = p.get("art") or result.stats.get("produktart") or None
     path.unlink(missing_ok=True)  # Herstellerblatt wird nicht aufbewahrt
     return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None,
-            "hersteller": name, "unbekannt": result.unknown}
+            "hersteller": name, "unbekannt": result.unknown, "vorlage": bool(p.get("vorlage")),
+            "vorschlaege": suggestions}

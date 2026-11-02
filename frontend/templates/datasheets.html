@@ -8,7 +8,9 @@
     <h1>Datenblätter</h1>
     <p>Festes Layout mit Kopf- und Fußzeile, Inhalt aus verschiebbaren Bausteinen mit Live-Vorschau.</p>
   </div>
-  {% if user.role == "admin" %}<a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a>{% endif %}
+  {% if user.role == "admin" %}<div class="row">
+    <a class="button secondary" href="/datenblatt/vorlagen">{{ icon("doc", 18) }} Design-Vorlagen</a>
+    <a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a></div>{% endif %}
 </div>
 
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
@@ -34,55 +36,6 @@
   </div>
 </form>
 
-{% if user.role == "admin" %}
-<section class="card" id="vorlagen">
-  <h2>Design-Vorlagen</h2>
-  <p class="hint">Fertige Braun-&amp;-Braun-Datenblätter als Beispiel für „Aus Hersteller-Datenblatt erstellen“: Bei gleicher
-    Produktart übernimmt der Import Reihenfolge der Eigenschaften, Spezifikationszeilen und Bausteine, Tabellen-Einstellungen
-    und (mit lokaler KI) den Textstil. Werte, Artikel und Bilder der Vorlage werden nie übernommen.</p>
-  <form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="row tpl-upload">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="vorlage" value="1">
-    <label class="dropzone grow">
-      <b data-file-label>Unser Datenblatt (PDF) hierher ziehen oder klicken</b>
-      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
-    </label>
-    <button type="submit" class="secondary">{{ icon("upload", 18) }} Vorlage hochladen</button>
-  </form>
-  <p class="hint">Danach im Editor prüfen – die Vorlage wirkt so, wie sie dort steht. Ein bestehendes Datenblatt wird mit
-    „Als Vorlage“ in der Liste unten zur Vorlage.</p>
-  {% if templates %}
-  <div class="scroll">
-  <table>
-    <thead><tr><th>Vorlage</th><th>Gilt für Produktart (mehrere mit Komma)</th><th></th></tr></thead>
-    <tbody>
-    {% for t in templates %}
-      <tr>
-        <td><a href="/datenblatt/{{ t.id }}"><b>{{ t.title }}</b></a></td>
-        <td>
-          <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="inline row">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="aktiv" value="1">
-            <input name="art" class="tpl-kind" value="{{ t.template_kind or '' }}" maxlength="60" list="product-kinds" placeholder="z. B. Arbeitsscheinwerfer" aria-label="Produktart für {{ t.title }}">
-            <button type="submit" class="secondary">Speichern</button>
-          </form>
-          {% if not t.template_kind %}<span class="badge WARNUNG">ohne Produktart – wird nicht verwendet</span>{% endif %}
-        </td>
-        <td class="row-actions">
-          <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="secondary">Keine Vorlage mehr</button>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% endif %}
-  <datalist id="product-kinds">{% for k in kinds %}<option value="{{ k }}">{% endfor %}</datalist>
-</section>
-{% endif %}
 
 <form method="post" action="/datenblatt/neu" class="card row dse-new">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -107,7 +60,7 @@
         <form method="post" action="/datenblatt/{{ s.id }}/vorlage" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="aktiv" value="1">
-          <button type="submit" class="secondary" title="Als Design-Vorlage für den Import verwenden">Als Vorlage</button>
+          <button type="submit" class="secondary" title="Zu den Design-Vorlagen verschieben (Beispiel für den Import aus Herstellerblättern)">Als Vorlage</button>
         </form>
         {% endif %}
         <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">

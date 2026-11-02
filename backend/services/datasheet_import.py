@@ -118,6 +118,7 @@ class ImportResult:
     report: list[str] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
     unknown: list[dict] = field(default_factory=list)  # [{art, begriff}] für „ins Wörterbuch“
+    rows: list[dict] = field(default_factory=list)  # Technische Daten wie im PDF: [{merkmal, wert, name}] (Vergleich)
 
 
 # Wörterbuch des Admins für den laufenden Import (siehe datasheet_terms.load): {Art: {Herstellerbegriff: B&B-Begriff}}.
@@ -215,6 +216,9 @@ def sections(texts: list[str]) -> list[tuple[str, list[str]]]:
             cells = _cells(line)
             if _is_heading(line) or (len(cells) == 1 and cells[0][0] < 20 and HEADING_EN.match(cells[0][2])):
                 out.append((_clean_heading(line), []))
+            elif len(cells) >= 2 and HEAD_WORDS.match(cells[0][2]) and HEAD_WORDS.match(cells[1][2]) \
+                    and not HEADING_ARTICLES.search(out[-1][0]):
+                out.append(("ARTIKEL", [line.rstrip()]))  # Tabellenkopf „Artikel  Beschreibung“ ohne Überschrift
             elif len(cells) >= 2 and all(_is_heading(c[2]) for c in cells):
                 out.append((" / ".join(_clean_heading(c[2]) for c in cells), []))  # „ANSCHLUSS   HAUPTMERKMALE“
             else:
@@ -614,8 +618,47 @@ def _image_kind(img) -> str | None:
     if saturation < 18 and paper > .6:
         # farbige Flächen auf weißem Papier: Leuchtreichweite/Lichtverteilung; Maßzeichnungen sind farblos
         colored = sum(1 for p in opaque if max(p[:3]) - min(p[:3]) > 40) / len(opaque)
-        return "diagramm" if colored > .03 else "zeichnung"
+        if colored > .03:
+            return "diagramm"
+        # Strichzeichnung: Linien grau/kantengeglättet, kaum Schwarz. Produktfoto auf Weiß (schwarzes Gehäuse): viel
+        # Schwarz im Motiv (gemessen: Zeichnungen bis 0,17, Fotos ab 0,27)
+        ink = [sum(p[:3]) / 3 for p in opaque if min(p[:3]) <= 225]
+        dark = sum(1 for v in ink if v < 70) / len(ink) if ink else 0
+        return "produkt" if dark >= .22 else "zeichnung"
     return "produkt"
+
+
+_OWN_LOGOS: list | None = None
+
+
+def _own_logo(img) -> bool:
+    """Unser eigenes Logo (Fußzeile der B&B-Datenblätter) – nie als Produktbild übernehmen."""
+    global _OWN_LOGOS
+    from PIL import Image, ImageChops, ImageStat
+
+    def norm(im):
+        flat = Image.new("RGBA", im.size, "white")
+        flat.alpha_composite(im.convert("RGBA"))
+        return flat.convert("L").resize((32, 24))
+
+    if _OWN_LOGOS is None:
+        static = Path(__file__).resolve().parents[2] / "frontend" / "static"
+        _OWN_LOGOS = []
+        for name in ("bb-logo.png", "bb-mark.png"):  # helle Variante nicht: auf Weiß fast leer, passt sonst auf alles
+            try:
+                ref = Image.open(static / name)
+                _OWN_LOGOS.append((ref.size[0] / ref.size[1], norm(ref)))
+            except OSError:
+                continue
+    ratio = img.size[0] / max(img.size[1], 1)
+    probe = None
+    for ref_ratio, ref in _OWN_LOGOS:
+        if abs(ratio - ref_ratio) / ref_ratio > .15:
+            continue
+        probe = probe or norm(img)
+        if ImageStat.Stat(ImageChops.difference(probe, ref)).mean[0] < 20:
+            return True
+    return False
 
 
 def _line_art(rgba) -> bool:
@@ -683,7 +726,7 @@ def extract_images(pages) -> dict[str, list]:
         if seen.get(key) == -1:
             continue
         kind = _image_kind(img)
-        if kind:
+        if kind and not _own_logo(img):
             out[kind].append((page_no, img))
     # Produktbilder nur von der ersten Seite mit Produktbild: spätere freigestellte Grafiken sind meist
     # Lichtverteilungen, Stecker oder Zubehör. Sonst: Seite zuerst, dann die größten.
@@ -891,14 +934,16 @@ def _sentences(text: str, limit: int) -> str:
 
 def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = None,
           known_numbers: set[str] | None = None, ai=None, progress=None, terms: dict | None = None,
-          templates: list[dict] | None = None) -> ImportResult:
+          templates: list[dict] | None = None, own_sheet: bool = False) -> ImportResult:
     """Baukasten-Inhalt aus einem Hersteller-PDF. code: Kürzel des Herstellers (vor die Artikelnummern),
     known_numbers: normalisierte Nummern der aktuellen Liste (für den Bericht), ai: KI-Anbieter oder None,
     terms: Wörterbuch des Admins für diesen Hersteller (datasheet_terms.load), templates: Design-Vorlagen
-    [{titel, art, content, geaendert}] – die zur erkannten Produktart gibt Aufbau und Textstil vor."""
+    [{titel, art, content, geaendert}] – die zur erkannten Produktart gibt Aufbau und Textstil vor,
+    own_sheet: eigenes B&B-Blatt (Design-Vorlage) – alle Technischen Daten behalten, keine Vorlage anwenden."""
     token = _TERMS.set(terms)
     try:
-        return _build(data, settings, sheet_id, code, known_numbers, ai, progress, templates or [])
+        return _build(data, settings, sheet_id, code, known_numbers, ai, progress, [] if own_sheet else templates or [],
+                      own_sheet)
     finally:
         _TERMS.reset(token)
 
@@ -933,7 +978,7 @@ def unknown_terms(texts: list[str], labels: list[str], values: list[str]) -> lis
 
 
 def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, known_numbers: set[str] | None,
-           ai, progress, templates: list[dict]) -> ImportResult:
+           ai, progress, templates: list[dict], own_sheet: bool = False) -> ImportResult:
     def step(msg):
         if progress:
             progress(msg)
@@ -1008,7 +1053,7 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
         limit = max(MAX_SPEC_ROWS_AUTO, len(order))
     else:
         rest.sort(key=lambda r: _spec_rank(r[0]))
-        limit = MAX_SPEC_ROWS_AUTO
+        limit = ds.MAX_SPEC_ROWS if own_sheet else MAX_SPEC_ROWS_AUTO  # eigenes Blatt: alles behalten
     used, dropped = rest[:limit], rest[limit:]
     # B&B-Standardzeilen immer anlegen (leer = nicht gedruckt), Lichtleistung/Leuchtbild nur wenn vorhanden
     content["eigenschaften"] = [{"name": n, "wert": v[:150], "sichtbar": True} for n, v in props.items()
@@ -1176,7 +1221,8 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
                          f"Spezifikation und Bausteine, Tabellen-Einstellungen" + (", Textstil" if ai else "") + ".")
     stats["produktart"] = kind or ""
     return ImportResult(content=content, report=report, stats=stats,
-                        unknown=unknown_terms(texts, unknown_labels, [v for _l, v in spec_rows]))
+                        unknown=unknown_terms(texts, unknown_labels, [v for _l, v in spec_rows]),
+                        rows=[{"merkmal": l, "wert": v, "name": _property_for(l)} for l, v in spec_rows])
 
 
 def save_pdf(settings: Settings, sheet_id: int, data: bytes) -> Path:

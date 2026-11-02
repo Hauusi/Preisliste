@@ -581,6 +581,17 @@ body.portal.wide .content { max-width: 1760px; }
 .term-chip { display: inline-flex; align-items: baseline; gap: 6px; margin: 4px 6px 0 0; padding: 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); font-size: .92rem; }
 .term-chip a { font-size: .85rem; }
 .terms-hints { margin: 12px 0 0; padding-left: 20px; }
+.tpl-files { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 12px; }
+.tpl-files .dropzone { padding: 22px 16px; }
+.tpl-form .row { align-items: flex-end; }
+.tpl-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.tpl-item:first-of-type { border-top: 0; }
+.tpl-item h3 { margin: 0; }
+.tpl-item .row + .row { margin-top: 8px; }
+.tpl-item details { margin-top: 8px; }
+.tpl-suggest { margin-top: 12px; }
+.tpl-suggest td input[name^="ziel"] { width: 100%; }
+@media (max-width: 700px) { .tpl-files { grid-template-columns: 1fr; } }
 .tpl-upload { align-items: center; margin: 12px 0; }
 .tpl-upload .dropzone { padding: 14px 16px; }
 .tpl-kind { min-width: 18rem; }

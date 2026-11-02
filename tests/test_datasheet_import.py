@@ -319,3 +319,30 @@ def test_product_photo_and_beam_diagram_are_told_apart():
     drawing = Image.new("RGB", (700, 300), "white")
     ImageDraw.Draw(drawing).rectangle((60, 60, 400, 240), outline=(0, 0, 0), width=3)
     assert dsi._image_kind(drawing) == "zeichnung"
+
+
+def test_own_logo_is_never_a_product_image():
+    from pathlib import Path
+
+    from PIL import Image, ImageDraw
+
+    logo = Image.open(Path(__file__).resolve().parent.parent / "frontend" / "static" / "bb-logo.png")
+    assert dsi._own_logo(logo) and dsi._own_logo(logo.resize((462, 324)))
+    lamp = Image.new("RGB", (462, 324), "white")
+    ImageDraw.Draw(lamp).rectangle((120, 60, 340, 280), fill=(20, 20, 24))
+    assert not dsi._own_logo(lamp)
+
+
+def test_product_photo_on_white_is_not_a_drawing():
+    from PIL import Image, ImageDraw
+
+    photo = Image.new("RGB", (400, 400), "white")  # schwarzes Gehäuse mit grauer Linse auf Weiß
+    d = ImageDraw.Draw(photo)
+    d.rectangle((120, 100, 280, 300), fill=(25, 25, 28))
+    d.ellipse((150, 130, 250, 230), fill=(170, 172, 175))
+    assert dsi._image_kind(photo) == "produkt"
+    drawing = Image.new("RGB", (400, 400), "white")
+    d = ImageDraw.Draw(drawing)
+    d.rectangle((120, 100, 280, 300), outline=(110, 110, 110), width=2)
+    d.line((100, 330, 300, 330), fill=(90, 90, 90), width=1)
+    assert dsi._image_kind(drawing) == "zeichnung"
