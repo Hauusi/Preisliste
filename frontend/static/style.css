@@ -562,6 +562,11 @@ body.portal.wide .content { max-width: 1760px; }
 .dse-row.trow .t-val { flex: 1 1 80px; width: auto; min-width: 70px; }
 .dse-row.trow .t-desc { order: 10; flex: 1 1 100%; margin-left: 90px; margin-right: 40px; }
 .dse-row.trow .dse-del { margin-left: auto; }
+.dse-row.trow .t-img, .dse-row.trow .t-grp { display: contents; }
+.dse-row.trow .t-group-btn { order: 11; margin-left: 90px; font-size: .85rem; }
+.dse-row.trow .t-grp .dse-slot { order: 12; flex: 0 0 120px; width: 120px; height: 70px; }
+.dse-row.trow:not(.has-group) .t-grp .dse-slot { display: none; }
+@media (max-width: 600px) { .dse-row.trow .t-group-btn { margin-left: 36px; } }
 .dse-row.trow > * { min-width: 0; }
 .dse-row.trow .t-val { min-width: 60px; }
 .dse-text { font-family: inherit; line-height: 1.45; min-height: 90px; resize: vertical; }

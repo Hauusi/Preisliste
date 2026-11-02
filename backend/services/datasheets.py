@@ -284,6 +284,7 @@ def all_images(c: dict) -> list[str]:
     """Alle Bilder, die im Blatt groß erscheinen (ohne kleine Zeilenbilder der Tabellen)."""
     names = [*c["bilder_oben"], *c["zeichnungen"], *c["bilder_unten"]]
     names += [b["bild"] for b in c["bloecke"] if b.get("typ") in ("bild", "tabelle") and b.get("bild")]
+    names += [r["gruppe"] for b in c["bloecke"] if b.get("typ") == "tabelle" for r in b.get("zeilen", []) if r.get("gruppe")]
     return names
 
 
@@ -300,10 +301,12 @@ def _table(b: dict, valid: set[str]) -> dict:
     for r in _list(b.get("zeilen"), MAX_ROWS):
         werte = r.get("werte") if isinstance(r.get("werte"), list) else []
         row = {"bild": _image(r.get("bild"), valid), "artnr": _s(r.get("artnr"), 60),
+               # Gruppenbild ab dieser Zeile (links neben dieser und den folgenden Zeilen bis zum nächsten)
+               "gruppe": _image(r.get("gruppe"), valid),
                "farbe": valid_color(r.get("farbe")),
                "beschreibung": _s(r.get("beschreibung"), 300),
                "werte": [_s(werte[k] if k < len(werte) else "", 80) for k in range(len(spalten))]}
-        if row["bild"] or row["artnr"] or row["beschreibung"] or any(row["werte"]):
+        if row["bild"] or row["gruppe"] or row["artnr"] or row["beschreibung"] or any(row["werte"]):
             zeilen.append(row)
     return {"titel": _s(b.get("titel"), 80), "zusatz": _s(b.get("zusatz"), 80), "bild": _image(b.get("bild"), valid),
             "bild_pos": b.get("bild_pos") if b.get("bild_pos") in GROUP_IMAGE_POS else "links",
@@ -541,6 +544,46 @@ def _lead_mm(text: str, props: list[dict], spez: dict | None, images: list[str],
     return max(left, right)
 
 
+def _with_groups(part: dict, rows: list[dict]) -> list[dict]:
+    """Zeilen mit Gruppe: Gruppenbild (gbild) und Gruppen-Nummer (gid). Bis zur ersten Zeile mit eigenem Gruppenbild
+    gilt das Gruppenbild der Tabelle."""
+    image = part["bild"] if part.get("bild_links") else None
+    gid, out = 0, []
+    for i, row in enumerate(rows):
+        if row.get("gruppe"):
+            image, gid = row["gruppe"], (gid + 1 if i else gid)
+        out.append({**row, "gbild": image, "gid": gid})
+    return out
+
+
+def _spans(rows: list[dict]) -> list[dict]:
+    """Je Teilstück: erste Zeile einer Gruppe bekommt die Zahl ihrer Zeilen (rowspan), die übrigen 0. Wird eine
+    Gruppe auf zwei Seiten geteilt, steht ihr Bild auf beiden."""
+    out = [dict(r) for r in rows]
+    i = 0
+    while i < len(out):
+        j = i
+        while j + 1 < len(out) and out[j + 1]["gid"] == out[i]["gid"]:
+            j += 1
+        out[i]["gspan"] = j - i + 1
+        for k in range(i + 1, j + 1):
+            out[k]["gspan"] = 0
+        i = j + 1
+    return out
+
+
+def _groups_mm(part: dict, rows: list[dict], row_mm) -> float:
+    """Höhe der Zeilen; eine Gruppe mit Bild ist mindestens so hoch wie das Bild."""
+    if not part.get("bild_links"):
+        return sum(row_mm(r) for r in rows)
+    total = 0.0
+    for gid in dict.fromkeys(r["gid"] for r in rows):
+        group = [r for r in rows if r["gid"] == gid]
+        body = sum(row_mm(r) for r in group)
+        total += max(body, TABLE_MIN_MM) if group[0]["gbild"] else body
+    return total
+
+
 def paginate(content: dict, editor: bool = False) -> list[dict]:
     """Bausteine in ihrer Reihenfolge auf A4-Seiten verteilen.
 
@@ -569,15 +612,14 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
     def place_table(part: dict, rows: list, row_mm):
         """Zeilen so weit wie möglich auf die aktuelle Seite, Rest mit „Fortsetzung“ auf die nächsten."""
         nonlocal used
-        rows, piece = list(rows), 0
+        rows, piece = _with_groups(part, rows), 0
         while True:
             # Bild über der Tabelle nur beim ersten Teil
             head = ((TABLE_TITLE_MM if part["titel"] or part["zusatz"] else 0) + TABLE_HEAD_MM
                     + (BANNER_MM * scale_of(c, part["bild"]) if part["bild_oben"] and piece == 0 else 0))
-            min_body = TABLE_MIN_MM if part["bild_links"] else 0
-            need = head + max(min_body, sum(row_mm(r) for r in rows))
+            need = head + _groups_mm(part, rows, row_mm)
             if need <= PAGE_BODY_MM - used:
-                pages[-1].append({**part, "zeilen": rows, "fortsetzung": piece > 0})
+                pages[-1].append({**part, "zeilen": _spans(rows), "fortsetzung": piece > 0})
                 used += need + TABLE_GAP_MM
                 return
             fit, height = 0, head
@@ -591,10 +633,10 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
             elif pages[-1] and len(rows) - fit < 3:
                 fit = len(rows) - 3 if len(rows) - 3 >= 3 else 0
             if fit >= 3 or (not pages[-1] and fit >= 1):
-                pages[-1].append({**part, "zeilen": rows[:fit], "fortsetzung": piece > 0})
+                pages[-1].append({**part, "zeilen": _spans(rows[:fit]), "fortsetzung": piece > 0})
                 rows, piece = rows[fit:], piece + 1
             elif not pages[-1]:  # nicht einmal eine Zeile passt auf eine leere Seite (sehr lange Texte)
-                pages[-1].append({**part, "zeilen": rows[:1], "fortsetzung": piece > 0})
+                pages[-1].append({**part, "zeilen": _spans(rows[:1]), "fortsetzung": piece > 0})
                 rows, piece = rows[1:], piece + 1
             new_page()
             if not rows:
@@ -647,8 +689,9 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
             # Live-Vorschau: Tabelle ohne Artikelzeilen schon mit Überschrift und Bild zeigen (Platzhalter-Zeile);
             # im Druck erscheint sie erst mit Zeilen
             part = {k: block[k] for k in ("titel", "zusatz", "bild", "spalten", "zeilenbilder")}
-            part.update(typ="tabelle", bild_links=bool(block["bild"]) and block["bild_pos"] == "links",
-                        bild_oben=bool(block["bild"]) and block["bild_pos"] == "oben",
+            groups = any(r.get("gruppe") for r in block["zeilen"])  # Gruppenbilder ab einzelnen Zeilen: immer links
+            part.update(typ="tabelle", bild_links=(bool(block["bild"]) and block["bild_pos"] == "links") or groups,
+                        bild_oben=bool(block["bild"]) and block["bild_pos"] == "oben" and not groups,
                         zeilen_bilder=any(r.get("bild") for r in block["zeilen"]),
                         farben=any(r.get("farbe") for r in block["zeilen"]))
         if part is None:

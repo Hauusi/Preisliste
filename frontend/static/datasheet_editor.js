@@ -77,7 +77,9 @@
       b.zeilenbilder = $('[data-f="zeilenbilder"]', c).value;
       b.spalten = $$("[data-col]", c).map(function (i) { return i.value.trim(); });
       b.zeilen = own($('[data-list="zeilen"]', c), "[data-row]").map(function (r) {
-        return { bild: $("[data-slot]", r).getAttribute("data-name") || null, artnr: val(r, '[data-f="artnr"]'),
+        var grp = r.classList.contains("has-group") ? $(".t-grp [data-slot]", r).getAttribute("data-name") : "";
+        return { bild: $(".t-img [data-slot]", r).getAttribute("data-name") || null, gruppe: grp || null,
+                 artnr: val(r, '[data-f="artnr"]'),
                  farbe: $('[data-f="farbe"]', r).value, beschreibung: val(r, '[data-f="beschreibung"]'),
                  werte: $$("[data-w]", r).map(function (i) { return i.value.trim(); }) };
       });
@@ -551,6 +553,18 @@
     if (e.key === "ArrowUp" && prev) { box.insertBefore(row, prev); }
     if (e.key === "ArrowDown" && next) { box.insertBefore(next, row); }
     grip.focus();
+    changed();
+  });
+
+  // ---------- Gruppenbild ab einer Tabellenzeile ein-/ausschalten ----------
+  root.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-group-toggle]");
+    if (!btn) { return; }
+    var row = btn.closest("[data-row]");
+    var on = !row.classList.contains("has-group");
+    row.classList.toggle("has-group", on);
+    btn.textContent = on ? "kein eigenes Gruppenbild" : "Gruppenbild ab hier";
+    if (on) { $(".t-grp [data-slot]", row).focus(); }
     changed();
   });
 
