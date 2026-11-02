@@ -363,17 +363,25 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
 Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Wie B&B Herstellerangaben übersetzt und platziert, steht in `docs/DATENBLATT-REGELN.md`. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
 
-**Design-Vorlagen (nur Admin):** Datenblätter → Abschnitt „Design-Vorlagen“. Ein fertiges B&B-Datenblatt (PDF) hochladen
-– es wird eingelesen und als Vorlage markiert, danach im Editor prüfen und korrigieren – oder ein bestehendes Datenblatt
-in der Liste mit „Als Vorlage“ markieren. Je Vorlage die Produktart(en) angeben (Einzahl, mehrere mit Komma, z. B.
-„Scheinwerfer, Arbeitsscheinwerfer“); beim Hochladen wird sie aus dem Titel vorgeschlagen. Beim Import aus einem
-Herstellerblatt nimmt das Tool die Vorlage der erkannten Produktart (bei mehreren die zuletzt geänderte) und übernimmt:
-Namen und Reihenfolge der Eigenschaften (fehlende Werte bleiben leer und werden nicht gedruckt), Reihenfolge und Anzahl
-der Spezifikationszeilen (Zeilen der Vorlage zuerst), Reihenfolge der Bausteine und „neue Seite“, Tabellen-Einstellungen
-(Zeilenbilder, Gruppenbild-Position, Zusatz „Serie …“), den Garantie-Punkt als **ausgeblendeten** Vorschlag und mit
-lokaler KI den Textstil der Einleitung. Werte, Artikel, Bilder und Zahlen der Vorlage werden nie übernommen. Der
-Prüfbericht nennt die verwendete Vorlage. Für normale Benutzer wirken die Vorlagen des Admins ebenso; sehen und ändern
-kann sie nur der Admin.
+**Design-Vorlagen (nur Admin):** Datenblätter → „Design-Vorlagen“ (eigene Seite; Vorlagen erscheinen nicht in der
+normalen Datenblatt-Liste). Hochladen: euer fertiges Datenblatt (PDF, Pflicht) und optional das Herstellerblatt
+desselben Produkts. Euer Blatt wird wörtlich eingelesen (alle Technischen Daten, euer Text, keine KI) und als Vorlage
+gespeichert; die Produktart wird aus dem Titel genommen oder kann angegeben werden (mehrere mit Komma, z. B.
+„Scheinwerfer, Arbeitsscheinwerfer“). Mit Herstellerblatt vergleicht das Tool beide und schlägt **Wortpaare** vor
+(„Single screw (M8)“ → „Schraubmontage (M8)“ bei gleichen Zahlen; Zeilenname über gleichen Wert, z. B. „Plug type“ →
+„Anschluss“) – angehakte Paare kommen mit einem Klick ins Wörterbuch (für alle oder einen Hersteller). Zahlen werden nie
+gelernt. Jede Vorlage zeigt aufklappbar, was sie vorgibt, und lässt sich im Editor bearbeiten („Bearbeiten“) – sie
+wirkt so, wie sie dort aussieht. „Keine Vorlage mehr“ schiebt sie zurück in die normale Liste; ein normales Datenblatt
+wird mit „Als Vorlage“ zur Vorlage.
+
+Beim Import aus einem Herstellerblatt nimmt das Tool die Vorlage der erkannten Produktart (bei mehreren die zuletzt
+geänderte) und übernimmt: Namen und Reihenfolge der Eigenschaften (fehlende Werte bleiben leer und werden nicht
+gedruckt), Reihenfolge und Anzahl der Spezifikationszeilen, Reihenfolge und Sichtbarkeit der Bausteine, „neue Seite“,
+**Bilder** (Anzahl der Produktbilder und Zeichnungen, Größe und Platz je Bild in der Reihenfolge 1., 2. …, Aufteilung
+Text/Bilder), Tabellen-Einstellungen (Zeilenbilder, Gruppenbild-Position, Zusatz „Serie …“), den Garantie-Punkt als
+**ausgeblendeten** Vorschlag und mit lokaler KI den Textstil der Einleitung. Werte, Artikel, Bilder und Zahlen der
+Vorlage werden nie übernommen. Ohne lokale KI bleibt der Beschreibungstext der Text des Herstellers (ggf. englisch).
+Unser eigenes Logo wird beim Einlesen nie als Produktbild genommen.
 
 **Wörterbuch (nur Admin):** Datenblätter → „Wörterbuch“. Einträge „Begriff im Herstellerblatt → unser Begriff“, je
 Eintrag eine Art: **Merkmal** (Zeilenname, z. B. „Actual lumen“ → „Lichtleistung“; Standardzeile oder eigene

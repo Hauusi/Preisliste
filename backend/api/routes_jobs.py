@@ -28,6 +28,8 @@ def result_link(job: Job) -> tuple[str, str] | None:
     r = job.result or {}
     p = job.params or {}
     if job.type == "DATENBLATT_IMPORT":
+        if job.status == "FERTIG" and p.get("vorlage"):
+            return f"/datenblatt/vorlagen?job={job.id}", "Zur Vorlage"
         if job.status == "FERTIG":
             return f"/datenblatt/{r.get('datasheet_id')}?import={job.id}", "Datenblatt öffnen"
         return ("/datenblatt", "Zurück zu den Datenblättern") if job.status in ("FEHLER", "ABGEBROCHEN") else None

@@ -48,13 +48,57 @@ async def _json(request: Request) -> dict:
 @router.get("/datenblatt")
 def overview(request: Request, error: str | None = None, db: Session = Depends(get_db),
              user: User = Depends(current_user)):
-    sheets = db.scalars(visible(select(Datasheet).order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
+    sheets = db.scalars(visible(select(Datasheet).where(Datasheet.is_template.is_(False))  # Vorlagen: eigene Seite
+                                .order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
     owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
-    templates = [s_ for s_ in sheets if s_.is_template] if is_admin(user) else []
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
-                                               "manufacturers": manufacturers, "templates": templates,
-                                               "kinds": list(dsi.PRODUCT_TYPES)})
+                                               "manufacturers": manufacturers})
+
+
+@router.get("/datenblatt/vorlagen")
+def templates_page(request: Request, job: int | None = None, error: str | None = None, db: Session = Depends(get_db),
+                   admin: User = Depends(require_admin)):
+    """Design-Vorlagen (nur Admin): eigene B&B-Datenblätter, an denen sich der Import aus Herstellerblättern
+    orientiert. Nach dem Hochladen (?job=) zeigt die Seite, was gelernt wurde, und Wortvorschläge zum Übernehmen."""
+    from backend.services import datasheet_templates
+
+    templates = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True))
+                           .order_by(Datasheet.updated_at.desc())).all()
+    result = None
+    if job:
+        row = db.get(Job, job)
+        if row and row.type == "DATENBLATT_IMPORT" and (row.params or {}).get("vorlage") and row.result:
+            result = row.result
+    manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, admin)).all()
+    return render(request, "datasheet_templates.html", {
+        "portal": True, "templates": templates, "learned": {t.id: datasheet_templates.learned(t.content) for t in templates},
+        "kinds": list(dsi.PRODUCT_TYPES), "result": result, "error": error, "manufacturers": manufacturers,
+        "term_kinds": datasheet_terms.KINDS})
+
+
+@router.post("/datenblatt/woerterbuch/uebernehmen", dependencies=[Depends(check_csrf)])
+async def terms_take(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Angehakte Wortvorschläge (aus dem Vergleich Vorlage ↔ Herstellerblatt) ins Wörterbuch."""
+    form = await request.form()
+    manufacturer = str(form.get("hersteller") or "").strip()[:200]
+    added = 0
+    for i in form.getlist("wahl"):
+        kind, source = str(form.get(f"art_{i}") or ""), dsi.term_key(str(form.get(f"begriff_{i}") or ""))[:120]
+        target = " ".join(str(form.get(f"ziel_{i}") or "").split())[:200]
+        if kind not in datasheet_terms.KINDS or not source or not target:
+            continue
+        row = db.scalar(select(DatasheetTerm).where(DatasheetTerm.kind == kind, DatasheetTerm.source == source,
+                                                    DatasheetTerm.manufacturer == manufacturer))
+        if row:
+            row.target = target
+        else:
+            db.add(DatasheetTerm(kind=kind, source=source, target=target, manufacturer=manufacturer,
+                                 created_by=admin.id))
+        added += 1
+    audit(db, admin, "woerterbuch_uebernommen", "datasheet_term", None, {"anzahl": added, "hersteller": manufacturer},
+          client_ip(request))
+    return _terms_redirect(manufacturer)
 
 
 @router.post("/datenblatt/{sheet_id}/vorlage", dependencies=[Depends(check_csrf)])
@@ -71,7 +115,7 @@ async def set_template(request: Request, sheet_id: int, db: Session = Depends(ge
     sheet.is_template, sheet.template_kind = active, (kinds or None) if active else None
     audit(db, admin, "datenblatt_vorlage", "datasheet", sheet.id, {"vorlage": active, "art": sheet.template_kind},
           client_ip(request))
-    return RedirectResponse("/datenblatt#vorlagen", status_code=303)
+    return RedirectResponse("/datenblatt/vorlagen", status_code=303)
 
 
 # ---------- Wörterbuch für den Import (nur Admin) ----------
@@ -159,25 +203,37 @@ async def create_from_pdf(request: Request, db: Session = Depends(get_db), user:
     from backend.jobs.runner import enqueue
 
     form = await request.form()
+    # Admin: eigenes B&B-Blatt als Design-Vorlage (landet in der Vorlagen-Bibliothek, nicht in der Liste)
+    template = is_admin(user) and str(form.get("vorlage") or "") == "1"
+    back = "/datenblatt/vorlagen" if template else "/datenblatt"
     upload = form.get("datei")
     if not ds.is_upload(upload):
-        return RedirectResponse("/datenblatt?error=" + quote("Bitte ein PDF auswählen"), status_code=303)
+        return RedirectResponse(back + "?error=" + quote("Bitte ein PDF auswählen"), status_code=303)
     data = await upload.read(dsi.MAX_PDF_BYTES + 1)
     try:
         dsi.check_pdf(data)
     except dsi.PdfError as exc:
-        return RedirectResponse("/datenblatt?error=" + quote(str(exc)), status_code=303)
+        return RedirectResponse(back + "?error=" + quote(str(exc)), status_code=303)
+    compare = form.get("vergleich") if template else None  # Herstellerblatt desselben Produkts (Wortwahl)
+    compare_data = await compare.read(dsi.MAX_PDF_BYTES + 1) if ds.is_upload(compare) else None
+    if compare_data:
+        try:
+            dsi.check_pdf(compare_data)
+        except dsi.PdfError as exc:
+            return RedirectResponse(back + "?error=" + quote(f"Herstellerblatt: {exc}"), status_code=303)
     mid = str(form.get("hersteller") or "")
     manufacturer = get_visible(db, Manufacturer, int(mid), user) if mid.isdigit() else None
     content = ds.empty_content()
-    content["kopf"]["titel"] = "Wird aus dem Herstellerblatt erstellt"
-    sheet = Datasheet(owner_id=user.id, title=content["kopf"]["titel"], content=content)
+    content["kopf"]["titel"] = "Wird aus dem PDF erstellt"
+    sheet = Datasheet(owner_id=user.id, title=content["kopf"]["titel"], content=content, is_template=template)
     db.add(sheet)
     db.flush()
     dsi.save_pdf(settings, sheet.id, data)
-    template = is_admin(user) and str(form.get("vorlage") or "") == "1"  # eigenes B&B-Blatt als Design-Vorlage
+    if compare_data:
+        (ds.image_dir(settings, sheet.id) / "vergleich.pdf").write_bytes(compare_data)
     job = enqueue(db, "DATENBLATT_IMPORT", {"datasheet_id": sheet.id, "manufacturer_id": manufacturer.id if manufacturer else None,
-                                           "datei": str(upload.filename)[:200], "vorlage": template}, user)
+                                           "datei": str(upload.filename)[:200], "vorlage": template,
+                                           "art": str(form.get("art") or "").strip()[:60] if template else ""}, user)
     audit(db, user, "datenblatt_aus_pdf", "datasheet", sheet.id, {"datei": str(upload.filename)[:200]}, client_ip(request))
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
@@ -323,8 +379,9 @@ def duplicate(request: Request, sheet_id: int, db: Session = Depends(get_db), us
 def confirm_delete(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     sheet = get_visible(db, Datasheet, sheet_id, user)
     return render(request, "confirm_delete.html", {
-        "portal": True, "title": "Datenblatt löschen", "name": sheet.title, "action": f"/datenblatt/{sheet.id}/loeschen",
-        "back": "/datenblatt", "impact": ["alle Texte, Tabellen und hochgeladenen Bilder dieses Datenblatts"]})
+        "portal": True, "title": "Vorlage löschen" if sheet.is_template else "Datenblatt löschen", "name": sheet.title,
+        "action": f"/datenblatt/{sheet.id}/loeschen",
+        "back": "/datenblatt/vorlagen" if sheet.is_template else "/datenblatt", "impact": ["alle Texte, Tabellen und hochgeladenen Bilder dieses Datenblatts"]})
 
 
 @router.post("/datenblatt/{sheet_id}/loeschen", dependencies=[Depends(check_csrf)])
@@ -333,8 +390,9 @@ async def delete(request: Request, sheet_id: int, db: Session = Depends(get_db),
     sheet = get_visible(db, Datasheet, sheet_id, user)
     if (await request.form()).get("bestaetigt") != "ja":
         return RedirectResponse(f"/datenblatt/{sheet.id}/loeschen", status_code=303)
+    was_template = sheet.is_template
     audit(db, user, "datenblatt_geloescht", "datasheet", sheet.id, {"titel": sheet.title}, client_ip(request))
     db.delete(sheet)
     db.flush()
     ds.delete_images(settings, sheet_id)
-    return RedirectResponse("/datenblatt", status_code=303)
+    return RedirectResponse("/datenblatt/vorlagen" if was_template else "/datenblatt", status_code=303)
