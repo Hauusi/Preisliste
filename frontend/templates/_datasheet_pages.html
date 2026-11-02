@@ -3,6 +3,8 @@
 {% from "_ece_badge.html" import ece_badge %}
 {% set img = "/datenblatt/%d/bild/" % sheet.id %}
 {% set titel = c.kopf.titel %}{% set untertitel = c.kopf.untertitel %}
+{# Bildgröße (per Ziehen an der Ecke in der Vorschau): data-scale für den Druck, data-size im Editor #}
+{% macro sz(name, c, editor) %}{% set k = name.split(".")[0].removesuffix("-o") %}{% set pct = (c.bild_groesse or {}).get(k) %}{% if editor %} data-size="{{ k }}"{% endif %}{% if pct %} data-scale="{{ pct / 100 }}"{% endif %}{% endmacro %}
 {% macro lines(text) %}{% for line in (text or "").split("\n") %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endmacro %}
 {% for page in pages %}
 <section class="sheet" data-page="{{ loop.index }}">
@@ -15,7 +17,7 @@
   {% for t in page.teile %}
     {% if t.typ == "kopfbereich" %}
     {# Wie im Standard: links Beschreibung, Aufzählung, Spezifikation – rechts die Bilder über die ganze Höhe #}
-    <div class="part lead" data-block="{{ t.intro_index if t.intro_index is not none else t.spez.index }}">
+    <div class="part lead{% if c.aufteilung and c.aufteilung != 'normal' %} split-{{ c.aufteilung }}{% endif %}" data-block="{{ t.intro_index if t.intro_index is not none else t.spez.index }}">
       <div class="lead-left">
         {% if t.intro_index is not none %}
         <div class="lead-intro" data-block="{{ t.intro_index }}">
@@ -37,29 +39,29 @@
         {% endif %}
       </div>
       <div class="lead-right">
-        {% for name in t.bilder %}{% set key = name.split(".")[0].removesuffix("-o") %}{% set xy = (c.bild_versatz or {}).get(key) %}<img class="lead-img" src="{{ img ~ name }}" alt="" data-block="{{ t.intro_index }}"{% if editor %} data-move="{{ key }}" draggable="false" title="Ziehen zum Verschieben, Doppelklick setzt zurück"{% endif %}{% if xy %} data-offset="{{ xy[0] }} {{ xy[1] }}"{% endif %}>{% endfor %}
-        {% for name in t.zeichnungen %}<img class="lead-drawing" src="{{ img ~ name }}" alt="" data-block="{{ t.spez.index }}">{% endfor %}
+        {% for name in t.bilder %}{% set key = name.split(".")[0].removesuffix("-o") %}{% set xy = (c.bild_versatz or {}).get(key) %}<img class="lead-img" src="{{ img ~ name }}" alt="" data-block="{{ t.intro_index }}"{% if editor %} data-move="{{ key }}" draggable="false" title="Ziehen = verschieben, Ecke unten rechts = Größe, Doppelklick = zurücksetzen"{% endif %}{% if xy %} data-offset="{{ xy[0] }} {{ xy[1] }}"{% endif %}{{ sz(name, c, editor) }}>{% endfor %}
+        {% for name in t.zeichnungen %}<img class="lead-drawing" src="{{ img ~ name }}" alt="" data-block="{{ t.spez.index }}"{{ sz(name, c, editor) }}>{% endfor %}
       </div>
     </div>
 
     {% elif t.typ == "anwendung" %}
-    <div class="part photos photos-{{ t.bilder | length }}" data-block="{{ t.index }}">{% for name in t.bilder %}<img src="{{ img ~ name }}" alt="">{% endfor %}</div>
+    <div class="part photos photos-{{ t.bilder | length }}" data-block="{{ t.index }}">{% for name in t.bilder %}<img src="{{ img ~ name }}" alt=""{{ sz(name, c, editor) }}>{% endfor %}</div>
 
     {% elif t.typ == "bild" %}
-    <div class="part free-img h-{{ t.hoehe }}" data-block="{{ t.index }}"><img src="{{ img ~ t.bild }}" alt=""></div>
+    <div class="part free-img h-{{ t.hoehe }}" data-block="{{ t.index }}"><img src="{{ img ~ t.bild }}" alt=""{{ sz(t.bild, c, editor) }}></div>
 
     {% elif t.typ == "tabelle" %}
     {% set nr_span = (1 if t.bild_links else 0) + (1 if t.zeilen_bilder else 0) + 1 + (1 if t.farben else 0) %}
     <div class="part tbl rows-{{ t.zeilenbilder }}" data-block="{{ t.index }}">
       {% if t.titel or t.zusatz %}<h2 class="part-title">{% if t.titel %}<b>{{ t.titel }}</b>{% endif %}{% if t.titel and t.zusatz %} - {% endif %}{{ t.zusatz }}{% if t.fortsetzung %} <span class="cont">(Fortsetzung)</span>{% endif %}</h2>{% endif %}
-      {% if t.bild_oben and not t.fortsetzung %}<div class="banner"><img src="{{ img ~ t.bild }}" alt=""></div>{% endif %}
+      {% if t.bild_oben and not t.fortsetzung %}<div class="banner"><img src="{{ img ~ t.bild }}" alt=""{{ sz(t.bild, c, editor) }}></div>{% endif %}
       <table class="art-table">
         <colgroup>{% if t.bild_links %}<col class="c-img">{% endif %}{% if t.zeilen_bilder %}<col class="c-rowimg">{% endif %}<col class="c-nr">{% if t.farben %}<col class="c-dot">{% endif %}<col>{% for s in t.spalten %}<col class="c-val">{% endfor %}</colgroup>
         <thead><tr><th colspan="{{ nr_span }}">Artikel</th><th>Beschreibung</th>{% for s in t.spalten %}<th>{{ s }}</th>{% endfor %}</tr></thead>
         <tbody>
         {% for r in t.zeilen %}
           <tr>
-            {% if t.bild_links and loop.first %}<td class="img" rowspan="{{ t.zeilen | length }}"><img src="{{ img ~ t.bild }}" alt=""></td>{% endif %}
+            {% if t.bild_links and loop.first %}<td class="img" rowspan="{{ t.zeilen | length }}"><img src="{{ img ~ t.bild }}" alt=""{{ sz(t.bild, c, editor) }}></td>{% endif %}
             {% if t.zeilen_bilder %}<td class="rowimg">{% if r.bild %}<img src="{{ img ~ r.bild }}" alt="">{% endif %}</td>{% endif %}
             <td class="nr">{{ r.artnr }}</td>
             {% if t.farben %}<td class="dot">{{ r.farbe | color_dot }}</td>{% endif %}

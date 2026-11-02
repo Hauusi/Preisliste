@@ -115,6 +115,8 @@ def empty_content() -> dict:
         "eigenschaften": [{"name": n, "wert": "", "sichtbar": True} for n in DEFAULT_PROPERTIES],
         "bilder_oben": [],
         "bild_versatz": {},  # Produktbilder oben rechts per Maus verschoben: {Bild-Kennung: [x_mm, y_mm]}
+        "bild_groesse": {},  # Bilder in der Vorschau per Ziehen an der Ecke skaliert: {Bild-Kennung: Prozent}
+        "aufteilung": "normal",  # Kopfbereich: Breite Text links / Bilder rechts (LEAD_SPLITS)
         "spez": {"zeichen": [], "zeilen": [], "zusatz": "", "zusatz_farben": ""},
         "zeichnungen": [],
         "bilder_unten": [],
@@ -236,6 +238,9 @@ def _image(value, valid: set[str]) -> str | None:
 
 
 MAX_OFFSET_MM = 150
+MIN_SCALE, MAX_SCALE = 30, 300  # Bildgröße in Prozent
+# Kopfbereich: Breite der Textspalte links in mm (rechts die Bilder)
+LEAD_SPLITS = {"normal": ("Standard", 92), "bild": ("Größere Bilder", 78), "text": ("Mehr Text", 106)}
 
 
 def image_key(name: str) -> str:
@@ -258,6 +263,33 @@ def _offsets(value, images: list[str]) -> dict:
         if x == x and y == y and (x or y):  # NaN und 0/0 weglassen
             out[key] = [x, y]
     return out
+
+
+def _sizes(value, images: list[str]) -> dict:
+    """Bildgrößen in Prozent, nur für vorhandene Bilder, ganzzahlig und begrenzt; 100 % wird weggelassen."""
+    value = value if isinstance(value, dict) else {}
+    out = {}
+    for key in {image_key(n) for n in images}:
+        try:
+            pct = round(float(value.get(key)))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        pct = max(MIN_SCALE, min(MAX_SCALE, pct))
+        if pct != 100:
+            out[key] = pct
+    return out
+
+
+def all_images(c: dict) -> list[str]:
+    """Alle Bilder, die im Blatt groß erscheinen (ohne kleine Zeilenbilder der Tabellen)."""
+    names = [*c["bilder_oben"], *c["zeichnungen"], *c["bilder_unten"]]
+    names += [b["bild"] for b in c["bloecke"] if b.get("typ") in ("bild", "tabelle") and b.get("bild")]
+    return names
+
+
+def scale_of(c: dict, name: str | None) -> float:
+    """Faktor eines Bilds (1 = Standard)."""
+    return (c.get("bild_groesse") or {}).get(image_key(name), 100) / 100 if name else 1.0
 
 
 def _table(b: dict, valid: set[str]) -> dict:
@@ -312,6 +344,8 @@ def sanitize(raw, valid_images: set[str]) -> dict:
             blocks.append({**base, "bild": _image(b.get("bild"), valid_images),
                            "hoehe": b.get("hoehe") if b.get("hoehe") in IMAGE_HEIGHTS else "M"})
     c["bloecke"] = _blocks(blocks)
+    c["bild_groesse"] = _sizes(raw.get("bild_groesse"), all_images(c))
+    c["aufteilung"] = raw.get("aufteilung") if raw.get("aufteilung") in LEAD_SPLITS else "normal"
     return c
 
 
@@ -490,16 +524,19 @@ def _row_height(table: dict):
     return height
 
 
-def _lead_mm(text: str, props: list[dict], spez: dict | None, images: list[str], drawings: list[str]) -> float:
+def _lead_mm(text: str, props: list[dict], spez: dict | None, images: list[str], drawings: list[str],
+             c: dict | None = None) -> float:
     """Kopfbereich wie im Standard: links Text, Aufzählung, Spezifikation; rechts die Bilder untereinander."""
+    c = c or {}
+    k = LEAD_SPLITS[c.get("aufteilung") if c.get("aufteilung") in LEAD_SPLITS else "normal"][1] / 92  # Textbreite
     # Absatzabstand 4 mm (nicht nach dem letzten Absatz), vor der Aufzählung 6 mm (Abstände fallen zusammen)
     paragraphs = [par for par in text.split("\n\n") if par.strip()]
-    left = sum(4.67 * _lines(par, 47) for par in paragraphs) + 4 * max(0, len(paragraphs) - 1)
-    left += sum(0.6 + 4.7 * _lines(f"{e['name']}: {e['wert']}", 45) for e in props) + (6 if props and paragraphs else 0)
+    left = sum(4.67 * _lines(par, round(47 * k)) for par in paragraphs) + 4 * max(0, len(paragraphs) - 1)
+    left += sum(0.6 + 4.7 * _lines(f"{e['name']}: {e['wert']}", round(45 * k)) for e in props) + (6 if props and paragraphs else 0)
     if spez is not None:
         left += (9 if left else 0) + 11.7 + (13 if spez["logos"] else 0)
-        left += sum(6.6 + 4.2 * (_lines(r["wert"], 40) - 1) for r in spez["zeilen"])
-    right = 56 * len(images) + 40 * len(drawings)
+        left += sum(6.6 + 4.2 * (_lines(r["wert"], round(40 * k)) - 1) for r in spez["zeilen"])
+    right = sum(56 * scale_of(c, n) for n in images) + sum(40 * scale_of(c, n) for n in drawings)
     right += 5 * max(0, len(images) + len(drawings) - 1)
     return max(left, right)
 
@@ -536,7 +573,7 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
         while True:
             # Bild über der Tabelle nur beim ersten Teil
             head = ((TABLE_TITLE_MM if part["titel"] or part["zusatz"] else 0) + TABLE_HEAD_MM
-                    + (BANNER_MM if part["bild_oben"] and piece == 0 else 0))
+                    + (BANNER_MM * scale_of(c, part["bild"]) if part["bild_oben"] and piece == 0 else 0))
             min_body = TABLE_MIN_MM if part["bild_links"] else 0
             need = head + max(min_body, sum(row_mm(r) for r in rows))
             if need <= PAGE_BODY_MM - used:
@@ -599,12 +636,13 @@ def paginate(content: dict, editor: bool = False) -> list[dict]:
                     "einleitung": c["einleitung"] if intro else "", "eigenschaften": props if intro else [],
                     "bilder": c["bilder_oben"] if intro else [], "spez": spez,
                     "zeichnungen": c["zeichnungen"] if with_spez else []}
-            height = _lead_mm(part["einleitung"], part["eigenschaften"], spez, part["bilder"], part["zeichnungen"])
+            height = _lead_mm(part["einleitung"], part["eigenschaften"], spez, part["bilder"], part["zeichnungen"], c)
         elif typ == "anwendung" and c["bilder_unten"]:
-            part, height = {"typ": "anwendung", "bilder": c["bilder_unten"]}, 62
+            part = {"typ": "anwendung", "bilder": c["bilder_unten"]}
+            height = 62 * max(scale_of(c, n) for n in c["bilder_unten"])
         elif typ == "bild" and block.get("bild"):
             part = {"typ": "bild", "bild": block["bild"], "hoehe": block.get("hoehe", "M")}
-            height = IMAGE_HEIGHTS[part["hoehe"]][1] + 1.2
+            height = IMAGE_HEIGHTS[part["hoehe"]][1] * scale_of(c, block["bild"]) + 1.2
         elif typ == "tabelle" and (block.get("zeilen") or (editor and (block["titel"] or block["zusatz"] or block["bild"]))):
             # Live-Vorschau: Tabelle ohne Artikelzeilen schon mit Überschrift und Bild zeigen (Platzhalter-Zeile);
             # im Druck erscheint sie erst mit Zeilen

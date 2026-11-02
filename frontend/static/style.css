@@ -586,3 +586,11 @@ body.portal.wide .content { max-width: 1760px; }
 .tpl-kind { min-width: 18rem; }
 @media (max-width: 700px) { .tpl-upload > * { flex: 1 1 100%; } .tpl-kind { min-width: 0; width: 100%; } }
 @media (max-width: 700px) { .terms-form > label { flex: 1 1 100%; } .terms-form > button { width: 100%; } }
+
+/* Datenblatt-Editor: Griff zum Ändern der Bildgröße (über der Live-Vorschau) */
+.dse-resize { position: fixed; z-index: 50; width: 18px; height: 18px; min-height: 0; padding: 0; border-radius: 4px;
+  border: 2px solid #fff; background: var(--accent); box-shadow: 0 1px 4px rgb(0 0 0 / .35); cursor: nwse-resize;
+  touch-action: none; color: var(--accent-fg); font-size: .75rem; font-weight: 600; line-height: 1; white-space: nowrap; }
+.dse-resize:not(:empty) { width: auto; padding: 2px 6px; }
+.dse-inline-label { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: .9rem; color: var(--fg-2); }
+.dse-inline-label select { width: auto; }

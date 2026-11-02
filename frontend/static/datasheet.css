@@ -46,6 +46,8 @@
 
 /* Kopfbereich (Standard): links Beschreibung, Aufzählung, Spezifikation; rechts Bilder über die ganze Höhe */
 .ds-doc .lead { display: grid; grid-template-columns: 92mm minmax(0, 1fr); gap: 9mm; align-items: start; }
+.ds-doc .lead.split-bild { grid-template-columns: 78mm minmax(0, 1fr); }
+.ds-doc .lead.split-text { grid-template-columns: 106mm minmax(0, 1fr); }
 .ds-doc .lead-left { min-width: 0; }
 .ds-doc .lead-intro { font-size: 11pt; line-height: 1.2; }
 .ds-doc .lead-intro p { margin: 0 0 4mm; text-align: justify; hyphens: auto; }
@@ -58,10 +60,10 @@
 .ds-doc .lead-spec { margin-top: 0; }
 .ds-doc .lead-intro + .lead-spec { margin-top: 9mm; }
 .ds-doc .lead-right { display: flex; flex-direction: column; gap: 5mm; align-items: center; min-width: 0; }
-.ds-doc .lead-img { width: 100%; max-height: 56mm; object-fit: contain; position: relative; z-index: 1; }
+.ds-doc .lead-img { width: calc(100% * var(--s, 1)); max-width: none; max-height: calc(56mm * var(--s, 1)); object-fit: contain; position: relative; z-index: 1; }
 .ds-doc .lead-img[data-move] { cursor: move; touch-action: none; user-select: none; }
 .ds-doc .lead-img.moving { outline: .4mm dashed var(--ds-blue); }
-.ds-doc .lead-drawing { max-width: 100%; max-height: 40mm; object-fit: contain; }
+.ds-doc .lead-drawing { max-width: calc(100% * var(--s, 1)); max-height: calc(40mm * var(--s, 1)); object-fit: contain; }
 
 /* Spezifikation */
 .ds-doc .badges { display: flex; gap: 3.5mm; margin: 2mm 0 4mm; flex-wrap: wrap; }
@@ -73,16 +75,16 @@
 /* Anwendungsbilder und freie Bilder */
 .ds-doc .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
 .ds-doc .photos-1 { grid-template-columns: 1fr; }
-.ds-doc .photos img { width: 100%; height: 62mm; object-fit: cover; display: block; }
+.ds-doc .photos img { width: 100%; height: calc(62mm * var(--s, 1)); object-fit: cover; display: block; }
 .ds-doc .photos-1 img { object-fit: contain; }
 .ds-doc .free-img { text-align: center; }
 .ds-doc .free-img img { max-width: 100%; object-fit: contain; }
-.ds-doc .free-img.h-S img { height: 25mm; } .ds-doc .free-img.h-M img { height: 45mm; } .ds-doc .free-img.h-L img { height: 75mm; }
+.ds-doc .free-img.h-S img { height: calc(25mm * var(--s, 1)); } .ds-doc .free-img.h-M img { height: calc(45mm * var(--s, 1)); } .ds-doc .free-img.h-L img { height: calc(75mm * var(--s, 1)); }
 
 /* Tabellen (Artikel, Zubehör) */
 .ds-doc .tbl { margin-bottom: 11mm; }
 .ds-doc .banner { text-align: center; margin: 1mm 0 4mm; }
-.ds-doc .banner img { max-width: 100%; height: 28mm; object-fit: contain; }
+.ds-doc .banner img { max-width: 100%; height: calc(28mm * var(--s, 1)); object-fit: contain; }
 .ds-doc .art-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
 .ds-doc .art-table th { background: var(--ds-grey); color: #fff; font-weight: 700; font-size: 10pt; padding: 1.1mm 1.5mm; text-align: center; }
 .ds-doc .art-table td { padding: 1.5mm; text-align: center; vertical-align: middle; border-bottom: .25mm solid var(--ds-line); overflow-wrap: anywhere; }
@@ -91,7 +93,7 @@
 .ds-doc .art-table col.c-dot { width: 9mm; } .ds-doc .art-table col.c-val { width: 27mm; }
 .ds-doc .art-table col.c-rowimg { width: 28mm; }
 .ds-doc .rows-gross .art-table col.c-rowimg { width: 44mm; }
-.ds-doc .art-table td.img img { max-width: 22mm; max-height: 28mm; object-fit: contain; }
+.ds-doc .art-table td.img img { max-width: calc(22mm * var(--s, 1)); max-height: calc(28mm * var(--s, 1)); object-fit: contain; }
 .ds-doc .art-table td.rowimg img { max-width: 100%; max-height: 6mm; object-fit: contain; display: block; margin: 0 auto; }
 .ds-doc .rows-gross .art-table td { height: 17mm; }
 .ds-doc .rows-gross .art-table td.rowimg img { max-height: 14mm; }
@@ -151,3 +153,7 @@ body.ds-print { margin: 0; background: #d9dce3; overflow-x: auto; color-scheme: 
 .ds-doc .tc { font-weight: 700; }
 .ds-doc .tc-gelb { color: #f39200; } .ds-doc .tc-blau { color: #2aabe8; } .ds-doc .tc-rot { color: #e30613; }
 .ds-doc .tc-gruen { color: #2fa84f; } .ds-doc .tc-weiss, .ds-doc .tc-klar { color: #c3c8cf; }
+
+/* Editor: Bildgröße per Ziehen an der Ecke (Griff liegt außerhalb der Vorschau, siehe datasheet_editor.js) */
+.ds-doc [data-size]:hover { outline: .3mm dashed rgb(33 57 132 / .55); outline-offset: .5mm; }
+.ds-doc [data-size].sizing { outline: .4mm dashed var(--ds-blue); }

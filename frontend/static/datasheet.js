@@ -31,12 +31,16 @@
   }
   window.dsCheck = check;
 
-  // Verschobene Produktbilder: Versatz aus data-offset (mm) anwenden. Per Script, weil die CSP
+  // Verschobene Produktbilder (data-offset, mm) und Bildgrößen (data-scale) anwenden. Per Script, weil die CSP
   // Inline-Styles im HTML blockiert.
   function place(doc) {
     (doc || document).querySelectorAll("[data-offset]").forEach(function (img) {
       var xy = img.getAttribute("data-offset").split(" ");
       img.style.transform = "translate(" + xy[0] + "mm, " + xy[1] + "mm)";
+    });
+    // Bildgröße (Faktor) als CSS-Variable, die Stylesheets rechnen damit Breite/Höhe
+    (doc || document).querySelectorAll("[data-scale]").forEach(function (img) {
+      img.style.setProperty("--s", img.getAttribute("data-scale"));
     });
   }
   window.dsPlace = place;
