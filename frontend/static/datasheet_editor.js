@@ -21,6 +21,9 @@
   // Versatz der Produktbilder oben rechts in mm, per Maus in der Vorschau verschoben: {Kennung: [x, y]}
   var offsets = {};
   try { offsets = JSON.parse(root.getAttribute("data-offsets") || "{}") || {}; } catch (e) { offsets = {}; }
+  // Bildgrößen in Prozent, per Ziehen an der Ecke in der Vorschau: {Kennung: Prozent}
+  var sizes = {};
+  try { sizes = JSON.parse(root.getAttribute("data-sizes") || "{}") || {}; } catch (e) { sizes = {}; }
 
   function $(sel, el) { return (el || root).querySelector(sel); }
   function $$(sel, el) { return Array.prototype.slice.call((el || root).querySelectorAll(sel)); }
@@ -47,6 +50,8 @@
       }),
       bilder_oben: slotNames($('[data-imgs="bilder_oben"]', intro)),
       bild_versatz: offsets,
+      bild_groesse: sizes,
+      aufteilung: ($('[data-f="aufteilung"]', intro) || { value: "normal" }).value,
       spez: { zusatz: val(spez, '[data-f="spez.zusatz"]'), zusatz_farben: $('[data-f="spez.zusatz_farben"]', spez).value,
         zeilen: own($('[data-list="spez"]', spez), "[data-row]").map(function (r) {
         return { merkmal: val(r, '[data-f="merkmal"]'), wert: $('[data-f="wert"]', r).value.trim() };
@@ -156,6 +161,7 @@
 
   function afterRender() {
     if (window.dsPlace) { window.dsPlace(preview); }
+    if (typeof hideHandle === "function") { hideHandle(); }
     fitPreview();
     if (window.dsCheck) { window.dsCheck(preview, warnBox); }
   }
@@ -231,7 +237,90 @@
     var img = e.target.closest("[data-move]");
     if (!img) { return; }
     delete offsets[img.getAttribute("data-move")];
+    delete sizes[img.getAttribute("data-size")];
     placeImg(img, null);
+    img.style.removeProperty("--s");
+    changed();
+  });
+
+  // ---------- Bildgröße: Griff an der Ecke unten rechts des Bilds unter der Maus ----------
+  // Der Griff liegt außerhalb der Vorschau (position: fixed), weil die Vorschau gezoomt ist und neu gerendert wird.
+  var handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "dse-resize";
+  handle.title = "Ziehen: Bild größer/kleiner · Doppelklick: Originalgröße";
+  handle.setAttribute("aria-label", "Bildgröße ändern");
+  handle.hidden = true;
+  document.body.appendChild(handle);
+  var hovered = null, sizing = null;
+  function scaleOf(img) { return (sizes[img.getAttribute("data-size")] || 100) / 100; }
+  function applyScale(img, s) {
+    if (s === 1) { img.style.removeProperty("--s"); } else { img.style.setProperty("--s", s); }
+  }
+  function showHandle(img) {
+    hovered = img;
+    var r = img.getBoundingClientRect();
+    handle.style.left = (r.right - 9) + "px";
+    handle.style.top = (r.bottom - 9) + "px";
+    handle.hidden = false;
+  }
+  preview.addEventListener("pointerover", function (e) {
+    var img = e.target.closest("[data-size]");
+    if (img && !drag && !sizing) { showHandle(img); }
+  });
+  preview.addEventListener("pointerleave", function (e) {
+    if (!sizing && e.relatedTarget !== handle) { handle.hidden = true; }
+  });
+  function hideHandle() { if (!sizing) { handle.hidden = true; } }  // nach neuem Rendern: Bild ist ersetzt
+  handle.addEventListener("pointerleave", hideHandle);
+  scrollBox.addEventListener("scroll", hideHandle);
+  window.addEventListener("resize", function () { if (!sizing) { handle.hidden = true; } });
+  handle.addEventListener("pointerdown", function (e) {
+    if (!hovered || e.button !== 0) { return; }
+    e.preventDefault();
+    var r = hovered.getBoundingClientRect();
+    sizing = { img: hovered, key: hovered.getAttribute("data-size"), x0: e.clientX, y0: e.clientY,
+               w: Math.max(r.width, 1), h: Math.max(r.height, 1), start: scaleOf(hovered), s: scaleOf(hovered) };
+    handle.setPointerCapture(e.pointerId);
+    hovered.classList.add("sizing");
+  });
+  handle.addEventListener("pointermove", function (e) {
+    if (!sizing) { return; }
+    // Faktor aus der Diagonale: rechts/unten ziehen = größer, links/oben = kleiner
+    var f = 1 + ((e.clientX - sizing.x0) / sizing.w + (e.clientY - sizing.y0) / sizing.h) / 2;
+    sizing.s = Math.max(0.3, Math.min(3, Math.round(sizing.start * f * 20) / 20));
+    applyScale(sizing.img, sizing.s);
+    showHandle(sizing.img);
+    handle.textContent = Math.round(sizing.s * 100) + " %";
+  });
+  function endSize() {
+    if (!sizing) { return; }
+    sizing.img.classList.remove("sizing");
+    handle.textContent = "";
+    var pct = Math.round(sizing.s * 100);
+    if (pct !== Math.round(sizing.start * 100)) {
+      if (pct === 100) { delete sizes[sizing.key]; } else { sizes[sizing.key] = pct; }
+      justMoved = true;
+      setTimeout(function () { justMoved = false; }, 0);
+      changed();
+    }
+    sizing = null;
+    handle.hidden = true;
+  }
+  handle.addEventListener("pointerup", endSize);
+  handle.addEventListener("pointercancel", endSize);
+  handle.addEventListener("dblclick", function () {
+    if (!hovered) { return; }
+    delete sizes[hovered.getAttribute("data-size")];
+    applyScale(hovered, 1);
+    handle.hidden = true;
+    changed();
+  });
+  // Alle Bilder auf Standardgröße und -platz
+  root.addEventListener("click", function (e) {
+    if (!e.target.closest("[data-reset-images]")) { return; }
+    sizes = {};
+    offsets = {};
     changed();
   });
 

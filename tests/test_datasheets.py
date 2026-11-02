@@ -403,3 +403,37 @@ def test_multicolor_dot_and_colored_heading_suffix(admin_client):
     assert "style=" not in html
     editor = c.get(f"/datenblatt/{sid}").text
     assert 'value="gelb/blau/klar" selected' in editor and 'value="Tricolour"' in editor
+
+
+def test_images_can_be_resized_and_lead_split(admin_client):
+    """Bildgröße per Ziehen: in Prozent gespeichert (30–300, 100 = weg), nur für vorhandene Bilder; Aufteilung
+    Text/Bilder im Kopfbereich; Seitenaufteilung rechnet mit der Größe."""
+    c = admin_client
+    sid = _new(c)
+    a, b, d = (_upload(c, sid).json()["name"] for _ in range(3))
+    ka, kb, kd = ds.image_key(a), ds.image_key(b), ds.image_key(d)
+    block = {**ds.new_image_block(), "bild": d}
+    r = _save(c, sid, _content(bilder_oben=[a], zeichnungen=[b], aufteilung="bild",
+                               bloecke=[*ds.DEFAULT_BLOCKS, block],
+                               bild_groesse={ka: 151.6, kb: 100, kd: 999, "fremd": 50}))
+    assert r.status_code == 200
+    html = r.json()["html"]
+    assert f'data-size="{ka}"' in html and f'data-size="{kb}"' in html and f'data-size="{kd}"' in html  # Editor: greifbar
+    assert 'data-scale="1.52"' in html and 'data-scale="3.0"' in html and "style=" not in html
+    assert 'class="part lead split-bild"' in html
+    saved = ds.normalized(_saved(c, sid))
+    assert saved["bild_groesse"] == {ka: 152, kd: 300} and saved["aufteilung"] == "bild"
+    page = c.get(f"/datenblatt/{sid}/vorschau").text
+    assert 'data-scale="1.52"' in page and "data-size" not in page  # Druck: skaliert, nicht greifbar
+    # ungültige Aufteilung -> Standard; entferntes Bild -> Größe verschwindet
+    _save(c, sid, _content(bilder_oben=[a], aufteilung="quer", bild_groesse={ka: 20, kb: 150}))
+    saved = ds.normalized(_saved(c, sid))
+    assert saved["bild_groesse"] == {ka: 30} and saved["aufteilung"] == "normal"
+
+
+def test_paginate_counts_scaled_images():
+    name = "a" * 16 + ".jpg"
+    blocks = [{**ds.new_image_block(), "bild": name} for _ in range(3)]  # je 45 mm: passt auf eine Seite
+    content = _content(bloecke=blocks)
+    assert len(ds.paginate(content)) == 1
+    assert len(ds.paginate(dict(content, bild_groesse={"a" * 16: 300}))) == 3  # je 135 mm: eine Seite pro Bild

@@ -393,6 +393,14 @@ bleiben unverändert. Bei englischen Blättern listet der Prüfbericht Begriffe 
 - **Ausblenden:** Auge am Baustein oder an einer Eigenschaft – bleibt gespeichert, wird aber nicht gedruckt.
 - **Produktbilder oben rechts verschieben:** in der Live-Vorschau mit gedrückter Maustaste an die gewünschte
   Stelle ziehen (gilt auch für den Druck). Doppelklick setzt das Bild an seinen Platz zurück.
+- **Bildgröße ändern:** in der Live-Vorschau über ein Bild fahren, am blauen Griff an der Ecke unten rechts ziehen
+  (nach rechts/unten größer, nach links/oben kleiner, 30–300 %, die Prozentzahl wird beim Ziehen angezeigt). Gilt für
+  Produktbilder, Bilder bei der Spezifikation, Anwendungsbilder, Bild-Bausteine und Gruppenbilder der Tabellen (nicht
+  für die kleinen Zeilenbilder). Doppelklick auf den Griff = Originalgröße; Doppelklick auf ein Produktbild setzt Platz
+  und Größe zurück. „Bilder zurücksetzen“ über der Vorschau setzt alle Bilder zurück. Die Seitenaufteilung rechnet mit
+  der Größe; wird eine Seite zu voll, erscheint wie gewohnt der rote Hinweis.
+- **Aufteilung Text / Bilder** (Baustein Einleitung, unter den Produktbildern): „Standard“ (Text 92 mm), „Größere Bilder“
+  (Text 78 mm, Bildspalte breiter) oder „Mehr Text“ (Text 106 mm).
 - **Bilder:** Platz anklicken oder eine Datei hineinziehen. Gefüllte Bilder per Ziehen zwischen beliebigen Plätzen
   **tauschen**, × entfernt. JPG, PNG, GIF, WebP bis 10 MB; geprüft wird der Inhalt, nicht die Endung.
 - **Klick ins Live-Blatt** öffnet die passende Eingabe links.

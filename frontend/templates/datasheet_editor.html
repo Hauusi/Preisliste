@@ -74,6 +74,8 @@
     <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften %}{{ prop_row(e) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="prop">{{ icon("plus", 16) }} Eigenschaft</button>
     <h4>Produktbilder <small>rechts, untereinander; einfarbiger Hintergrund wird automatisch entfernt (PNG, transparent)</small></h4>
+    <label class="dse-inline-label">Aufteilung Text / Bilder
+      <select data-f="aufteilung">{% for k, v in splits.items() %}<option value="{{ k }}"{% if (c.aufteilung or "normal") == k %} selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
     <div class="dse-slots" data-imgs="bilder_oben">{% for i in range(2) %}{{ slot(c.bilder_oben[i] if i < c.bilder_oben | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "spez" %}
     <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassungen“.</p>
@@ -122,7 +124,7 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}" data-offsets='{{ c.bild_versatz | tojson }}'>
+<div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}" data-offsets='{{ c.bild_versatz | tojson }}' data-sizes='{{ c.bild_groesse | tojson }}'>
   <div class="dse-top">
     <div>
       <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
@@ -180,7 +182,8 @@
 
     <div class="dse-preview">
       <div class="dse-preview-bar"><b>Live-Vorschau</b> <span data-page-count>{{ page_count }} {{ "Seite" if page_count == 1 else "Seiten" }}</span>
-        <span class="hint">Klick auf einen Bereich öffnet die Eingabe · Produktbilder oben rechts mit der Maus verschieben</span></div>
+        <span class="hint">Klick auf einen Bereich öffnet die Eingabe · Produktbilder oben rechts verschieben · Ecke eines Bilds ziehen = Größe</span>
+        <button type="button" class="link" data-reset-images title="Größe und Position aller Bilder zurücksetzen">Bilder zurücksetzen</button></div>
       <div class="ds-warnings" data-warnings hidden></div>
       <div class="dse-preview-scroll" data-preview-scroll>
         <div class="ds-doc" data-preview>{{ pages_html | safe }}</div>
