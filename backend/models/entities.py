@@ -462,6 +462,9 @@ class Datasheet(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheets_owner"), index=True)
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Design-Vorlage (setzt der Admin): Beispiel für „aus Herstellerblatt erstellen“ bei gleicher Produktart (Einzahl)
+    is_template: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    template_kind: Mapped[str | None] = mapped_column(String(60))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

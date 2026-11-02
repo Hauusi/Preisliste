@@ -19,6 +19,7 @@ from pathlib import Path
 
 from backend.config import Settings
 from backend.excel.importer import normalize_article_number
+from backend.services import datasheet_templates
 from backend.services import datasheets as ds
 from backend.services.image_cutout import product_png
 
@@ -889,13 +890,15 @@ def _sentences(text: str, limit: int) -> str:
 
 
 def build(data: bytes, settings: Settings, sheet_id: int, code: str | None = None,
-          known_numbers: set[str] | None = None, ai=None, progress=None, terms: dict | None = None) -> ImportResult:
+          known_numbers: set[str] | None = None, ai=None, progress=None, terms: dict | None = None,
+          templates: list[dict] | None = None) -> ImportResult:
     """Baukasten-Inhalt aus einem Hersteller-PDF. code: Kürzel des Herstellers (vor die Artikelnummern),
     known_numbers: normalisierte Nummern der aktuellen Liste (für den Bericht), ai: KI-Anbieter oder None,
-    terms: Wörterbuch des Admins für diesen Hersteller (datasheet_terms.load)."""
+    terms: Wörterbuch des Admins für diesen Hersteller (datasheet_terms.load), templates: Design-Vorlagen
+    [{titel, art, content, geaendert}] – die zur erkannten Produktart gibt Aufbau und Textstil vor."""
     token = _TERMS.set(terms)
     try:
-        return _build(data, settings, sheet_id, code, known_numbers, ai, progress)
+        return _build(data, settings, sheet_id, code, known_numbers, ai, progress, templates or [])
     finally:
         _TERMS.reset(token)
 
@@ -930,7 +933,7 @@ def unknown_terms(texts: list[str], labels: list[str], values: list[str]) -> lis
 
 
 def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, known_numbers: set[str] | None,
-           ai, progress) -> ImportResult:
+           ai, progress, templates: list[dict]) -> ImportResult:
     def step(msg):
         if progress:
             progress(msg)
@@ -955,6 +958,7 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
         untertitel = f"Serie {series}" if series else ""
         titel = ("LED " if led else "") + PRODUCT_TYPES.get(kind, kind)
     article_kind = titel if not kind or named else ("LED " if led else "") + kind
+    template = datasheet_templates.choose(templates, kind or product_type(titel, ""))
     content["kopf"] = {"titel": titel[:60], "untertitel": untertitel[:80]}
 
     # Technische Daten
@@ -998,8 +1002,14 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
     if not props["Zulassungen"]:  # Zulassung nur im Text („ECE R65 Approved“, „R65 LED Beacons“)
         found_r = re.findall(r"\bECE[\s-]*R\s?-?(\d{1,3})\b|\bR(\d{2,3})\s+(?:LED|approved|approval)", alltext, re.I)
         props["Zulassungen"] = ", ".join(dict.fromkeys(f"ECE-R{a or b}" for a, b in found_r))
-    rest.sort(key=lambda r: _spec_rank(r[0]))
-    used, dropped = rest[:MAX_SPEC_ROWS_AUTO], rest[MAX_SPEC_ROWS_AUTO:]
+    if template:  # Zeilen, die auch die Vorlage zeigt, zuerst; so viele wie dort (mindestens die übliche Zahl)
+        order = datasheet_templates.spec_order(template["content"])
+        rest.sort(key=lambda r: (order.index(r[0].lower()) if r[0].lower() in order else len(order), _spec_rank(r[0])))
+        limit = max(MAX_SPEC_ROWS_AUTO, len(order))
+    else:
+        rest.sort(key=lambda r: _spec_rank(r[0]))
+        limit = MAX_SPEC_ROWS_AUTO
+    used, dropped = rest[:limit], rest[limit:]
     # B&B-Standardzeilen immer anlegen (leer = nicht gedruckt), Lichtleistung/Leuchtbild nur wenn vorhanden
     content["eigenschaften"] = [{"name": n, "wert": v[:150], "sichtbar": True} for n, v in props.items()
                                 if v or n in ds.DEFAULT_PROPERTIES]
@@ -1032,7 +1042,8 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
     if ai is not None and description:
         step("Beschreibung mit der KI formulieren")
         try:
-            suggestion = ai.datasheet_text(titel, description, other_texts[:4])
+            example = ds.normalized(template["content"])["einleitung"] if template else ""
+            suggestion = ai.datasheet_text(titel, description, other_texts[:4], example=example)
             content["einleitung"] = suggestion.beschreibung.strip()
             bullets = bullets or [b.strip() for b in suggestion.punkte if b.strip()][:4]
         except Exception as exc:  # noqa: BLE001 - KI ist optional: ohne sie gekürzter Originaltext
@@ -1159,6 +1170,11 @@ def _build(data: bytes, settings: Settings, sheet_id: int, code: str | None, kno
         report.append(f"{extra} weitere Bilder im PDF wurden nicht übernommen (je Platz höchstens 2, Produktbilder nur oben).")
     stats = {"seiten": len(pages), "technische_daten": len(spec_rows), "artikel": total, "bilder":
              sum(len(content[k]) for k in ("bilder_oben", "zeichnungen", "bilder_unten")) + len(imgs["diagramm"][:2])}
+    if template:
+        datasheet_templates.apply(content, template["content"])
+        report.insert(0, f"Design-Vorlage „{template['titel']}“ verwendet: Reihenfolge der Eigenschaften, "
+                         f"Spezifikation und Bausteine, Tabellen-Einstellungen" + (", Textstil" if ai else "") + ".")
+    stats["produktart"] = kind or ""
     return ImportResult(content=content, report=report, stats=stats,
                         unknown=unknown_terms(texts, unknown_labels, [v for _l, v in spec_rows]))
 

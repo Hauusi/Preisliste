@@ -580,4 +580,8 @@ body.portal.wide .content { max-width: 1760px; }
 .term-chip { display: inline-flex; align-items: baseline; gap: 6px; margin: 4px 6px 0 0; padding: 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); font-size: .92rem; }
 .term-chip a { font-size: .85rem; }
 .terms-hints { margin: 12px 0 0; padding-left: 20px; }
+.tpl-upload { align-items: center; margin: 12px 0; }
+.tpl-upload .dropzone { padding: 14px 16px; }
+.tpl-kind { min-width: 18rem; }
+@media (max-width: 700px) { .tpl-upload > * { flex: 1 1 100%; } .tpl-kind { min-width: 0; width: 100%; } }
 @media (max-width: 700px) { .terms-form > label { flex: 1 1 100%; } .terms-form > button { width: 100%; } }

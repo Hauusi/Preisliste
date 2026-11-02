@@ -51,8 +51,27 @@ def overview(request: Request, error: str | None = None, db: Session = Depends(g
     sheets = db.scalars(visible(select(Datasheet).order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
     owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
+    templates = [s_ for s_ in sheets if s_.is_template] if is_admin(user) else []
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
-                                               "manufacturers": manufacturers})
+                                               "manufacturers": manufacturers, "templates": templates,
+                                               "kinds": list(dsi.PRODUCT_TYPES)})
+
+
+@router.post("/datenblatt/{sheet_id}/vorlage", dependencies=[Depends(check_csrf)])
+async def set_template(request: Request, sheet_id: int, db: Session = Depends(get_db),
+                       admin: User = Depends(require_admin)):
+    """Datenblatt als Design-Vorlage markieren (mit Produktart) oder Markierung entfernen."""
+    sheet = get_visible(db, Datasheet, sheet_id, admin)
+    form = await request.form()
+    active = str(form.get("aktiv") or "") == "1"
+    kinds = ", ".join(k.strip() for k in str(form.get("art") or "").split(",") if k.strip())[:60]
+    if active and not kinds:
+        title = ds.normalized(sheet.content)["kopf"]["titel"]
+        kinds = dsi.product_type(title, "") or ""
+    sheet.is_template, sheet.template_kind = active, (kinds or None) if active else None
+    audit(db, admin, "datenblatt_vorlage", "datasheet", sheet.id, {"vorlage": active, "art": sheet.template_kind},
+          client_ip(request))
+    return RedirectResponse("/datenblatt#vorlagen", status_code=303)
 
 
 # ---------- Wörterbuch für den Import (nur Admin) ----------
@@ -156,8 +175,9 @@ async def create_from_pdf(request: Request, db: Session = Depends(get_db), user:
     db.add(sheet)
     db.flush()
     dsi.save_pdf(settings, sheet.id, data)
+    template = is_admin(user) and str(form.get("vorlage") or "") == "1"  # eigenes B&B-Blatt als Design-Vorlage
     job = enqueue(db, "DATENBLATT_IMPORT", {"datasheet_id": sheet.id, "manufacturer_id": manufacturer.id if manufacturer else None,
-                                           "datei": str(upload.filename)[:200]}, user)
+                                           "datei": str(upload.filename)[:200], "vorlage": template}, user)
     audit(db, user, "datenblatt_aus_pdf", "datasheet", sheet.id, {"datei": str(upload.filename)[:200]}, client_ip(request))
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 

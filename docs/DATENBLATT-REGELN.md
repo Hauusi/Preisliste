@@ -100,6 +100,9 @@ Muster: **Produktart Singular**, Ausstattung, Spannung, Leistung/Montage, Funkti
 
 ## 7. Im Import umgesetzt
 
+- **Design-Vorlagen** (Admin, je Produktart) geben Reihenfolge, Bausteine, Tabellen-Einstellungen und Textstil vor;
+  neue Vergleichspaare am besten zusätzlich als Vorlage hochladen.
+
 - Eigene Begriffe pflegt der Admin im **Wörterbuch** (Datenblätter → Wörterbuch, pro Hersteller oder für alle). Sie gehen
   den eingebauten Regeln dieser Datei vor. Neue feste Regeln hier nur, wenn sie für alle Hersteller gelten.
 

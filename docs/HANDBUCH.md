@@ -363,6 +363,18 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
 Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Wie B&B Herstellerangaben übersetzt und platziert, steht in `docs/DATENBLATT-REGELN.md`. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
 
+**Design-Vorlagen (nur Admin):** Datenblätter → Abschnitt „Design-Vorlagen“. Ein fertiges B&B-Datenblatt (PDF) hochladen
+– es wird eingelesen und als Vorlage markiert, danach im Editor prüfen und korrigieren – oder ein bestehendes Datenblatt
+in der Liste mit „Als Vorlage“ markieren. Je Vorlage die Produktart(en) angeben (Einzahl, mehrere mit Komma, z. B.
+„Scheinwerfer, Arbeitsscheinwerfer“); beim Hochladen wird sie aus dem Titel vorgeschlagen. Beim Import aus einem
+Herstellerblatt nimmt das Tool die Vorlage der erkannten Produktart (bei mehreren die zuletzt geänderte) und übernimmt:
+Namen und Reihenfolge der Eigenschaften (fehlende Werte bleiben leer und werden nicht gedruckt), Reihenfolge und Anzahl
+der Spezifikationszeilen (Zeilen der Vorlage zuerst), Reihenfolge der Bausteine und „neue Seite“, Tabellen-Einstellungen
+(Zeilenbilder, Gruppenbild-Position, Zusatz „Serie …“), den Garantie-Punkt als **ausgeblendeten** Vorschlag und mit
+lokaler KI den Textstil der Einleitung. Werte, Artikel, Bilder und Zahlen der Vorlage werden nie übernommen. Der
+Prüfbericht nennt die verwendete Vorlage. Für normale Benutzer wirken die Vorlagen des Admins ebenso; sehen und ändern
+kann sie nur der Admin.
+
 **Wörterbuch (nur Admin):** Datenblätter → „Wörterbuch“. Einträge „Begriff im Herstellerblatt → unser Begriff“, je
 Eintrag eine Art: **Merkmal** (Zeilenname, z. B. „Actual lumen“ → „Lichtleistung“; Standardzeile oder eigene
 Spezifikationszeile), **Wert** (Ausdruck in Werten, Aufzählungen und Artikelbeschreibungen, z. B. „Mag 70“ →

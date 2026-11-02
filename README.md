@@ -52,7 +52,8 @@ jeder Eingabe aktualisiert. Bausteine und Zeilen per Ziehen sortieren, ausblende
 hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speichern, Druck/PDF über den Browser.
 **Aus Hersteller-Datenblatt erstellen:** PDF hochladen, der Baukasten wird automatisch gefüllt (Produktart als Titel, Serie, Beschreibung,
 Technische Daten, Artikelnummern, Bilder), danach nur prüfen. Optional formuliert die lokale KI den Text. Hersteller
-wird gewählt oder im PDF erkannt; der Admin pflegt ein Wörterbuch (Herstellerbegriff → unser Begriff, pro Hersteller).
+wird gewählt oder im PDF erkannt; der Admin pflegt ein Wörterbuch (Herstellerbegriff → unser Begriff, pro Hersteller)
+und Design-Vorlagen (eigene B&B-Blätter je Produktart als Vorbild für Aufbau und Textstil).
 Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
 ## Benutzer und Sichtbarkeit
