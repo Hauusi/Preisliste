@@ -487,3 +487,21 @@ class DatasheetTerm(Base):
     manufacturer: Mapped[str] = mapped_column(String(200), default="", server_default="")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheet_terms_user"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class DatasheetExample(Base):
+    """Design-Vorlage: eines unserer fertigen Datenblätter als Original-PDF (uploads/vorlagen/<id>.pdf).
+
+    Es wird nichts daraus nachgebaut; profile enthält nur, was beim Einlesen abgelesen wurde (Bildpositionen und
+    -größen, Text, Zeilennamen, Artikelbeschreibungen). Daraus leitet der Import Regeln je Produktart ab.
+    """
+
+    __tablename__ = "datasheet_examples"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    kind: Mapped[str | None] = mapped_column(String(60))  # Produktart (Einzahl), mehrere mit Komma
+    profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheet_examples_user"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

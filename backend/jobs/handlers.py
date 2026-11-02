@@ -16,7 +16,8 @@ from backend.excel.importer import PRICE_TYPE
 from backend.excel.reader import read_sheet
 from backend.jobs.runner import JobContext, handler
 from backend.matching.cascade import Item, fuzzy_candidates
-from backend.models.entities import AiMatchSuggestion, Article, Comparison, ComparisonItem, Manufacturer, PriceList
+from backend.models.entities import (AiMatchSuggestion, Article, Comparison, ComparisonItem, DatasheetExample,
+                                     Manufacturer, PriceList)
 from backend.services.imports import confirm_import, stored_path
 
 AI_CANDIDATES = 5
@@ -374,11 +375,9 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
                 known = {n for n in db.scalars(select(Article.article_number_normalized)
                                                .where(Article.price_list_id == current.id)) if n}
         terms = datasheet_terms.load(db, name)
-        templates = [] if p.get("vorlage") else [
-            {"titel": t.title, "art": t.template_kind, "content": t.content, "geaendert": t.updated_at.isoformat()}
-            for t in db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True), Datasheet.id != sheet_id))]
+        examples = [{"art": e.kind, "profil": e.profile} for e in db.scalars(select(DatasheetExample))]
     ai = get_provider(ctx.settings)
-    ai = ai if ai.status().active and not p.get("vorlage") else None  # Vorlage: unser Text bleibt wörtlich
+    ai = ai if ai.status().active else None
     steps = iter(range(1, 12))
 
     def progress(message):
@@ -386,26 +385,7 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         ctx.progress(next(steps), 4, message)
 
     result = dsi.build(data, ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
-                       progress=progress, terms=terms, templates=templates, own_sheet=bool(p.get("vorlage")))
-    suggestions = []
-    compare = ds.image_dir(ctx.settings, sheet_id) / "vergleich.pdf"
-    if p.get("vorlage") and compare.exists():
-        # Herstellerblatt desselben Produkts: Wortwahl vergleichen (Bilder in einen Wegwerf-Ordner)
-        import tempfile
-        from pathlib import Path
-
-        from backend.services import datasheet_templates
-
-        progress("Herstellerblatt vergleichen")
-        with tempfile.TemporaryDirectory() as tmp:
-            try:
-                other = dsi.build(compare.read_bytes(), ctx.settings.model_copy(update={"data_dir": Path(tmp)}),
-                                  sheet_id, terms=terms)
-                suggestions = datasheet_templates.suggest_terms(result.content, other.rows)
-                result.report.append(f"Herstellerblatt verglichen: {len(suggestions)} Wortvorschläge fürs Wörterbuch.")
-            except dsi.PdfError as exc:
-                result.report.append(f"Herstellerblatt nicht verglichen: {exc}")
-        compare.unlink(missing_ok=True)
+                       progress=progress, terms=terms, examples=examples)
     if detected:
         result.report.insert(0, f"Hersteller im PDF erkannt: {name} (Kürzel, Preislisten-Abgleich und Wörterbuch "
                                 f"dieses Herstellers verwendet). Falsch? PDF neu einspielen und Hersteller auswählen.")
@@ -414,10 +394,38 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         content = ds.sanitize(result.content, ds.image_names(ctx.settings, sheet_id))
         sheet.content = content
         sheet.title = ds.title_of(content)
-        if p.get("vorlage"):  # eigenes B&B-Blatt als Design-Vorlage eingelesen
-            sheet.is_template = True
-            sheet.template_kind = p.get("art") or result.stats.get("produktart") or None
     path.unlink(missing_ok=True)  # Herstellerblatt wird nicht aufbewahrt
     return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None,
-            "hersteller": name, "unbekannt": result.unknown, "vorlage": bool(p.get("vorlage")),
-            "vorschlaege": suggestions}
+            "hersteller": name, "unbekannt": result.unknown}
+
+
+@handler("DATENBLATT_VORLAGEN")
+def datasheet_examples_job(ctx: JobContext, p: dict) -> dict:
+    """Design-Vorlagen (unsere PDFs) auswerten: nur das Profil ablesen, nichts nachbauen."""
+    from backend.services import datasheet_examples as dse
+    from backend.services import datasheet_import as dsi
+
+    done, errors = 0, []
+    ids = p.get("ids") or []
+    for i, example_id in enumerate(ids, start=1):
+        ctx.check_cancel()
+        with session_scope() as db:
+            ex = db.get(DatasheetExample, example_id)
+            name = ex.filename if ex else "?"
+        ctx.progress(i - 1, len(ids), f"Lese {name}")
+        if ex is None:
+            continue
+        try:
+            profile = dse.analyze(dse.pdf_path(ctx.settings, example_id).read_bytes(), ctx.settings)
+        except (OSError, dsi.PdfError) as exc:
+            errors.append(f"{name}: {exc}")
+            continue
+        with session_scope() as db:
+            ex = db.get(DatasheetExample, example_id)
+            if ex:
+                ex.profile = profile
+                ex.title = " – ".join(x for x in (profile["titel"], profile["untertitel"]) if x)[:200] or name
+                ex.kind = ex.kind or profile["art"] or None
+        done += 1
+    ctx.progress(len(ids), len(ids), "Fertig")
+    return {"vorlagen": done, "fehler": errors}

@@ -27,9 +27,9 @@ def _job(db: Session, job_id: int, user: User) -> Job:
 def result_link(job: Job) -> tuple[str, str] | None:
     r = job.result or {}
     p = job.params or {}
+    if job.type == "DATENBLATT_VORLAGEN":
+        return f"/datenblatt/vorlagen?job={job.id}", "Zu den Design-Vorlagen"
     if job.type == "DATENBLATT_IMPORT":
-        if job.status == "FERTIG" and p.get("vorlage"):
-            return f"/datenblatt/vorlagen?job={job.id}", "Zur Vorlage"
         if job.status == "FERTIG":
             return f"/datenblatt/{r.get('datasheet_id')}?import={job.id}", "Datenblatt öffnen"
         return ("/datenblatt", "Zurück zu den Datenblättern") if job.status in ("FEHLER", "ABGEBROCHEN") else None
@@ -63,7 +63,7 @@ def result_link(job: Job) -> tuple[str, str] | None:
 def _auto_go(job: Job) -> bool:
     """Nach dem Import automatisch weiter zum Ergebnis (Abgleich bzw. neue eigene Liste)."""
     r = job.result or {}
-    if job.type == "DATENBLATT_IMPORT":
+    if job.type in ("DATENBLATT_IMPORT", "DATENBLATT_VORLAGEN"):
         return job.status == "FERTIG"
     return job.type == "IMPORT" and job.status == "FERTIG" and bool(r.get("update_id") or r.get("kind") == "UNSERE")
 

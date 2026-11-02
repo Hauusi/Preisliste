@@ -51,18 +51,11 @@
   <tbody>
   {% for s in sheets %}
     <tr>
-      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a>{% if s.is_template %} <span class="badge OK">Vorlage</span>{% endif %}</td>
+      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a></td>
       {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
       <td>{{ s.updated_at | dt }}</td>
       <td class="row-actions">
         <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
-        {% if user.role == "admin" and not s.is_template %}
-        <form method="post" action="/datenblatt/{{ s.id }}/vorlage" class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="aktiv" value="1">
-          <button type="submit" class="secondary" title="Zu den Design-Vorlagen verschieben (Beispiel für den Import aus Herstellerblättern)">Als Vorlage</button>
-        </form>
-        {% endif %}
         <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary" title="Als Vorlage für ein neues Datenblatt kopieren">Kopieren</button>
