@@ -7,10 +7,12 @@
 {% if added is not none %}
   <p class="msg OK">{{ added | length }} Artikel aufgenommen.</p>
   {% if added %}
+  <div class="scroll">
   <table class="compact">
     <thead><tr><th>Artikelnummer</th><th>Bezeichnung</th><th>EK</th><th>VK</th><th>in Liste</th></tr></thead>
     <tbody>{% for r, a in added %}<tr><td>{{ r.manufacturer.code }}{{ r.number }}</td><td>{{ r.description or "" }}</td><td class="num">{{ r.ek | money }}</td><td class="num">{{ r.vk | money }}</td><td><a href="/listen/{{ r.target.id }}">{{ r.target.name }}</a></td></tr>{% endfor %}</tbody>
   </table>
+  </div>
   {% endif %}
 {% endif %}
 

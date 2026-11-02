@@ -2,6 +2,7 @@
 {% block title %}Jobs{% endblock %}
 {% block content %}
 <h1>Hintergrundjobs</h1>
+<div class="scroll">
 <table>
   <thead><tr><th>#</th><th>Typ</th><th>Status</th><th>Fortschritt</th><th>Erstellt (UTC)</th><th>Meldung</th></tr></thead>
   <tbody>
@@ -10,4 +11,5 @@
   {% else %}<tr><td colspan="6">Keine Jobs.</td></tr>{% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

@@ -9,6 +9,7 @@
 </nav>
 {% set base_query = ({"level": level or ""} | urlencode) ~ "&" %}
 {% include "_pager.html" %}
+<div class="scroll">
 <table>
   <thead><tr><th>Zeile</th><th>Stufe</th><th>Spalte</th><th>Code</th><th>Meldung</th></tr></thead>
   <tbody>
@@ -19,5 +20,6 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% include "_pager.html" %}
 {% endblock %}

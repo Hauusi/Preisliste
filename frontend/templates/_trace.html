@@ -1,5 +1,6 @@
 {% set res = test %}
 {% if res.status == "OK" %}<p class="msg OK">Ergebnis: <b>{{ res.result | money }} {{ res.currency or "" }}</b></p>{% else %}<p class="msg FEHLER">{{ res.error }}</p>{% endif %}
+<div class="scroll">
 <table class="trace">
   <thead><tr><th>#</th><th>Schritt</th><th>Basis</th><th>Operation</th><th>Betrag</th><th>Ergebnis</th></tr></thead>
   <tbody>
@@ -10,3 +11,4 @@
   {% endfor %}
   </tbody>
 </table>
+</div>

@@ -110,6 +110,7 @@ body.public .content { max-width: none; min-height: 100vh; display: grid; place-
 /* ---------- Seitenkopf ---------- */
 .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 20px; }
 .page-head h1 { margin: 0; }
+h1, h2, .big-name, .confirm-check { overflow-wrap: anywhere; }  /* lange Dateinamen/Titel brechen auf dem Handy um */
 .page-head p { margin: 4px 0 0; color: var(--muted); max-width: 75ch; }
 .eyebrow { color: var(--muted); font-size: .9rem; margin-bottom: 2px; }
 .eyebrow a { color: var(--muted); }

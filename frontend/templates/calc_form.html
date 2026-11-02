@@ -82,6 +82,7 @@
 
 {% if runs %}
 <h2>Frühere Kalkulationen dieser Liste</h2>
+<div class="scroll">
 <table>
   <thead><tr><th>Datum</th><th>Regel</th><th>Version</th><th>Menge</th><th>Artikel</th><th>Fehler</th></tr></thead>
   <tbody>
@@ -90,5 +91,6 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endif %}
 {% endblock %}

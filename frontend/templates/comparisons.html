@@ -13,6 +13,7 @@
   <label>Menge <input name="quantity" value="1" size="5"></label>
   <button type="submit">Vergleichen</button>
 </form>
+<div class="scroll">
 <table>
   <thead><tr><th>Datum</th><th>Alt</th><th>Neu</th><th>Hersteller</th><th>Preis</th><th>Analysiert</th><th>Erhöht</th><th>Gesenkt</th><th>Neu</th><th>Entfallen</th><th>Nicht eindeutig</th><th>Fehler</th></tr></thead>
   <tbody>
@@ -23,4 +24,5 @@
   {% else %}<tr><td colspan="12">Noch keine Vergleiche.</td></tr>{% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

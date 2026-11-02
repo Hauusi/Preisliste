@@ -41,10 +41,12 @@
 
 <section class="card">
   <h2>Versionen</h2>
+  <div class="scroll">
   <table>
     <thead><tr><th>Version</th><th>Datum (UTC)</th><th>Von</th><th>Kommentar</th></tr></thead>
     <tbody>{% for v in versions %}<tr><td><a href="?version={{ v.version }}">v{{ v.version }}</a></td><td>{{ v.created_at | dt }}</td><td>{{ creators.get(v.created_by, "?") }}</td><td>{{ v.comment or "" }}</td></tr>{% endfor %}</tbody>
   </table>
+  </div>
 </section>
 
 {% if true %}

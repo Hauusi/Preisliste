@@ -67,12 +67,14 @@
 
   <section class="card">
     <h2>Zusammenfassung</h2>
+    <div class="scroll">
     <table class="compact">
       <tbody>
         {% for label, col in summary %}<tr><th>{{ label }}</th><td>{{ col }}</td></tr>{% endfor %}
         <tr><th>Tabellenblatt</th><td>{{ cols.sheet }}, Kopfzeile {{ cols.header_row }}</td></tr>
       </tbody>
     </table>
+    </div>
     {% if cols.split %}<p class="msg UNKLAR">Zwei Preisspalten derselben Art: Die Datei wird in zwei Listen aufgeteilt und automatisch verglichen (älteres Jahr bzw. linke Spalte = alt).</p>{% endif %}
   </section>
 
