@@ -464,3 +464,23 @@ class Datasheet(Base):
     content: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class DatasheetTerm(Base):
+    """Wörterbuch für den Datenblatt-Import (pflegt der Admin): Herstellerbegriff -> Braun-&-Braun-Begriff.
+
+    Art: MERKMAL (Zeilenname, z. B. „Actual lumen“ -> „Lichtleistung“), WERT (Text im Wert, z. B. „Mag 70“ ->
+    „Magnetmontage“), PRODUKTART (z. B. „work light“ -> „Arbeitsscheinwerfer“). Hersteller leer = gilt für alle;
+    sonst Herstellername (Benutzer haben eigene Hersteller, verglichen wird der Name ohne Groß-/Kleinschreibung).
+    """
+
+    __tablename__ = "datasheet_terms"
+    __table_args__ = (UniqueConstraint("kind", "source", "manufacturer", name="uq_datasheet_terms"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    source: Mapped[str] = mapped_column(String(120))  # klein geschrieben, Leerzeichen vereinheitlicht
+    target: Mapped[str] = mapped_column(String(200))
+    manufacturer: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheet_terms_user"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

@@ -9,13 +9,14 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_csrf, client_ip, current_user
+from backend.api.deps import check_csrf, client_ip, current_user, require_admin
 from backend.api.render import render
 from backend.api.templating import templates
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
-from backend.models.entities import Datasheet, Job, Manufacturer, User, utcnow
+from backend.models.entities import Datasheet, DatasheetTerm, Job, Manufacturer, User, utcnow
 from backend.services import datasheet_import as dsi
+from backend.services import datasheet_terms
 from backend.services import datasheets as ds
 from backend.services.access import get_visible, is_admin, visible
 from backend.services.audit import audit
@@ -52,6 +53,82 @@ def overview(request: Request, error: str | None = None, db: Session = Depends(g
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
                                                "manufacturers": manufacturers})
+
+
+# ---------- Wörterbuch für den Import (nur Admin) ----------
+
+@router.get("/datenblatt/woerterbuch")
+def terms_page(request: Request, hersteller: str | None = None, art: str | None = None, begriff: str | None = None,
+               error: str | None = None, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    """Wörterbuch: Herstellerbegriff -> B&B-Begriff, für alle oder einen Hersteller. Mit art/begriff (Link aus dem
+    Prüfbericht) ist das Formular vorausgefüllt."""
+    stmt = select(DatasheetTerm).order_by(DatasheetTerm.manufacturer, DatasheetTerm.kind, DatasheetTerm.source)
+    if hersteller is not None and hersteller != "*":
+        stmt = stmt.where(DatasheetTerm.manufacturer == hersteller)
+    return render(request, "datasheet_terms.html", {
+        "portal": True, "terms": db.scalars(stmt).all(), "kinds": datasheet_terms.KINDS, "hints": datasheet_terms.HINTS,
+        "manufacturers": datasheet_terms.manufacturer_names(db), "filter": hersteller if hersteller is not None else "*",
+        "prefill": {"art": art if art in datasheet_terms.KINDS else "MERKMAL", "begriff": (begriff or "")[:120],
+                    "hersteller": hersteller if hersteller not in (None, "*") else ""},
+        "builtin": datasheet_terms.builtin_rules(), "error": error})
+
+
+def _terms_redirect(hersteller: str, error: str | None = None) -> RedirectResponse:
+    from urllib.parse import urlencode
+
+    query = {"hersteller": hersteller or ""}
+    if error:
+        query["error"] = error
+    return RedirectResponse("/datenblatt/woerterbuch?" + urlencode(query), status_code=303)
+
+
+@router.post("/datenblatt/woerterbuch", dependencies=[Depends(check_csrf)])
+async def terms_add(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    form = await request.form()
+    kind = str(form.get("art") or "")
+    source = dsi.term_key(str(form.get("begriff") or ""))[:120]
+    target = " ".join(str(form.get("ziel") or "").split())[:200]
+    manufacturer = str(form.get("hersteller") or "").strip()[:200]
+    if kind not in datasheet_terms.KINDS or not source or not target:
+        return _terms_redirect(manufacturer, "Art, Herstellerbegriff und unser Begriff ausfüllen.")
+    row = db.scalar(select(DatasheetTerm).where(DatasheetTerm.kind == kind, DatasheetTerm.source == source,
+                                                DatasheetTerm.manufacturer == manufacturer))
+    if row:
+        row.target = target  # gleicher Begriff nochmal: überschreiben
+    else:
+        row = DatasheetTerm(kind=kind, source=source, target=target, manufacturer=manufacturer, created_by=admin.id)
+        db.add(row)
+    db.flush()
+    audit(db, admin, "woerterbuch_eintrag", "datasheet_term", row.id,
+          {"art": kind, "begriff": source, "ziel": target, "hersteller": manufacturer}, client_ip(request))
+    return _terms_redirect(manufacturer)
+
+
+@router.post("/datenblatt/woerterbuch/{term_id}/aendern", dependencies=[Depends(check_csrf)])
+async def terms_edit(request: Request, term_id: int, db: Session = Depends(get_db),
+                     admin: User = Depends(require_admin)):
+    row = db.get(DatasheetTerm, term_id)
+    if row is None:
+        raise HTTPException(404, "Eintrag nicht gefunden")
+    form = await request.form()
+    target = " ".join(str(form.get("ziel") or "").split())[:200]
+    if target:
+        row.target = target
+        audit(db, admin, "woerterbuch_geaendert", "datasheet_term", row.id, {"ziel": target}, client_ip(request))
+    return _terms_redirect(str(form.get("filter") or ""))
+
+
+@router.post("/datenblatt/woerterbuch/{term_id}/loeschen", dependencies=[Depends(check_csrf)])
+async def terms_delete(request: Request, term_id: int, db: Session = Depends(get_db),
+                       admin: User = Depends(require_admin)):
+    row = db.get(DatasheetTerm, term_id)
+    if row is None:
+        raise HTTPException(404, "Eintrag nicht gefunden")
+    form = await request.form()
+    audit(db, admin, "woerterbuch_geloescht", "datasheet_term", row.id,
+          {"art": row.kind, "begriff": row.source, "hersteller": row.manufacturer}, client_ip(request))
+    db.delete(row)
+    return _terms_redirect(str(form.get("filter") or ""))
 
 
 @router.post("/datenblatt/aus-pdf", dependencies=[Depends(check_csrf)])
