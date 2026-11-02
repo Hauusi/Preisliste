@@ -6,105 +6,98 @@
   <div>
     <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
     <h1>Design-Vorlagen</h1>
-    <p>Eure fertigen Datenblätter als Vorbild für „Aus Hersteller-Datenblatt erstellen“. Die Vorlagen liegen im Hintergrund;
-      bei gleicher Produktart übernimmt der Import <b>Aufbau und Bild-Platzierung</b> (Reihenfolge der Eigenschaften,
-      Spezifikation und Bausteine, Anzahl, Größe und Platz der Bilder, Aufteilung Text/Bilder, Tabellen-Einstellungen) und
-      die <b>Wortwahl</b> (Namen der Zeilen; Wörter aus dem Wörterbuch; mit lokaler KI den Textstil). Werte, Artikel und
-      Bilder der Vorlage werden nie übernommen.</p>
+    <p>Eure fertigen Datenblätter als PDF. Sie bleiben, wie sie sind – es wird nichts daraus nachgebaut. Das Tool liest
+      nur ab, wo die Bilder sitzen und wie groß sie sind, wie eure Texte und Artikelbeschreibungen geschrieben sind und
+      welche Zeilen ihr verwendet. „Aus Hersteller-Datenblatt erstellen“ baut neue Blätter danach: nach den Vorlagen
+      derselben Produktart, sonst nach allen gemeinsam. Texte formuliert die lokale KI in eurem Stil.</p>
   </div>
   <a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a>
 </div>
 
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
 
-{% if result %}
-<section class="card msg OK">
-  <h2>Vorlage gespeichert</h2>
-  {% if result.bericht %}<ul class="m0">{% for r in result.bericht %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
-  {% if result.vorschlaege %}
-  <form method="post" action="/datenblatt/woerterbuch/uebernehmen" class="tpl-suggest">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <h3>Wortwahl aus dem Vergleich mit dem Herstellerblatt</h3>
-    <p class="hint">Angehakte Paare kommen ins Wörterbuch und gelten ab dem nächsten Import. Unseren Begriff bei Bedarf anpassen.</p>
-    <div class="scroll">
-    <table>
-      <thead><tr><th></th><th>Art</th><th>Im Herstellerblatt</th><th>Bei uns</th></tr></thead>
-      <tbody>
-      {% for v in result.vorschlaege %}
-        <tr>
-          <td><input type="checkbox" name="wahl" value="{{ loop.index0 }}" checked aria-label="{{ v.begriff }} übernehmen"></td>
-          <td>{{ term_kinds.get(v.art, v.art) }}<input type="hidden" name="art_{{ loop.index0 }}" value="{{ v.art }}"></td>
-          <td>{{ v.begriff }}<input type="hidden" name="begriff_{{ loop.index0 }}" value="{{ v.begriff }}"></td>
-          <td><input name="ziel_{{ loop.index0 }}" value="{{ v.ziel }}" maxlength="200" aria-label="Unser Begriff für {{ v.begriff }}"></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    <div class="row">
-      <label>Gilt für
-        <select name="hersteller"><option value="">alle Hersteller</option>{% for m in manufacturers %}<option value="{{ m.name }}"{% if result.hersteller == m.name %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select></label>
-      <button type="submit">{{ icon("plus", 18) }} Ins Wörterbuch übernehmen</button>
-    </div>
-  </form>
-  {% endif %}
-  <p class="hint m0">Vorlage unten prüfen: „Bearbeiten“ öffnet sie im Editor – sie wirkt so, wie sie dort aussieht.</p>
-</section>
-{% endif %}
-
-<form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="card tpl-form">
+<form method="post" action="/datenblatt/vorlagen" enctype="multipart/form-data" class="card tpl-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="vorlage" value="1">
-  <h2>Vorlage hochladen</h2>
-  <div class="tpl-files">
-    <label class="dropzone">
-      <b data-file-label>Unser Datenblatt (PDF)</b>
-      <span class="hint">Pflicht – Vorbild für Aufbau, Bilder und Wortwahl</span>
-      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
-    </label>
-    <label class="dropzone">
-      <b data-file-label>Herstellerblatt desselben Produkts (PDF)</b>
-      <span class="hint">Optional – daraus entstehen Wortvorschläge („Single bolt“ → „Schraubmontage“)</span>
-      <input type="file" name="vergleich" accept="application/pdf,.pdf" data-file-input>
+  <h2>Vorlagen hochladen</h2>
+  <div class="row">
+    <label class="dropzone grow">
+      <span class="dropzone-icon">{{ icon("doc", 24) }}</span>
+      <b data-file-label>Eure Datenblätter (PDF) hierher ziehen oder klicken – auch mehrere auf einmal</b>
+      <span class="hint">bis 30 Dateien, je bis 25 MB</span>
+      <input type="file" name="dateien" accept="application/pdf,.pdf" multiple required data-file-input>
     </label>
   </div>
   <div class="row">
-    <label>Gilt für Produktart <input name="art" maxlength="60" list="product-kinds" placeholder="leer = aus dem Titel"></label>
-    <label>Hersteller (für die Wortvorschläge)
-      <select name="hersteller"><option value="">automatisch erkennen</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
-    <button type="submit">{{ icon("upload", 18) }} Vorlage hochladen</button>
+    <label>Produktart (optional) <input name="art" maxlength="60" list="product-kinds" placeholder="leer = aus dem Titel"></label>
+    <span class="hint grow">Mehrere mit Komma, z. B. „Scheinwerfer, Arbeitsscheinwerfer“. Gilt für alle Dateien dieses Hochladens.</span>
+    <button type="submit">{{ icon("upload", 18) }} Hochladen</button>
   </div>
 </form>
 
+{% if rules or general %}
 <section class="card">
-  <h2>Vorlagen ({{ templates | length }})</h2>
-  {% for t in templates %}
-  <article class="tpl-item">
-    <div class="row">
-      <h3 class="grow"><a href="/datenblatt/{{ t.id }}">{{ t.title }}</a></h3>
-      <a class="button secondary" href="/datenblatt/{{ t.id }}">Bearbeiten</a>
-      <a class="button secondary" href="/datenblatt/{{ t.id }}/vorschau" target="_blank" rel="noopener">Ansehen</a>
+  <h2>So baut das Tool neue Datenblätter</h2>
+  {% for kind, lines in rules.items() %}
+  <h3 class="tpl-kind-title">{{ kind | capitalize }}</h3>
+  <ul class="m0">{% for l in lines %}<li>{{ l }}</li>{% endfor %}</ul>
+  {% endfor %}
+  {% if general %}
+  <h3 class="tpl-kind-title">Andere Produktarten (aus allen Vorlagen)</h3>
+  <ul class="m0">{% for l in general %}<li>{{ l }}</li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Vorlagen ({{ examples | length }})</h2>
+  {% if examples %}
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Datenblatt</th><th>Produktart (mehrere mit Komma)</th><th>Hochgeladen</th><th></th></tr></thead>
+    <tbody>
+    {% for e in examples %}
+      <tr>
+        <td><a href="/datenblatt/vorlagen/{{ e.id }}/pdf" target="_blank" rel="noopener"><b>{{ e.title or e.filename }}</b></a>
+          <div class="hint">{{ e.filename }}{% if not e.profile %} · wird ausgewertet …{% endif %}</div></td>
+        <td>
+          <form method="post" action="/datenblatt/vorlagen/{{ e.id }}/art" class="inline row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input name="art" class="tpl-kind" value="{{ e.kind or '' }}" maxlength="60" list="product-kinds" placeholder="z. B. Arbeitsscheinwerfer" aria-label="Produktart für {{ e.filename }}">
+            <button type="submit" class="secondary">Speichern</button>
+          </form>
+          {% if not e.kind %}<span class="badge WARNUNG">ohne Produktart – zählt nur bei den gemeinsamen Regeln</span>{% endif %}
+        </td>
+        <td>{{ e.created_at | dt }}</td>
+        <td class="row-actions">
+          <a class="button secondary" href="/datenblatt/vorlagen/{{ e.id }}/pdf" target="_blank" rel="noopener">{{ icon("doc", 16) }} PDF</a>
+          {{ delete_link("/datenblatt/vorlagen/" ~ e.id ~ "/loeschen", "Vorlage löschen") }}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Vorlagen. Oben eure Datenblätter hochladen.</div>
+  {% endif %}
+</section>
+
+{% if old %}
+<section class="card">
+  <h2>Frühere Vorlagen (nachgebaut, werden nicht mehr verwendet)</h2>
+  <p class="hint">Diese entstanden mit der alten Vorlagen-Funktion als nachgebaute Datenblätter. Löschen oder zurück in die normale Liste.</p>
+  <ul class="m0">
+  {% for t in old %}
+    <li class="row">{{ t.title }}
       <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="secondary" title="Zurück in die normale Datenblatt-Liste">Keine Vorlage mehr</button>
+        <button type="submit" class="link">in die Liste</button>
       </form>
-      {{ delete_link("/datenblatt/" ~ t.id ~ "/loeschen", "Vorlage löschen") }}
-    </div>
-    <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="row">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="aktiv" value="1">
-      <label class="grow">Gilt für Produktart (mehrere mit Komma)
-        <input name="art" class="tpl-kind" value="{{ t.template_kind or '' }}" maxlength="60" list="product-kinds" placeholder="z. B. Scheinwerfer, Arbeitsscheinwerfer"></label>
-      <button type="submit" class="secondary">Speichern</button>
-      {% if not t.template_kind %}<span class="badge WARNUNG">ohne Produktart – wird nicht verwendet</span>{% endif %}
-    </form>
-    <details><summary>Was diese Vorlage vorgibt</summary>
-      <ul class="m0">{% for l in learned[t.id] %}<li>{{ l }}</li>{% endfor %}</ul></details>
-  </article>
-  {% else %}
-  <div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine Vorlagen. Oben eines eurer Datenblätter hochladen.</div>
+      {{ delete_link("/datenblatt/" ~ t.id ~ "/loeschen", "Löschen") }}</li>
   {% endfor %}
+  </ul>
 </section>
+{% endif %}
 <datalist id="product-kinds">{% for k in kinds %}<option value="{{ k }}">{% endfor %}</datalist>
 <script src="/static/app.js"></script>
 {% endblock %}

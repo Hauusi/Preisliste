@@ -363,24 +363,21 @@ Editor mit einem Prüfbericht oben. Übernommen werden:
 Das PDF muss echten Text enthalten (keine Scans), bis 25 MB; gegen Bearbeiten geschützte PDFs gehen. Das
 Herstellerblatt wird nach dem Einlesen gelöscht. Lichtverteilungsdiagramme und Steckerfotos werden bewusst nicht übernommen. Wie B&B Herstellerangaben übersetzt und platziert, steht in `docs/DATENBLATT-REGELN.md`. Alles ist ein Vorschlag: bitte im Editor prüfen und korrigieren.
 
-**Design-Vorlagen (nur Admin):** Datenblätter → „Design-Vorlagen“ (eigene Seite; Vorlagen erscheinen nicht in der
-normalen Datenblatt-Liste). Hochladen: euer fertiges Datenblatt (PDF, Pflicht) und optional das Herstellerblatt
-desselben Produkts. Euer Blatt wird wörtlich eingelesen (alle Technischen Daten, euer Text, keine KI) und als Vorlage
-gespeichert; die Produktart wird aus dem Titel genommen oder kann angegeben werden (mehrere mit Komma, z. B.
-„Scheinwerfer, Arbeitsscheinwerfer“). Mit Herstellerblatt vergleicht das Tool beide und schlägt **Wortpaare** vor
-(„Single screw (M8)“ → „Schraubmontage (M8)“ bei gleichen Zahlen; Zeilenname über gleichen Wert, z. B. „Plug type“ →
-„Anschluss“) – angehakte Paare kommen mit einem Klick ins Wörterbuch (für alle oder einen Hersteller). Zahlen werden nie
-gelernt. Jede Vorlage zeigt aufklappbar, was sie vorgibt, und lässt sich im Editor bearbeiten („Bearbeiten“) – sie
-wirkt so, wie sie dort aussieht. „Keine Vorlage mehr“ schiebt sie zurück in die normale Liste; ein normales Datenblatt
-wird mit „Als Vorlage“ zur Vorlage.
+**Design-Vorlagen (nur Admin):** Datenblätter → „Design-Vorlagen“. Eure fertigen Datenblätter als PDF hochladen (auch
+mehrere auf einmal). Gespeichert wird nur das Original-PDF (über „PDF“ ansehen, löschen); es wird **kein** Datenblatt
+daraus nachgebaut. Im Hintergrund liest das Tool je PDF ab: wo welche Bilder sitzen und wie groß sie sind (Position aus
+dem PDF; Kopf- und Fußzeile mit Logo zählen nicht), den Beschreibungstext, die Aufzählung, die Zeilennamen der
+Spezifikation und die Artikelbeschreibungen. Die Produktart kommt aus dem Titel und kann je Vorlage geändert werden
+(mehrere mit Komma). Oben zeigt die Seite je Produktart, wie das Tool daraus neue Blätter baut.
 
-Beim Import aus einem Herstellerblatt nimmt das Tool die Vorlage der erkannten Produktart (bei mehreren die zuletzt
-geänderte) und übernimmt: Namen und Reihenfolge der Eigenschaften (fehlende Werte bleiben leer und werden nicht
-gedruckt), Reihenfolge und Anzahl der Spezifikationszeilen, Reihenfolge und Sichtbarkeit der Bausteine, „neue Seite“,
-**Bilder** (Anzahl der Produktbilder und Zeichnungen, Größe und Platz je Bild in der Reihenfolge 1., 2. …, Aufteilung
-Text/Bilder), Tabellen-Einstellungen (Zeilenbilder, Gruppenbild-Position, Zusatz „Serie …“), den Garantie-Punkt als
-**ausgeblendeten** Vorschlag und mit lokaler KI den Textstil der Einleitung. Werte, Artikel, Bilder und Zahlen der
-Vorlage werden nie übernommen. Ohne lokale KI bleibt der Beschreibungstext der Text des Herstellers (ggf. englisch).
+Beim Import aus einem Herstellerblatt gelten die Vorlagen derselben Produktart (verwandte zählen mit: „Arbeitsscheinwerfer“
+nimmt „Scheinwerfer“), sonst alle gemeinsam. Übernommen werden: Anzahl der Produktbilder und Zeichnungen, Bildgrößen
+(Mittelwert eurer Blätter), Aufteilung Text/Bilder (aus der Position der Bilder), ob Anwendungsbilder gezeigt werden,
+Namen und Reihenfolge der Eigenschaften und Spezifikationszeilen, der Garantie-Punkt als **ausgeblendeter** Vorschlag.
+Die lokale KI bekommt eure Texte und Artikelbeschreibungen als Vorbild und formuliert Beschreibung und
+Artikelbeschreibungen in eurem Stil; Zahlen müssen dabei gleich bleiben, sonst bleibt der Originalwortlaut. Werte,
+Artikel und Bilder der Vorlagen werden nie übernommen. Der Prüfbericht nennt, nach wie vielen Vorlagen gebaut wurde.
+Früher (mit der alten Funktion) nachgebaute Vorlagen stehen unten auf der Seite und werden nicht mehr verwendet.
 Unser eigenes Logo wird beim Einlesen nie als Produktbild genommen.
 
 **Wörterbuch (nur Admin):** Datenblätter → „Wörterbuch“. Einträge „Begriff im Herstellerblatt → unser Begriff“, je

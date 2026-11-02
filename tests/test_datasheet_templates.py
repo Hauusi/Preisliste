@@ -1,191 +1,137 @@
-"""Design-Vorlagen: fertiges B&B-Blatt gibt beim Import Aufbau, Reihenfolge und Textstil vor – nie Inhalte."""
+"""Design-Vorlagen: unsere Original-PDFs; das Tool liest nur ab (Bilder, Text, Zeilen, Artikel) und baut neue Blätter
+aus Herstellerblättern danach – nie werden Werte, Artikel oder Bilder der Vorlagen übernommen."""
 
 import json
 import re
 
 from backend.ai.provider import MockProvider, set_provider
 from backend.database.engine import session_scope
-from backend.models.entities import Datasheet
-from backend.services import datasheet_import as dsi
-from backend.services import datasheet_templates as dst
+from backend.models.entities import Datasheet, DatasheetExample
+from backend.services import datasheet_examples as dse
 from backend.services import datasheets as ds
 from tests.conftest import run_jobs
+from tests.pdf_factory import make_pdf
 from tests.test_datasheet_import import _pdf
 
+OURS = [(50, 780, 22, "LED BLITZLEUCHTEN"), (50, 760, 12, "SERIE 400"),
+        (50, 700, 10, "Die Blitzleuchten der Serie 400 bieten eine Doppelblitz Funktion und drei Montageversionen."),
+        (50, 670, 10, "•  3 Jahre Garantie"),
+        (50, 640, 12, "SPEZIFIKATIONEN"),
+        (50, 620, 10, "Spannungsbereich:"), (250, 620, 10, "10-30V"),
+        (50, 605, 10, "Montage:"), (250, 605, 10, "Fixmontage"),
+        (50, 590, 10, "Blitzmuster:"), (250, 590, 10, "Doppelblitz"),
+        (50, 420, 12, "BESTELLINFORMATIONEN"),
+        (50, 400, 10, "VAV11050"), (200, 400, 10, "LED Blitzleuchte, gelbe Linse, 10-30V, Fixmontage")]
 
-def _template() -> dict:
+
+def _example_pdf():
+    return make_pdf([OURS], image_on_page=0)  # Produktbild rechts oben, ca. 71 x 49 mm
+
+
+def test_analyze_reads_layout_text_and_rows_without_building_a_sheet(settings):
+    p = dse.analyze(_example_pdf(), settings)
+    assert p["art"] == "Blitzleuchte" and p["titel"] == "LED Blitzleuchten"
+    assert p["text"].startswith("Die Blitzleuchten der Serie 400")
+    assert p["punkte"] == ["3 Jahre Garantie"]
+    assert p["eigenschaften"] == ["Spannungsbereich", "Montage"] and p["spez"] == ["Blitzmuster"]
+    assert p["artikel"] == ["LED Blitzleuchte, gelbe Linse, 10-30V, Fixmontage"]
+    [img] = p["bilder"]
+    assert img["art"] == "produkt" and img["seite"] == 0 and round(img["x"]) == 116 and round(img["h"]) == 49
+    assert not (settings.upload_dir / "datenblatt" / "0").exists()  # nichts gespeichert
+
+
+def test_design_by_kind_else_all_and_apply():
+    a = {"art": "Blitzleuchte", "profil": {"bilder": [{"seite": 0, "art": "produkt", "x": 104, "y": 45, "w": 60, "h": 40}],
+                                           "eigenschaften": ["Montage", "Spannungsbereich"], "spez": ["Blitzmuster"],
+                                           "punkte": ["3 Jahre Garantie"], "text": "Text A", "artikel": ["Art A"]}}
+    b = {"art": "Scheinwerfer", "profil": {"bilder": [], "eigenschaften": [], "spez": [], "punkte": [], "text": "Text B",
+                                           "artikel": []}}
+    profiles, by_kind = dse.choose([a, b], "Blitzleuchte")
+    assert by_kind and len(profiles) == 1
+    profiles, by_kind = dse.choose([a, b], "Ampel")
+    assert not by_kind and len(profiles) == 2
+    profiles, by_kind = dse.choose([a, b], "Arbeitsscheinwerfer")  # verwandte Art
+    assert by_kind and profiles == [b["profil"]]
+    rules = dse.design([a["profil"]])
+    assert rules["aufteilung"] == "bild" and rules["produktbilder"] == 1 and not rules["anwendung"]
     c = ds.empty_content()
-    c["kopf"] = {"titel": "LED Blitzleuchten", "untertitel": "Serie 400"}
-    c["einleitung"] = "Die Blitzleuchten der Serie 400 bieten eine Doppelblitz Funktion. Erhältlich in 3 Montageversionen."
-    c["eigenschaften"] = [{"name": "Montage", "wert": "Fixmontage", "sichtbar": True},
-                          {"name": "Spannungsbereich", "wert": "10-30V", "sichtbar": True},
-                          {"name": "Wasserdicht", "wert": "IP67", "sichtbar": True},
-                          {"name": "", "wert": "3 Jahre Garantie", "sichtbar": True}]
-    c["spez"]["zeilen"] = [{"merkmal": "Blitzmuster", "wert": "Doppelblitz"}, {"merkmal": "Leistung", "wert": "8W"},
-                           {"merkmal": "Gewicht", "wert": "1kg"}, {"merkmal": "Kabellänge", "wert": "4m"}]
-    table = ds.new_table()
-    table.update(zusatz="Serie 400", zeilenbilder="gross", bild_pos="oben", neue_seite=True,
-                 zeilen=[{"bild": None, "artnr": "VAV11050", "farbe": "gelb", "beschreibung": "LED Blitzleuchte", "werte": []}])
-    c["bloecke"] = [{"typ": "intro", "neue_seite": False, "sichtbar": True}, table,
-                    {"typ": "spez", "neue_seite": False, "sichtbar": True},
-                    {"typ": "anwendung", "neue_seite": False, "sichtbar": True}]
-    return c
-
-
-def test_apply_takes_order_and_layout_but_no_content():
-    c = ds.empty_content()
-    c["kopf"] = {"titel": "LED Blitzleuchten", "untertitel": "Serie Nova"}
     c["eigenschaften"] = [{"name": "Spannungsbereich", "wert": "12-24V", "sichtbar": True},
-                          {"name": "Gehäuse", "wert": "Kunststoff", "sichtbar": True},
                           {"name": "", "wert": "Synchronisierbar", "sichtbar": True}]
-    c["spez"]["zeilen"] = [{"merkmal": "Gewicht", "wert": "0.4kg"}, {"merkmal": "Leistung", "wert": "5W"}]
-    table = ds.new_table()
-    table["zeilen"] = [{"bild": None, "artnr": "NV-1", "farbe": "", "beschreibung": "LED Blitzleuchte", "werte": []}]
-    c["bloecke"].append(table)
-    out = dst.apply(c, _template())
-    assert [(p["name"], p["wert"], p["sichtbar"]) for p in out["eigenschaften"]] == [
-        ("Montage", "", True), ("Spannungsbereich", "12-24V", True), ("Wasserdicht", "", True),
-        ("Gehäuse", "Kunststoff", True),
-        ("", "3 Jahre Garantie", False),  # Vorschlag aus der Vorlage, ausgeblendet
-        ("", "Synchronisierbar", True)]
-    assert [z["merkmal"] for z in out["spez"]["zeilen"]] == ["Leistung", "Gewicht"]
-    assert [b["typ"] for b in out["bloecke"]] == ["intro", "tabelle", "spez", "anwendung"]
-    t = out["bloecke"][1]
-    assert (t["zeilenbilder"], t["bild_pos"], t["neue_seite"], t["zusatz"]) == ("gross", "oben", True, "Serie Nova")
-    assert [r["artnr"] for r in t["zeilen"]] == ["NV-1"]  # keine Artikel der Vorlage
-    assert "1kg" not in json.dumps(out) and "VAV11050" not in json.dumps(out)
-
-
-def test_choose_by_product_type():
-    a = {"titel": "A", "art": "Scheinwerfer, Arbeitsscheinwerfer", "content": {}, "geaendert": "2026-01-01"}
-    b = {"titel": "B", "art": "Arbeitsscheinwerfer", "content": {}, "geaendert": "2026-02-01"}
-    assert dst.choose([a, b], "Arbeitsscheinwerfer") is b
-    assert dst.choose([a, b], "scheinwerfer") is a
-    assert dst.choose([a, b], "Blitzleuchte") is None and dst.choose([a, b], None) is None
-
-
-def test_build_uses_template_for_spec_rows_and_ai_style(settings):
-    tpl = {"titel": "LED Blitzleuchten – Serie 400", "art": "Blitzleuchte", "content": _template(), "geaendert": "x"}
-    good = json.dumps({"beschreibung": "Robuste Blitzleuchte für Baufahrzeuge.", "punkte": []})
-    ai = MockProvider(settings, [good])
-    set_provider(ai)
-    try:
-        r = dsi.build(_pdf(), settings, 31, ai=ai, templates=[tpl])
-    finally:
-        set_provider(None)
-    assert any("Design-Vorlage „LED Blitzleuchten – Serie 400“ verwendet" in x for x in r.report)
-    assert "Stilvorlage" in ai.prompts[-1] and "Doppelblitz Funktion" in ai.prompts[-1]
-    assert r.content["eigenschaften"][0]["name"] == "Montage"
-    assert r.stats["produktart"] == "Blitzleuchte"
-    # ohne passende Vorlage: unverändert
-    other = dict(tpl, art="Arbeitsscheinwerfer")
-    r2 = dsi.build(_pdf(), settings, 32, templates=[other])
-    assert not any("Design-Vorlage" in x for x in r2.report)
-
-
-def test_template_library_admin_only_hidden_from_list(admin_client, user_client, app):
-    c = admin_client
-    assert user_client.get("/datenblatt/vorlagen").status_code == 403
-    assert "/datenblatt/vorlagen" in c.get("/datenblatt").text
-    assert "/datenblatt/vorlagen" not in user_client.get("/datenblatt").text
-    r = c.post("/datenblatt/aus-pdf", data={"csrf_token": c.csrf, "vorlage": "1"},
-               files={"datei": ("bb.pdf", _pdf(), "application/pdf")}, follow_redirects=False)
-    run_jobs(app)
-    job_page = c.get(r.headers["location"]).text
-    target = re.search(r'content="0;url=([^"]+)"', job_page).group(1)
-    assert target.startswith("/datenblatt/vorlagen?job=")
-    page = c.get(target).text
-    assert "Vorlage gespeichert" in page and "Was diese Vorlage vorgibt" in page and "Spezifikation:" in page
-    with session_scope() as db:
-        sheet = db.query(Datasheet).order_by(Datasheet.id.desc()).first()
-        assert sheet.is_template and sheet.template_kind == "Blitzleuchte"
-        assert sheet.content["einleitung"].startswith("Die Blitzleuchte ist robust")  # unser Text wörtlich
-        tid, title = sheet.id, sheet.title
-    assert title not in c.get("/datenblatt").text  # nicht in der normalen Liste
-    # normaler Benutzer: Vorlage-Schalter wird ignoriert; sein Import nutzt die Vorlage des Admins
-    user_client.post("/datenblatt/aus-pdf", data={"csrf_token": user_client.csrf, "vorlage": "1"},
-                     files={"datei": ("h.pdf", _pdf(), "application/pdf")})
-    run_jobs(app)
-    with session_scope() as db:
-        mine = db.query(Datasheet).order_by(Datasheet.id.desc()).first()
-        assert not mine.is_template
-    assert user_client.post(f"/datenblatt/{tid}/vorlage", data={"csrf_token": user_client.csrf}).status_code in (403, 404)
-    c.post(f"/datenblatt/{tid}/vorlage", data={"csrf_token": c.csrf, "aktiv": "1", "art": "Blitzleuchte, Blitzmodul"})
-    with session_scope() as db:
-        assert db.get(Datasheet, tid).template_kind == "Blitzleuchte, Blitzmodul"
-    assert "Blitzleuchte, Blitzmodul" in c.get("/datenblatt/vorlagen").text
-    c.post(f"/datenblatt/{tid}/vorlage", data={"csrf_token": c.csrf})
-    with session_scope() as db:
-        assert not db.get(Datasheet, tid).is_template and db.get(Datasheet, tid).template_kind is None
-
-
-def test_template_with_manufacturer_sheet_suggests_words(admin_client, app):
-    from backend.models.entities import DatasheetTerm
-    from tests.pdf_factory import make_pdf
-
-    ours = [(50, 780, 22, "LED ARBEITSSCHEINWERFER"), (50, 760, 12, "SERIE UNITY"),
-            (50, 730, 10, "Die Scheinwerfer der Serie Unity bieten ein modernes und schlankes Design mit starker Ausleuchtung."),
-            (50, 700, 12, "SPEZIFIKATIONEN"),
-            (50, 680, 10, "Spannungsbereich:"), (300, 680, 10, "10-32V"),
-            (50, 665, 10, "Montage:"), (300, 665, 10, "Schraubmontage (M8)"),
-            (50, 650, 10, "Anschluss:"), (300, 650, 10, "Deutsch Stecker"),
-            (50, 635, 10, "Linsenfarbe:"), (300, 635, 10, "klar")]
-    theirs = [(50, 780, 22, "UNITY WORK LIGHT"),
-              (50, 750, 10, "Become a professional with the Unity series and the strong light output for the job."),
-              (50, 720, 12, "TECHNICAL DATA"),
-              (50, 700, 10, "Voltage"), (250, 700, 10, "10-32 V"),
-              (50, 685, 10, "Mounting"), (250, 685, 10, "Single screw (M8)"),
-              (50, 670, 10, "Plug type"), (250, 670, 10, "DT-2PIN"),
-              (50, 655, 10, "Color lens"), (250, 655, 10, "Clear")]
-    c = admin_client
-    r = c.post("/datenblatt/aus-pdf", data={"csrf_token": c.csrf, "vorlage": "1", "art": "Arbeitsscheinwerfer"},
-               files={"datei": ("bb.pdf", make_pdf([ours]), "application/pdf"),
-                      "vergleich": ("h.pdf", make_pdf([theirs]), "application/pdf")}, follow_redirects=False)
-    run_jobs(app)
-    target = re.search(r'content="0;url=([^"]+)"', c.get(r.headers["location"]).text).group(1)
-    page = c.get(target).text
-    assert "Wortwahl aus dem Vergleich" in page
-    pairs = re.findall(r'name="begriff_(\d+)" value="([^"]+)".*?name="ziel_\1" value="([^"]+)"', page, re.S)
-    found = {(b, z) for _i, b, z in pairs}
-    assert ("Single screw (M8)", "Schraubmontage (M8)") in found  # Wortlaut, gleiche Zahl
-    assert ("Plug type", "Anschluss") in found  # Zeilenname über gleichen Wert („DT-2PIN“ = „Deutsch Stecker“)
-    assert not any(b.startswith("10-32") for b, _z in found)  # Zahlen werden nicht gelernt
-    i = next(i for i, b, _z in pairs if b == "Single screw (M8)")
-    c.post("/datenblatt/woerterbuch/uebernehmen", data={"csrf_token": c.csrf, "wahl": [i], "hersteller": "",
-                                                        f"art_{i}": "WERT", f"begriff_{i}": "Single screw (M8)",
-                                                        f"ziel_{i}": "Schraubmontage (M8)"})
-    with session_scope() as db:
-        assert [(t.source, t.target) for t in db.query(DatasheetTerm)] == [("single screw (m8)", "Schraubmontage (M8)")]
-        sheet = db.query(Datasheet).order_by(Datasheet.id.desc()).first()
-        assert sheet.template_kind == "Arbeitsscheinwerfer"
-        assert [z["merkmal"] for z in sheet.content["spez"]["zeilen"]] == ["Anschluss", "Linsenfarbe"]  # alle behalten
-
-
-def test_apply_copies_image_layout_by_slot():
-    tpl = _template()
-    tpl["bilder_oben"] = ["a" * 16 + ".png"]
-    tpl["zeichnungen"] = ["b" * 16 + ".jpg"]
-    tpl["bild_groesse"] = {"a" * 16: 140, "b" * 16: 70}
-    tpl["bild_versatz"] = {"a" * 16: [3.0, -2.0]}
-    tpl["aufteilung"] = "bild"
-    tpl["bloecke"][3]["sichtbar"] = False  # Anwendungsbilder aus
-    c = ds.empty_content()
     c["bilder_oben"] = ["1" * 16 + ".png", "2" * 16 + ".png"]
-    c["zeichnungen"] = ["3" * 16 + ".jpg"]
-    out = dst.apply(c, tpl)
-    assert out["bilder_oben"] == ["1" * 16 + ".png"]  # so viele Produktbilder wie die Vorlage
-    assert out["bild_groesse"] == {"1" * 16: 140, "3" * 16: 70} and out["bild_versatz"] == {"1" * 16: [3.0, -2.0]}
-    assert out["aufteilung"] == "bild"
+    c["bilder_unten"] = ["3" * 16 + ".jpg"]
+    out = dse.apply(c, rules)
+    assert [(p["name"], p["wert"], p["sichtbar"]) for p in out["eigenschaften"]] == [
+        ("Montage", "", True), ("Spannungsbereich", "12-24V", True),
+        ("", "3 Jahre Garantie", False), ("", "Synchronisierbar", True)]
+    assert out["bilder_oben"] == ["1" * 16 + ".png"] and out["aufteilung"] == "bild"
+    assert out["bild_groesse"] == {"1" * 16: 70}  # 40 mm statt 56 mm
     assert [b["sichtbar"] for b in out["bloecke"] if b["typ"] == "anwendung"] == [False]
 
 
-def test_import_report_names_template(admin_client, app):
+def test_library_admin_only_original_pdf_kept_nothing_rebuilt(admin_client, user_client, app, settings):
     c = admin_client
-    with session_scope() as db:
-        db.add(Datasheet(owner_id=1, title="Vorlage Blitz", content=_template(), is_template=True,
-                         template_kind="Blitzleuchte"))
-    r = c.post("/datenblatt/aus-pdf", data={"csrf_token": c.csrf},
-               files={"datei": ("h.pdf", _pdf(), "application/pdf")}, follow_redirects=False)
+    assert user_client.get("/datenblatt/vorlagen").status_code == 403
+    assert "/datenblatt/vorlagen" not in user_client.get("/datenblatt").text
+    before = c.get("/datenblatt").text
+    r = c.post("/datenblatt/vorlagen", data={"csrf_token": c.csrf},
+               files=[("dateien", ("a.pdf", _example_pdf(), "application/pdf")),
+                      ("dateien", ("b.pdf", _pdf(), "application/pdf"))], follow_redirects=False)
+    assert r.headers["location"].startswith("/jobs/")
     run_jobs(app)
     target = re.search(r'content="0;url=([^"]+)"', c.get(r.headers["location"]).text).group(1)
-    assert "Design-Vorlage „Vorlage Blitz“ verwendet" in c.get(target).text
+    page = c.get(target).text
+    assert "So baut das Tool neue Datenblätter" in page and "Blitzleuchte" in page
+    with session_scope() as db:
+        examples = db.query(DatasheetExample).order_by(DatasheetExample.id).all()
+        assert [e.filename for e in examples] == ["a.pdf", "b.pdf"] and all(e.profile for e in examples)
+        assert examples[0].kind == "Blitzleuchte" and examples[0].title == "LED Blitzleuchten – Serie 400"
+        assert db.query(Datasheet).count() == 0  # kein nachgebautes Datenblatt
+        eid = examples[0].id
+    assert c.get("/datenblatt").text.count("<tr") == before.count("<tr")
+    pdf = c.get(f"/datenblatt/vorlagen/{eid}/pdf")
+    assert pdf.status_code == 200 and pdf.content == _example_pdf()  # Original unverändert
+    assert user_client.get(f"/datenblatt/vorlagen/{eid}/pdf").status_code == 403
+    c.post(f"/datenblatt/vorlagen/{eid}/art", data={"csrf_token": c.csrf, "art": "Blitzleuchte, Blitzmodul"})
+    c.post(f"/datenblatt/vorlagen/{eid}/loeschen", data={"csrf_token": c.csrf, "bestaetigt": "ja"})
+    with session_scope() as db:
+        assert db.get(DatasheetExample, eid) is None
+    assert not dse.pdf_path(settings, eid).exists()
+
+
+def test_import_follows_examples_and_ai_writes_in_our_style(admin_client, app, settings):
+    c = admin_client
+    profile = dse.analyze(_example_pdf(), settings)
+    with session_scope() as db:
+        db.add(DatasheetExample(filename="a.pdf", kind="Blitzleuchte", profile=profile))
+    text = json.dumps({"beschreibung": "Die Blitzleuchten der Serie Test sind robust und einfach zu montieren.",
+                       "punkte": []})
+    arts = json.dumps({"texte": ["LED Blitzleuchte, gelb, 12 V DC", "LED Blitzleuchte, gelb, 24 V DC"]})
+    ai = MockProvider(settings, [text, arts])
+    set_provider(ai)
+    try:
+        r = c.post("/datenblatt/aus-pdf", data={"csrf_token": c.csrf},
+                   files={"datei": ("h.pdf", _pdf(), "application/pdf")}, follow_redirects=False)
+        run_jobs(app)
+    finally:
+        set_provider(None)
+    target = re.search(r'content="0;url=([^"]+)"', c.get(r.headers["location"]).text).group(1)
+    editor = c.get(target).text
+    assert "Design wie in 1 unserer Datenblätter dieser Produktart" in editor
+    assert "Doppelblitz Funktion" in ai.prompts[0]  # unser Text als Stilvorbild
+    assert "LED Blitzleuchte, gelbe Linse, 10-30V, Fixmontage" in ai.prompts[1]  # unsere Artikel als Vorbild
+    with session_scope() as db:
+        sheet = db.query(Datasheet).order_by(Datasheet.id.desc()).first()
+        rows = [r_["beschreibung"] for t in ds.tables(sheet.content) for r_ in t["zeilen"]]
+        assert rows[:2] == ["LED Blitzleuchte, gelb, 12 V DC", "LED Blitzleuchte, gelb, 24 V DC"]
+        assert sheet.content["eigenschaften"][0]["name"] == "Spannungsbereich"
+        assert "VAV11050" not in json.dumps(sheet.content)  # nichts aus der Vorlage übernommen
+
+
+def test_article_ai_must_keep_numbers(settings):
+    bad = json.dumps({"texte": ["LED Blitzleuchte, 99 V"]})
+    ai = MockProvider(settings, [bad, bad, bad])
+    try:
+        ai.article_texts(["LED Blitzleuchte, 12 V DC"], ["Beispiel"])
+        assert False, "erfundene Zahl muss abgelehnt werden"
+    except Exception as exc:  # noqa: BLE001
+        assert "Zahlen" in str(exc)

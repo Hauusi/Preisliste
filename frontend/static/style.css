@@ -581,6 +581,8 @@ body.portal.wide .content { max-width: 1760px; }
 .term-chip { display: inline-flex; align-items: baseline; gap: 6px; margin: 4px 6px 0 0; padding: 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); font-size: .92rem; }
 .term-chip a { font-size: .85rem; }
 .terms-hints { margin: 12px 0 0; padding-left: 20px; }
+.tpl-kind-title { margin: 14px 0 4px; font-size: 1rem; }
+.tpl-form .row + .row { margin-top: 12px; align-items: center; }
 .tpl-files { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 12px; }
 .tpl-files .dropzone { padding: 22px 16px; }
 .tpl-form .row { align-items: flex-end; }

@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ValidationError
 
-from backend.ai.schemas import ColumnSuggestion, DatasheetText, MatchJudgement, RuleSuggestion
+from backend.ai.schemas import ArticleTexts, ColumnSuggestion, DatasheetText, MatchJudgement, RuleSuggestion
 from backend.config import Settings
 from backend.excel.columns import FIELDS
 
@@ -187,6 +187,31 @@ class AIProvider:
         system = ("Du formulierst Produkttexte für Datenblätter. Antworte ausschließlich mit JSON nach dem "
                   "vorgegebenen Schema. Erfinde keine Fakten.")
         return self.ask(prompt, DatasheetText, check, system=system)
+
+    def article_texts(self, rows: list[str], examples: list[str]) -> list[str]:
+        """Artikelbeschreibungen wie in unseren Datenblättern formulieren. Jede Zeile behält genau ihre Zahlen."""
+        prompt = (
+            "Formuliere die Artikelbeschreibungen eines Produktdatenblatts im Stil unserer Beispiele um: gleiche "
+            "Reihenfolge der Angaben, gleiche Schreibweise (z. B. „LED Scheinwerfer, mit 52cm Anschlusskabel & "
+            "Deutsch Stecker, 10-32V, 31W“), Deutsch, kurz. Verwende nur Angaben der jeweiligen Zeile; keine Zahl "
+            "weglassen, ändern oder hinzufügen. Gib genau so viele Texte zurück wie Zeilen, in derselben Reihenfolge.\n"
+            "Unsere Beispiele: " + json.dumps(examples[:8], ensure_ascii=False)
+            + "\nZeilen: " + json.dumps(rows, ensure_ascii=False)
+        )
+
+        def numbers(text: str) -> list[str]:
+            return sorted(re.findall(r"\d+", text))
+
+        def check(t: ArticleTexts):
+            if len(t.texte) != len(rows):
+                raise ValueError("Anzahl der Zeilen stimmt nicht")
+            for old, new in zip(rows, t.texte):
+                if numbers(old) != numbers(new) or not new.strip():
+                    raise ValueError(f"Zahlen geändert: {new}")
+
+        system = ("Du formulierst Artikelbeschreibungen für Datenblätter. Antworte ausschließlich mit JSON nach dem "
+                  "vorgegebenen Schema. Erfinde keine Fakten.")
+        return [x.strip() for x in self.ask(prompt, ArticleTexts, check, system=system).texte]
 
 
 def _cell(v) -> str | None:

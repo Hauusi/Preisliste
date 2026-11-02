@@ -51,3 +51,9 @@ class DatasheetText(BaseModel):
     model_config = ConfigDict(extra="forbid")
     beschreibung: str = Field(min_length=20, max_length=700)
     punkte: list[str] = Field(default_factory=list, max_length=4)
+
+
+class ArticleTexts(BaseModel):
+    """Artikelbeschreibungen im Stil unserer Datenblätter (gleiche Reihenfolge und Anzahl, gleiche Zahlen)."""
+    model_config = ConfigDict(extra="forbid")
+    texte: list[str] = Field(max_length=30)

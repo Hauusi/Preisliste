@@ -14,7 +14,7 @@ from backend.api.render import render
 from backend.api.templating import templates
 from backend.config import Settings, get_settings
 from backend.database.engine import get_db
-from backend.models.entities import Datasheet, DatasheetTerm, Job, Manufacturer, User, utcnow
+from backend.models.entities import Datasheet, DatasheetExample, DatasheetTerm, Job, Manufacturer, User, utcnow
 from backend.services import datasheet_import as dsi
 from backend.services import datasheet_terms
 from backend.services import datasheets as ds
@@ -57,54 +57,116 @@ def overview(request: Request, error: str | None = None, db: Session = Depends(g
 
 
 @router.get("/datenblatt/vorlagen")
-def templates_page(request: Request, job: int | None = None, error: str | None = None, db: Session = Depends(get_db),
+def templates_page(request: Request, error: str | None = None, db: Session = Depends(get_db),
                    admin: User = Depends(require_admin)):
-    """Design-Vorlagen (nur Admin): eigene B&B-Datenblätter, an denen sich der Import aus Herstellerblättern
-    orientiert. Nach dem Hochladen (?job=) zeigt die Seite, was gelernt wurde, und Wortvorschläge zum Übernehmen."""
-    from backend.services import datasheet_templates
+    """Design-Vorlagen (nur Admin): unsere fertigen Datenblätter als Original-PDF. Das Tool liest daraus ab, wo
+    Bilder hingehören und wie Texte geschrieben sind, und richtet „Aus Hersteller-Datenblatt erstellen“ danach aus."""
+    from backend.services import datasheet_examples as dse
 
-    templates = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True))
-                           .order_by(Datasheet.updated_at.desc())).all()
-    result = None
-    if job:
-        row = db.get(Job, job)
-        if row and row.type == "DATENBLATT_IMPORT" and (row.params or {}).get("vorlage") and row.result:
-            result = row.result
-    manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, admin)).all()
+    examples = db.scalars(select(DatasheetExample).order_by(DatasheetExample.created_at.desc())).all()
+    kinds = sorted({k for e in examples for k in dse.kinds_of(e.kind)})
+    data = [{"art": e.kind, "profil": e.profile} for e in examples]
+    rules = {k: dse.summary(dse.design(dse.choose(data, k)[0])) for k in kinds}
+    general = dse.summary(dse.design(dse.choose(data, None)[0]))
+    old = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True))).all()  # frühere, nachgebaute Vorlagen
     return render(request, "datasheet_templates.html", {
-        "portal": True, "templates": templates, "learned": {t.id: datasheet_templates.learned(t.content) for t in templates},
-        "kinds": list(dsi.PRODUCT_TYPES), "result": result, "error": error, "manufacturers": manufacturers,
-        "term_kinds": datasheet_terms.KINDS})
+        "portal": True, "examples": examples, "rules": rules, "general": general, "old": old, "error": error,
+        "kinds": list(dsi.PRODUCT_TYPES)})
 
 
-@router.post("/datenblatt/woerterbuch/uebernehmen", dependencies=[Depends(check_csrf)])
-async def terms_take(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    """Angehakte Wortvorschläge (aus dem Vergleich Vorlage ↔ Herstellerblatt) ins Wörterbuch."""
+@router.post("/datenblatt/vorlagen", dependencies=[Depends(check_csrf)])
+async def templates_upload(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin),
+                           settings: Settings = Depends(get_settings)):
+    """Eines oder mehrere unserer Datenblätter (PDF) als Vorlage speichern; Auswertung im Hintergrund."""
+    from urllib.parse import quote
+
+    from backend.jobs.runner import enqueue
+    from backend.services import datasheet_examples as dse
+
     form = await request.form()
-    manufacturer = str(form.get("hersteller") or "").strip()[:200]
-    added = 0
-    for i in form.getlist("wahl"):
-        kind, source = str(form.get(f"art_{i}") or ""), dsi.term_key(str(form.get(f"begriff_{i}") or ""))[:120]
-        target = " ".join(str(form.get(f"ziel_{i}") or "").split())[:200]
-        if kind not in datasheet_terms.KINDS or not source or not target:
-            continue
-        row = db.scalar(select(DatasheetTerm).where(DatasheetTerm.kind == kind, DatasheetTerm.source == source,
-                                                    DatasheetTerm.manufacturer == manufacturer))
-        if row:
-            row.target = target
-        else:
-            db.add(DatasheetTerm(kind=kind, source=source, target=target, manufacturer=manufacturer,
-                                 created_by=admin.id))
-        added += 1
-    audit(db, admin, "woerterbuch_uebernommen", "datasheet_term", None, {"anzahl": added, "hersteller": manufacturer},
+    files = [f for f in form.getlist("dateien") if ds.is_upload(f)]
+    if not files:
+        return RedirectResponse("/datenblatt/vorlagen?error=" + quote("Bitte mindestens ein PDF auswählen"),
+                                status_code=303)
+    kind = ", ".join(k.strip() for k in str(form.get("art") or "").split(",") if k.strip())[:60] or None
+    ids = []
+    for f in files[:30]:
+        data = await f.read(dsi.MAX_PDF_BYTES + 1)
+        try:
+            dsi.check_pdf(data)
+        except dsi.PdfError as exc:
+            return RedirectResponse("/datenblatt/vorlagen?error=" + quote(f"{f.filename}: {exc}"), status_code=303)
+        ex = DatasheetExample(filename=dse.clean_filename(str(f.filename or "vorlage.pdf")), kind=kind, profile={},
+                              created_by=admin.id)
+        db.add(ex)
+        db.flush()
+        path = dse.pdf_path(settings, ex.id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        ids.append(ex.id)
+    job = enqueue(db, "DATENBLATT_VORLAGEN", {"ids": ids}, admin)
+    audit(db, admin, "datenblatt_vorlagen_hochgeladen", "datasheet_example", None, {"anzahl": len(ids)},
           client_ip(request))
-    return _terms_redirect(manufacturer)
+    return RedirectResponse(f"/jobs/{job.id}", status_code=303)
+
+
+@router.get("/datenblatt/vorlagen/{example_id}/pdf")
+def template_pdf(example_id: int, db: Session = Depends(get_db), _admin: User = Depends(require_admin),
+                 settings: Settings = Depends(get_settings)):
+    from backend.services import datasheet_examples as dse
+
+    ex = db.get(DatasheetExample, example_id)
+    path = dse.pdf_path(settings, example_id)
+    if ex is None or not path.is_file():
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    return FileResponse(path, media_type="application/pdf", filename=ex.filename, content_disposition_type="inline")
+
+
+@router.post("/datenblatt/vorlagen/{example_id}/art", dependencies=[Depends(check_csrf)])
+async def template_kind(request: Request, example_id: int, db: Session = Depends(get_db),
+                        admin: User = Depends(require_admin)):
+    ex = db.get(DatasheetExample, example_id)
+    if ex is None:
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    form = await request.form()
+    ex.kind = ", ".join(k.strip() for k in str(form.get("art") or "").split(",") if k.strip())[:60] or None
+    audit(db, admin, "datenblatt_vorlage_art", "datasheet_example", ex.id, {"art": ex.kind}, client_ip(request))
+    return RedirectResponse("/datenblatt/vorlagen", status_code=303)
+
+
+@router.get("/datenblatt/vorlagen/{example_id}/loeschen")
+def template_confirm_delete(request: Request, example_id: int, db: Session = Depends(get_db),
+                            _admin: User = Depends(require_admin)):
+    ex = db.get(DatasheetExample, example_id)
+    if ex is None:
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    return render(request, "confirm_delete.html", {
+        "portal": True, "title": "Design-Vorlage löschen", "name": ex.title or ex.filename,
+        "action": f"/datenblatt/vorlagen/{ex.id}/loeschen", "back": "/datenblatt/vorlagen",
+        "impact": ["das gespeicherte PDF und was daraus abgelesen wurde (bestehende Datenblätter bleiben unverändert)"]})
+
+
+@router.post("/datenblatt/vorlagen/{example_id}/loeschen", dependencies=[Depends(check_csrf)])
+async def template_delete(request: Request, example_id: int, db: Session = Depends(get_db),
+                          admin: User = Depends(require_admin), settings: Settings = Depends(get_settings)):
+    from backend.services import datasheet_examples as dse
+
+    ex = db.get(DatasheetExample, example_id)
+    if ex is None:
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    if (await request.form()).get("bestaetigt") != "ja":
+        return RedirectResponse(f"/datenblatt/vorlagen/{ex.id}/loeschen", status_code=303)
+    audit(db, admin, "datenblatt_vorlage_geloescht", "datasheet_example", ex.id, {"datei": ex.filename},
+          client_ip(request))
+    db.delete(ex)
+    dse.pdf_path(settings, example_id).unlink(missing_ok=True)
+    return RedirectResponse("/datenblatt/vorlagen", status_code=303)
 
 
 @router.post("/datenblatt/{sheet_id}/vorlage", dependencies=[Depends(check_csrf)])
 async def set_template(request: Request, sheet_id: int, db: Session = Depends(get_db),
                        admin: User = Depends(require_admin)):
-    """Datenblatt als Design-Vorlage markieren (mit Produktart) oder Markierung entfernen."""
+    """Frühere, nachgebaute Vorlage zurück in die normale Liste (aktiv=1 markiert wieder; nur noch Altbestand)."""
     sheet = get_visible(db, Datasheet, sheet_id, admin)
     form = await request.form()
     active = str(form.get("aktiv") or "") == "1"
@@ -203,9 +265,7 @@ async def create_from_pdf(request: Request, db: Session = Depends(get_db), user:
     from backend.jobs.runner import enqueue
 
     form = await request.form()
-    # Admin: eigenes B&B-Blatt als Design-Vorlage (landet in der Vorlagen-Bibliothek, nicht in der Liste)
-    template = is_admin(user) and str(form.get("vorlage") or "") == "1"
-    back = "/datenblatt/vorlagen" if template else "/datenblatt"
+    back = "/datenblatt"
     upload = form.get("datei")
     if not ds.is_upload(upload):
         return RedirectResponse(back + "?error=" + quote("Bitte ein PDF auswählen"), status_code=303)
@@ -214,26 +274,16 @@ async def create_from_pdf(request: Request, db: Session = Depends(get_db), user:
         dsi.check_pdf(data)
     except dsi.PdfError as exc:
         return RedirectResponse(back + "?error=" + quote(str(exc)), status_code=303)
-    compare = form.get("vergleich") if template else None  # Herstellerblatt desselben Produkts (Wortwahl)
-    compare_data = await compare.read(dsi.MAX_PDF_BYTES + 1) if ds.is_upload(compare) else None
-    if compare_data:
-        try:
-            dsi.check_pdf(compare_data)
-        except dsi.PdfError as exc:
-            return RedirectResponse(back + "?error=" + quote(f"Herstellerblatt: {exc}"), status_code=303)
     mid = str(form.get("hersteller") or "")
     manufacturer = get_visible(db, Manufacturer, int(mid), user) if mid.isdigit() else None
     content = ds.empty_content()
-    content["kopf"]["titel"] = "Wird aus dem PDF erstellt"
-    sheet = Datasheet(owner_id=user.id, title=content["kopf"]["titel"], content=content, is_template=template)
+    content["kopf"]["titel"] = "Wird aus dem Herstellerblatt erstellt"
+    sheet = Datasheet(owner_id=user.id, title=content["kopf"]["titel"], content=content)
     db.add(sheet)
     db.flush()
     dsi.save_pdf(settings, sheet.id, data)
-    if compare_data:
-        (ds.image_dir(settings, sheet.id) / "vergleich.pdf").write_bytes(compare_data)
     job = enqueue(db, "DATENBLATT_IMPORT", {"datasheet_id": sheet.id, "manufacturer_id": manufacturer.id if manufacturer else None,
-                                           "datei": str(upload.filename)[:200], "vorlage": template,
-                                           "art": str(form.get("art") or "").strip()[:60] if template else ""}, user)
+                                           "datei": str(upload.filename)[:200]}, user)
     audit(db, user, "datenblatt_aus_pdf", "datasheet", sheet.id, {"datei": str(upload.filename)[:200]}, client_ip(request))
     return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 

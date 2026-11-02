@@ -53,7 +53,7 @@ hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speicher
 **Aus Hersteller-Datenblatt erstellen:** PDF hochladen, der Baukasten wird automatisch gefüllt (Produktart als Titel, Serie, Beschreibung,
 Technische Daten, Artikelnummern, Bilder), danach nur prüfen. Optional formuliert die lokale KI den Text. Hersteller
 wird gewählt oder im PDF erkannt; der Admin pflegt ein Wörterbuch (Herstellerbegriff → unser Begriff, pro Hersteller)
-und Design-Vorlagen (eigene B&B-Blätter je Produktart als Vorbild für Aufbau und Textstil).
+und Design-Vorlagen (eure fertigen PDFs; das Tool liest Bild-Platzierung und Textstil ab und baut danach).
 Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
 ## Benutzer und Sichtbarkeit
