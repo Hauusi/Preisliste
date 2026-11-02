@@ -163,7 +163,7 @@ class AIProvider:
         return self.ask(prompt, RuleSuggestion)
 
 
-    def datasheet_text(self, product: str, text: str, more: list[str]) -> DatasheetText:
+    def datasheet_text(self, product: str, text: str, more: list[str], example: str = "") -> DatasheetText:
         """Beschreibung für das Datenblatt: kurz, sachlich, Deutsch. Nur umformulieren, nichts erfinden."""
         prompt = (
             "Schreibe den Beschreibungstext für ein Produktdatenblatt eines Fahrzeug- und Signaltechnik-Händlers. "
@@ -173,6 +173,8 @@ class AIProvider:
             "Ist der Text englisch, übersetze ihn.\n"
             "Produkt: " + product[:100] + "\nText: " + text[:2500]
             + ("\nWeitere Abschnitte: " + " | ".join(m[:400] for m in more) if more else "")
+            + ("\nStilvorlage (ein Text von uns – nur Ton, Länge und Aufbau übernehmen, keine Angaben daraus): "
+               + example[:800] if example else "")
         )
         source = (text + " " + " ".join(more)).lower()
 

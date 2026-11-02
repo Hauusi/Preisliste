@@ -34,6 +34,56 @@
   </div>
 </form>
 
+{% if user.role == "admin" %}
+<section class="card" id="vorlagen">
+  <h2>Design-Vorlagen</h2>
+  <p class="hint">Fertige Braun-&amp;-Braun-Datenblätter als Beispiel für „Aus Hersteller-Datenblatt erstellen“: Bei gleicher
+    Produktart übernimmt der Import Reihenfolge der Eigenschaften, Spezifikationszeilen und Bausteine, Tabellen-Einstellungen
+    und (mit lokaler KI) den Textstil. Werte, Artikel und Bilder der Vorlage werden nie übernommen.</p>
+  <form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="row tpl-upload">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="vorlage" value="1">
+    <label class="dropzone grow">
+      <b data-file-label>Unser Datenblatt (PDF) hierher ziehen oder klicken</b>
+      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
+    </label>
+    <button type="submit" class="secondary">{{ icon("upload", 18) }} Vorlage hochladen</button>
+  </form>
+  <p class="hint">Danach im Editor prüfen – die Vorlage wirkt so, wie sie dort steht. Ein bestehendes Datenblatt wird mit
+    „Als Vorlage“ in der Liste unten zur Vorlage.</p>
+  {% if templates %}
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Vorlage</th><th>Gilt für Produktart (mehrere mit Komma)</th><th></th></tr></thead>
+    <tbody>
+    {% for t in templates %}
+      <tr>
+        <td><a href="/datenblatt/{{ t.id }}"><b>{{ t.title }}</b></a></td>
+        <td>
+          <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="inline row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="aktiv" value="1">
+            <input name="art" class="tpl-kind" value="{{ t.template_kind or '' }}" maxlength="60" list="product-kinds" placeholder="z. B. Arbeitsscheinwerfer" aria-label="Produktart für {{ t.title }}">
+            <button type="submit" class="secondary">Speichern</button>
+          </form>
+          {% if not t.template_kind %}<span class="badge WARNUNG">ohne Produktart – wird nicht verwendet</span>{% endif %}
+        </td>
+        <td class="row-actions">
+          <form method="post" action="/datenblatt/{{ t.id }}/vorlage" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Keine Vorlage mehr</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <datalist id="product-kinds">{% for k in kinds %}<option value="{{ k }}">{% endfor %}</datalist>
+</section>
+{% endif %}
+
 <form method="post" action="/datenblatt/neu" class="card row dse-new">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label class="grow">Titel (Produktgruppe) <input name="titel" maxlength="60" required placeholder="z. B. LED Leuchtbalken"></label>
@@ -48,11 +98,18 @@
   <tbody>
   {% for s in sheets %}
     <tr>
-      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a></td>
+      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a>{% if s.is_template %} <span class="badge OK">Vorlage</span>{% endif %}</td>
       {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
       <td>{{ s.updated_at | dt }}</td>
       <td class="row-actions">
         <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
+        {% if user.role == "admin" and not s.is_template %}
+        <form method="post" action="/datenblatt/{{ s.id }}/vorlage" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="aktiv" value="1">
+          <button type="submit" class="secondary" title="Als Design-Vorlage für den Import verwenden">Als Vorlage</button>
+        </form>
+        {% endif %}
         <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary" title="Als Vorlage für ein neues Datenblatt kopieren">Kopieren</button>

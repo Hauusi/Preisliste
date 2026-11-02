@@ -374,6 +374,9 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
                 known = {n for n in db.scalars(select(Article.article_number_normalized)
                                                .where(Article.price_list_id == current.id)) if n}
         terms = datasheet_terms.load(db, name)
+        templates = [] if p.get("vorlage") else [
+            {"titel": t.title, "art": t.template_kind, "content": t.content, "geaendert": t.updated_at.isoformat()}
+            for t in db.scalars(select(Datasheet).where(Datasheet.is_template.is_(True), Datasheet.id != sheet_id))]
     ai = get_provider(ctx.settings)
     ai = ai if ai.status().active else None
     steps = iter(range(1, 10))
@@ -383,7 +386,7 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         ctx.progress(next(steps), 4, message)
 
     result = dsi.build(data, ctx.settings, sheet_id, code=code, known_numbers=known, ai=ai,
-                       progress=progress, terms=terms)
+                       progress=progress, terms=terms, templates=templates)
     if detected:
         result.report.insert(0, f"Hersteller im PDF erkannt: {name} (Kürzel, Preislisten-Abgleich und Wörterbuch "
                                 f"dieses Herstellers verwendet). Falsch? PDF neu einspielen und Hersteller auswählen.")
@@ -392,6 +395,9 @@ def datasheet_import_job(ctx: JobContext, p: dict) -> dict:
         content = ds.sanitize(result.content, ds.image_names(ctx.settings, sheet_id))
         sheet.content = content
         sheet.title = ds.title_of(content)
+        if p.get("vorlage"):  # eigenes B&B-Blatt als Design-Vorlage eingelesen
+            sheet.is_template = True
+            sheet.template_kind = result.stats.get("produktart") or None
     path.unlink(missing_ok=True)  # Herstellerblatt wird nicht aufbewahrt
     return {"datasheet_id": sheet_id, "bericht": result.report, "zahlen": result.stats, "ki": ai is not None,
             "hersteller": name, "unbekannt": result.unknown}
