@@ -61,7 +61,7 @@
         <tbody>
         {% for r in t.zeilen %}
           <tr>
-            {% if t.bild_links and loop.first %}<td class="img" rowspan="{{ t.zeilen | length }}"><img src="{{ img ~ t.bild }}" alt=""{{ sz(t.bild, c, editor) }}></td>{% endif %}
+            {% if t.bild_links and r.gspan %}<td class="img" rowspan="{{ r.gspan }}">{% if r.gbild %}<img src="{{ img ~ r.gbild }}" alt=""{{ sz(r.gbild, c, editor) }}>{% endif %}</td>{% endif %}
             {% if t.zeilen_bilder %}<td class="rowimg">{% if r.bild %}<img src="{{ img ~ r.bild }}" alt="">{% endif %}</td>{% endif %}
             <td class="nr">{{ r.artnr }}</td>
             {% if t.farben %}<td class="dot">{{ r.farbe | color_dot }}</td>{% endif %}
@@ -70,7 +70,7 @@
           </tr>
         {% else %}
           <tr class="placeholder-row">
-            {% if t.bild_links %}<td class="img"><img src="{{ img ~ t.bild }}" alt=""></td>{% endif %}
+            {% if t.bild_links %}<td class="img">{% if t.bild %}<img src="{{ img ~ t.bild }}" alt="">{% endif %}</td>{% endif %}
             <td colspan="{{ 2 + t.spalten | length }}">Noch keine Artikel – links in der Tabelle mit „+ Zeile“ oder „Aus Excel einfügen“ eintragen.</td>
           </tr>
         {% endfor %}

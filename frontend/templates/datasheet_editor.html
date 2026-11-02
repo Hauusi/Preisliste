@@ -42,13 +42,15 @@
 {%- endmacro %}
 
 {% macro table_row(r) -%}
-<div class="dse-row trow" data-row>
+<div class="dse-row trow{{ ' has-group' if r.gruppe }}" data-row>
   {{ row_tools() }}
-  {{ slot(r.bild, small=true) }}
+  <span class="t-img">{{ slot(r.bild, small=true) }}</span>
   <input data-f="artnr" value="{{ r.artnr }}" maxlength="60" placeholder="Artikelnr." class="t-nr">
   <select data-f="farbe" title="Farbpunkt (mehrfarbig: Tortenstücke)">{% for v, l in color_choices(r.farbe).items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   <input data-f="beschreibung" value="{{ r.beschreibung }}" maxlength="300" placeholder="Beschreibung" class="t-desc">
   {% for k in range(max_columns) %}<input data-w="{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="t-val">{% endfor %}
+  <button type="button" class="link t-group-btn" data-group-toggle title="Ab dieser Zeile ein anderes Gruppenbild links neben den Zeilen">{{ "Gruppenbild ab hier" if not r.gruppe else "kein eigenes Gruppenbild" }}</button>
+  <span class="t-grp" title="Gruppenbild ab dieser Zeile – gilt bis zur nächsten Zeile mit eigenem Gruppenbild">{{ slot(r.gruppe, "Gruppenbild ab hier") }}</span>
   {{ row_del() }}
 </div>
 {%- endmacro %}
@@ -102,7 +104,7 @@
     </div>
     <div class="dse-inline">
       <div class="dse-slots one" data-imgs="bild">{{ slot(b.bild, "Gruppenbild") }}</div>
-      <label>Gruppenbild <select data-f="bild_pos">{% for k, l in image_pos.items() %}<option value="{{ k }}"{% if b.bild_pos == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+      <label>Gruppenbild (gilt bis zur ersten Zeile mit „Gruppenbild ab hier“) <select data-f="bild_pos">{% for k, l in image_pos.items() %}<option value="{{ k }}"{% if b.bild_pos == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
       <label>Bilder je Zeile <select data-f="zeilenbilder">{% for k, l in row_images.items() %}<option value="{{ k }}"{% if b.zeilenbilder == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
     </div>
     <div class="dse-cols">

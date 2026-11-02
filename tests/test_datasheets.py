@@ -437,3 +437,35 @@ def test_paginate_counts_scaled_images():
     content = _content(bloecke=blocks)
     assert len(ds.paginate(content)) == 1
     assert len(ds.paginate(dict(content, bild_groesse={"a" * 16: 300}))) == 3  # je 135 mm: eine Seite pro Bild
+
+
+def test_several_group_images_in_one_table(admin_client):
+    """Gruppenbild der Tabelle für die ersten Zeilen, ab einer Zeile ein anderes (links neben den folgenden Zeilen)."""
+    c = admin_client
+    sid = _new(c)
+    a, b = _upload(c, sid).json()["name"], _upload(c, sid).json()["name"]
+    rows = [{"bild": None, "artnr": f"RO24{i}", "farbe": "rot", "beschreibung": f"LED-Lichtsignalgeber {i}", "werte": []}
+            for i in range(9)]
+    rows[3]["gruppe"] = b
+    table = {**ds.new_table(), "titel": "Bestellinformationen", "bild": a, "bild_pos": "links", "zeilen": rows}
+    r = _save(c, sid, _content(bloecke=[*ds.DEFAULT_BLOCKS, table]))
+    html = r.json()["html"]
+    assert re.findall(r'<td class="img" rowspan="(\d+)"><img src="[^"]+/bild/([^"]+)"', html) == [("3", a), ("6", b)]
+    saved = ds.tables(_saved(c, sid))[0]["zeilen"]
+    assert saved[3]["gruppe"] == b and saved[0]["gruppe"] is None
+    # Bild ab Zeile entfernen -> eine Gruppe über alle Zeilen
+    rows[3]["gruppe"] = None
+    html = _save(c, sid, _content(bloecke=[*ds.DEFAULT_BLOCKS, {**table, "zeilen": rows}])).json()["html"]
+    assert re.findall(r'<td class="img" rowspan="(\d+)">', html) == ["9"]
+
+
+def test_group_split_over_pages_shows_image_again():
+    rows = [{"bild": None, "artnr": f"N{i}", "farbe": "", "beschreibung": "x", "werte": []} for i in range(60)]
+    rows[30]["gruppe"] = "b" * 16 + ".png"
+    table = {**ds.new_table(), "titel": "T", "bild": "a" * 16 + ".png", "zeilen": rows}
+    pages = ds.paginate(_content(bloecke=[table]))
+    pieces = [t for p in pages for t in p["teile"] if t["typ"] == "tabelle"]
+    assert len(pieces) >= 2
+    for piece in pieces:
+        assert piece["zeilen"][0]["gspan"] >= 1 and piece["zeilen"][0]["gbild"]  # jedes Teil beginnt mit Bild
+        assert sum(r["gspan"] for r in piece["zeilen"]) == len(piece["zeilen"])
