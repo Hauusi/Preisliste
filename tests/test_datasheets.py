@@ -488,8 +488,10 @@ def test_release_makes_sheet_visible_to_everyone_read_only(admin_client, user_cl
     page = u.get("/datenblatt").text
     assert "Entwurf" in page and "Freigegebene Datenblätter" in page
     assert u.get(f"/datenblatt/{other_id}/vorschau").status_code == 404
-    # anderer Benutzer darf fremdes Blatt nicht freigeben
-    assert u.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"}).status_code == 404
+    # Benutzer dürfen nicht freigeben (auch nicht ihre eigenen) – nur Admin und Marketing
+    assert u.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"}).status_code == 403
+    assert u.post(f"/datenblatt/{sid}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"}).status_code == 403
+    assert "/freigeben" not in u.get("/datenblatt").text and "/freigeben" not in u.get(f"/datenblatt/{sid}").text
     # Admin-Blatt freigeben -> Benutzer sieht es in der gemeinsamen Liste, nur lesend
     r = a.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": a.csrf, "aktiv": "1"}, follow_redirects=False)
     assert r.status_code == 303
@@ -502,8 +504,8 @@ def test_release_makes_sheet_visible_to_everyone_read_only(admin_client, user_cl
     assert _save(u, other_id, _content()).status_code == 404  # nicht bearbeitbar
     copy_ = u.post(f"/datenblatt/{other_id}/kopieren", data={"csrf_token": u.csrf}, follow_redirects=False)
     assert copy_.status_code == 303  # kopieren geht (wird eigener Entwurf)
-    # eigenes Blatt freigeben, Bild für alle sichtbar, Suche nach Artikelnummer
-    u.post(f"/datenblatt/{sid}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"})
+    # Admin gibt das Blatt des Benutzers frei: Bild für alle sichtbar, Suche nach Artikelnummer
+    a.post(f"/datenblatt/{sid}/freigeben", data={"csrf_token": a.csrf, "aktiv": "1"})
     assert a.get(f"/datenblatt/{sid}/bild/{name}").status_code == 200
     assert "LED Lichtsignalgeber" in _shared(a.get("/datenblatt?q=ro 2401a").text)
     assert "LED Lichtsignalgeber" not in _shared(a.get("/datenblatt?q=XYZ999").text)
@@ -517,3 +519,41 @@ def _shared(page: str) -> str:
     """Nur der Abschnitt „Freigegebene Datenblätter“ der Übersicht."""
     start = page.index('id="freigegeben"')
     return page[start:page.index("</section>", start)]
+
+
+def test_marketing_role_releases_all_sheets_but_edits_only_own(app, admin_client, user_client):
+    """Rolle Marketing: wie Benutzer, zusätzlich sieht sie alle Datenblätter und gibt sie frei (bzw. nimmt zurück)."""
+    from fastapi.testclient import TestClient
+
+    from backend.database.engine import session_scope
+    from backend.models.entities import Datasheet, User
+    from tests.conftest import login
+
+    a, u = admin_client, user_client
+    r = a.post("/benutzer", data={"csrf_token": a.csrf, "username": "marie", "password": "marketing-passwort-1",
+                                  "role": "marketing"}, follow_redirects=False)
+    assert r.status_code == 303 and 'value="marketing"' in a.get("/benutzer").text
+    m = TestClient(app, base_url="https://testserver")
+    m.csrf = login(m, "marie", "marketing-passwort-1")
+    sid = _new(u, titel="Entwurf von Anna")
+    page = m.get("/datenblatt").text
+    assert "Entwurf von Anna" in page and "Alle Datenblätter" in page and f"/datenblatt/{sid}/freigeben" in page
+    assert m.get(f"/datenblatt/{sid}/vorschau").status_code == 200
+    assert "Freigeben" in m.get(f"/datenblatt/{sid}/vorschau").text  # Freigabe auch direkt aus der Vorschau
+    assert m.get(f"/datenblatt/{sid}", follow_redirects=False).headers["location"].endswith("/vorschau")
+    assert _save(m, sid, _content()).status_code == 404  # fremdes Blatt nicht bearbeiten
+    assert m.get(f"/datenblatt/{sid}/loeschen").status_code == 404  # und nicht löschen
+    assert m.get("/benutzer").status_code == 403  # sonst Rechte wie Benutzer
+    m.post(f"/datenblatt/{sid}/freigeben", data={"csrf_token": m.csrf, "aktiv": "1"})
+    with session_scope() as db:
+        sheet = db.get(Datasheet, sid)
+        marie = db.query(User).filter_by(username="marie").one()
+        assert sheet.released_at and sheet.released_by == marie.id
+        uid = db.query(User).filter_by(username="anna").one().id
+    assert "Entwurf von Anna" in u.get("/datenblatt").text.split('id="freigegeben"')[1]
+    # Rolle ändern: Admin kann einem Benutzer Marketing geben, sich selbst aber nicht die Admin-Rolle nehmen
+    a.post(f"/benutzer/{uid}/rolle", data={"csrf_token": a.csrf, "role": "marketing"})
+    with session_scope() as db:
+        assert db.get(User, uid).role == "marketing"
+        admin_id = db.query(User).filter_by(username="admin").one().id
+    assert a.post(f"/benutzer/{admin_id}/rolle", data={"csrf_token": a.csrf, "role": "benutzer"}).status_code == 400

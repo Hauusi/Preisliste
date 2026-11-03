@@ -60,6 +60,22 @@ def toggle_active(request: Request, user_id: int, db: Session = Depends(get_db),
     return RedirectResponse("/benutzer", status_code=303)
 
 
+@router.post("/benutzer/{user_id}/rolle", dependencies=[Depends(check_csrf)])
+def change_role(request: Request, user_id: int, role: str = Form(...), db: Session = Depends(get_db),
+                admin: User = Depends(require_admin)):
+    target = _target(db, user_id)
+    if role not in ROLES:
+        return _page(request, db, "Unbekannte Rolle", 400)
+    if target.id == admin.id and role != "admin":
+        return _page(request, db, "Eigene Admin-Rolle kann nicht entzogen werden", 400)
+    old, target.role = target.role, role
+    if old != role:
+        end_all_sessions(db, target.id)  # neue Rechte gelten ab der nächsten Anmeldung
+        audit(db, admin, "rolle_geaendert", "user", target.id, {"username": target.username, "von": old, "zu": role},
+              client_ip(request))
+    return RedirectResponse("/benutzer", status_code=303)
+
+
 @router.post("/benutzer/{user_id}/passwort", dependencies=[Depends(check_csrf)])
 def reset_password(request: Request, user_id: int, password: str = Form(..., max_length=256),
                    db: Session = Depends(get_db), settings: Settings = Depends(get_settings),

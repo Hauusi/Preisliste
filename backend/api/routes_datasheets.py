@@ -19,7 +19,7 @@ from backend.models.entities import Datasheet, DatasheetExample, DatasheetTerm, 
 from backend.services import datasheet_import as dsi
 from backend.services import datasheet_terms
 from backend.services import datasheets as ds
-from backend.services.access import can_see, get_visible, is_admin, visible
+from backend.services.access import can_release, can_see, get_visible, is_admin, visible
 from backend.services.audit import audit
 
 router = APIRouter()
@@ -49,8 +49,8 @@ async def _json(request: Request) -> dict:
 def _readable(db: Session, sheet_id: int, user: User) -> Datasheet:
     """Eigene (Admin: alle) oder freigegebene Datenblätter – zum Ansehen, Drucken, Kopieren."""
     sheet = db.get(Datasheet, sheet_id)
-    if sheet is not None and sheet.released_at and not sheet.is_template:
-        return sheet
+    if sheet is not None and not sheet.is_template and (sheet.released_at or can_release(user)):
+        return sheet  # freigegeben – oder Marketing/Admin, die zur Freigabe alle Blätter sehen
     return get_visible(db, Datasheet, sheet_id, user)
 
 
@@ -68,32 +68,39 @@ def _matches(sheet: Datasheet, query: str) -> bool:
 @router.get("/datenblatt")
 def overview(request: Request, error: str | None = None, q: str = "", db: Session = Depends(get_db),
              user: User = Depends(current_user)):
-    sheets = db.scalars(visible(select(Datasheet).where(Datasheet.is_template.is_(False))  # Vorlagen: eigene Seite
-                                .order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
+    mine = select(Datasheet).where(Datasheet.is_template.is_(False)).order_by(Datasheet.updated_at.desc())  # ohne Vorlagen
+    # Marketing sieht zur Freigabe alle Datenblätter (wie der Admin), Benutzer nur ihre eigenen
+    sheets = db.scalars(mine if can_release(user) else visible(mine, Datasheet, user)).all()
     released = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(False), Datasheet.released_at.is_not(None))
                           .order_by(Datasheet.updated_at.desc())).all()
     q = q.strip()[:60]
     if q:
         released = [s_ for s_ in released if _matches(s_, q)]
     names = {u.id: u.username for u in db.scalars(select(User))}
-    owners = names if is_admin(user) else {}
+    owners = names if can_release(user) else {}
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
                                                "manufacturers": manufacturers, "released": released, "names": names,
-                                               "q": q})
+                                               "q": q, "can_release": can_release(user)})
 
 
 @router.post("/datenblatt/{sheet_id}/freigeben", dependencies=[Depends(check_csrf)])
 async def release(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    """Fertiges Datenblatt für alle Benutzer freigeben (gemeinsame Liste) bzw. Freigabe zurücknehmen."""
-    sheet = get_visible(db, Datasheet, sheet_id, user)  # nur Besitzer oder Admin
+    """Fertiges Datenblatt für alle Benutzer freigeben (gemeinsame Liste) bzw. Freigabe zurücknehmen.
+    Nur Admin und Marketing."""
+    if not can_release(user):
+        raise HTTPException(403, "Freigeben dürfen nur Admin und Marketing")
+    sheet = db.get(Datasheet, sheet_id)
+    if sheet is None or sheet.is_template:
+        raise HTTPException(404, "Datenblatt nicht gefunden")
     form = await request.form()
     on = str(form.get("aktiv") or "") == "1"
     sheet.released_at, sheet.released_by = (utcnow(), user.id) if on else (None, None)
     audit(db, user, "datenblatt_freigegeben" if on else "datenblatt_freigabe_zurueck", "datasheet", sheet.id,
           {"titel": sheet.title}, client_ip(request))
     back = str(form.get("zurueck") or "")
-    return RedirectResponse(back if back in ("/datenblatt", f"/datenblatt/{sheet.id}") else "/datenblatt",
+    return RedirectResponse(back if back in ("/datenblatt", f"/datenblatt/{sheet.id}", f"/datenblatt/{sheet.id}/vorschau")
+                            else "/datenblatt",
                             status_code=303)
 
 
@@ -369,7 +376,7 @@ def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user:
         "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,
         "max_columns": ds.MAX_COLUMNS, "new_table": ds.new_table(), "new_accessories": ds.new_table(zubehoer=True),
         "new_image": ds.new_image_block(), "twins": ds.twin_names(settings, sheet.id), "imported": imported,
-        "splits": ds.LEAD_SPLITS,
+        "splits": ds.LEAD_SPLITS, "can_release": can_release(user),
     })
 
 
@@ -428,7 +435,7 @@ def preview(request: Request, sheet_id: int, db: Session = Depends(get_db), user
     content = ds.normalized(sheet.content)
     return render(request, "datasheet_print.html", {
         "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER,
-        "can_edit": can_see(sheet, user),
+        "can_edit": can_see(sheet, user), "can_release": can_release(user),
     })
 
 

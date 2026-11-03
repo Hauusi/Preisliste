@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from backend.config import Settings
 from backend.models.entities import User, UserSession, utcnow
 
-ROLES = ("admin", "benutzer")
+# marketing: Rechte wie benutzer, zusätzlich Datenblätter freigeben (sieht dafür alle Datenblätter)
+ROLES = ("admin", "benutzer", "marketing")
 _hasher = PasswordHasher()
 # Für unbekannte Benutzernamen trotzdem einen Hash prüfen (gleiche Laufzeit, keine Benutzer-Erkennung)
 _DUMMY_HASH = _hasher.hash(secrets.token_urlsafe(16))

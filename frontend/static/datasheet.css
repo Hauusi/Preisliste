@@ -127,6 +127,8 @@ body.ds-print { margin: 0; background: #d9dce3; overflow-x: auto; color-scheme: 
   background: #0f172a; color: #e5e7eb; font: 14px/1.4 system-ui, sans-serif; }
 .ds-toolbar a { color: #c7d2fe; text-decoration: none; }
 .ds-toolbar a:hover { text-decoration: underline; }
+.ds-release { display: flex; align-items: center; gap: 8px; color: #c7d2fe; font-size: .9rem; margin: 0; }
+.ds-release .ds-link { background: none; border: 0; color: #c7d2fe; text-decoration: underline; cursor: pointer; padding: 0; }
 .ds-toolbar .grow { flex: 1; }
 .ds-toolbar button { font: 600 14px system-ui, sans-serif; padding: 8px 16px; border-radius: 8px; border: 0; background: #4f46e5; color: #fff; cursor: pointer; }
 .ds-toolbar button:hover { background: #4338ca; }

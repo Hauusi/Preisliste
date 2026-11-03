@@ -11,6 +11,14 @@
   {% if can_edit %}<a href="/datenblatt/{{ sheet.id }}">← Bearbeiten</a>{% endif %}
   <a href="/datenblatt">Alle Datenblätter</a>
   <span class="grow"></span>
+  {% if can_release %}
+  <form method="post" action="/datenblatt/{{ sheet.id }}/freigeben" class="ds-release">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="zurueck" value="/datenblatt/{{ sheet.id }}/vorschau">
+    {% if sheet.released_at %}<span>Freigegeben {{ sheet.released_at | dt }}</span> <button type="submit" class="ds-link">Freigabe zurücknehmen</button>
+    {% else %}<input type="hidden" name="aktiv" value="1"><button type="submit">Freigeben</button>{% endif %}
+  </form>
+  {% endif %}
   <span class="ds-pages">{{ pages | length }} {{ "Seite" if pages | length == 1 else "Seiten" }}</span>
   <button type="button" data-print>Drucken / als PDF speichern</button>
 </div>
