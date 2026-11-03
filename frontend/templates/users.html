@@ -9,7 +9,14 @@
   <tbody>
   {% for u in users %}
     <tr>
-      <td>{{ u.username }}</td><td>{{ u.role }}</td>
+      <td>{{ u.username }}</td>
+      <td>
+        <form method="post" action="/benutzer/{{ u.id }}/rolle" class="inline row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <select name="role" aria-label="Rolle von {{ u.username }}">{% for r in roles %}<option value="{{ r }}"{% if r == u.role %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+          <button type="submit" class="secondary">Ändern</button>
+        </form>
+      </td>
       <td>{% if not u.active %}<span class="badge FEHLER">deaktiviert</span>{% elif u.locked_until %}<span class="badge WARNUNG">gesperrt bis {{ u.locked_until | dt }} (UTC)</span>{% else %}<span class="badge OK">aktiv</span>{% endif %}</td>
       <td>{{ u.last_login | dt }}</td>
       <td>

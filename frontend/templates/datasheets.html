@@ -75,12 +75,12 @@
   {% elif q %}
   <p class="hint">Kein freigegebenes Datenblatt zu „{{ q }}“.</p>
   {% else %}
-  <p class="hint">Noch nichts freigegeben. Fertige Datenblätter mit „Freigeben“ hier für alle sichtbar machen.</p>
+  <p class="hint">Noch nichts freigegeben. Fertige Datenblätter gibt Marketing oder der Admin mit „Freigeben“ für alle frei.</p>
   {% endif %}
 </section>
 
 <section class="card">
-<h2>{{ "Alle Datenblätter (Admin)" if owners else "Meine Datenblätter" }} <small class="hint">nur Entwürfe sehen andere nicht</small></h2>
+<h2>{{ "Alle Datenblätter" if owners else "Meine Datenblätter" }} <small class="hint">{{ "Entwürfe aller Benutzer zur Freigabe" if can_release else "Entwürfe sieht nur du – freigeben: Marketing oder Admin" }}</small></h2>
 {% if sheets %}
 <div class="scroll">
 <table>
@@ -88,22 +88,25 @@
   <tbody>
   {% for s in sheets %}
     <tr>
-      <td><a href="/datenblatt/{{ s.id }}"><b>{{ s.title }}</b></a></td>
+      {% set own = s.owner_id == user.id or user.role == "admin" %}
+      <td><a href="/datenblatt/{{ s.id }}{{ '' if own else '/vorschau' }}"><b>{{ s.title }}</b></a></td>
       {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
       <td>{{ s.updated_at | dt }}</td>
       <td>{% if s.released_at %}<span class="badge OK">freigegeben</span>{% else %}<span class="badge UNKLAR">Entwurf</span>{% endif %}</td>
       <td class="row-actions">
+        {% if can_release %}
         <form method="post" action="/datenblatt/{{ s.id }}/freigeben" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          {% if s.released_at %}<button type="submit" class="secondary" title="Wieder nur für dich sichtbar">Freigabe zurücknehmen</button>
-          {% else %}<input type="hidden" name="aktiv" value="1"><button type="submit" title="Fertig: in die gemeinsame Liste für alle Benutzer">Freigeben</button>{% endif %}
+          {% if s.released_at %}<button type="submit" class="secondary" title="Wieder nur für den Ersteller sichtbar">Freigabe zurücknehmen</button>
+          {% else %}<input type="hidden" name="aktiv" value="1"><button type="submit" title="In die gemeinsame Liste für alle Benutzer">Freigeben</button>{% endif %}
         </form>
+        {% endif %}
         <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
         <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary" title="Als Vorlage für ein neues Datenblatt kopieren">Kopieren</button>
         </form>
-        {{ delete_link("/datenblatt/" ~ s.id ~ "/loeschen", "Datenblatt löschen") }}
+        {% if own %}{{ delete_link("/datenblatt/" ~ s.id ~ "/loeschen", "Datenblatt löschen") }}{% endif %}
       </td>
     </tr>
   {% endfor %}

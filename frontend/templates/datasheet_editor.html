@@ -134,17 +134,20 @@
     </div>
     <div class="dse-top-actions">
       <span class="dse-status" data-status>Alle Änderungen gespeichert</span>
+      {% if sheet.released_at %}<span class="badge OK" title="In der gemeinsamen Liste für alle Benutzer">Freigegeben {{ sheet.released_at | dt }}</span>
+      {% elif not can_release %}<span class="badge UNKLAR" title="Freigeben: Marketing oder Admin">Entwurf</span>{% endif %}
+      {% if can_release %}
       <form method="post" action="/datenblatt/{{ sheet.id }}/freigeben" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="zurueck" value="/datenblatt/{{ sheet.id }}">
         {% if sheet.released_at %}
-        <span class="badge OK" title="In der gemeinsamen Liste für alle Benutzer">Freigegeben {{ sheet.released_at | dt }}</span>
-        <button type="submit" class="link" title="Wieder nur für dich sichtbar">Freigabe zurücknehmen</button>
+        <button type="submit" class="link" title="Wieder nur für den Ersteller sichtbar">Freigabe zurücknehmen</button>
         {% else %}
         <input type="hidden" name="aktiv" value="1">
-        <button type="submit" class="secondary" title="Fertig: in die gemeinsame Liste für alle Benutzer">{{ icon("check", 18) }} Freigeben</button>
+        <button type="submit" class="secondary" title="In die gemeinsame Liste für alle Benutzer">{{ icon("check", 18) }} Freigeben</button>
         {% endif %}
       </form>
+      {% endif %}
       <a class="button" href="/datenblatt/{{ sheet.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 18) }} Drucken / PDF</a>
     </div>
   </div>

@@ -41,6 +41,11 @@ def is_admin(user: User | None) -> bool:
     return bool(user and user.role == "admin")
 
 
+def can_release(user: User | None) -> bool:
+    """Datenblätter freigeben (und dafür alle Datenblätter sehen): Admin und Marketing."""
+    return bool(user and user.role in ("admin", "marketing"))
+
+
 def owner_of(obj) -> int | None:
     return getattr(obj, OWNER[type(obj)].key)
 

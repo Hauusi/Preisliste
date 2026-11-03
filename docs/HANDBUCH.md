@@ -62,7 +62,10 @@ Grundsätze, die überall gelten:
   anderen Sitzungen abgemeldet.
 - **Rollen:**
   - *Benutzer*: eigene Hersteller, Regeln, Listen, Abgleiche, Vergleiche, Datenblätter.
-  - *Administrator*: zusätzlich alles von allen Benutzern sehen und bearbeiten, Benutzer verwalten, Protokoll.
+  - *Marketing*: wie Benutzer, zusätzlich Datenblätter **freigeben** (sieht dafür alle Datenblätter; fremde nur
+    ansehen, nicht bearbeiten oder löschen).
+  - *Administrator*: zusätzlich alles von allen Benutzern sehen und bearbeiten, Benutzer verwalten, Protokoll,
+    Datenblätter freigeben.
 
 ## 3. Modul Preisliste: der Jahresablauf
 
@@ -342,13 +345,15 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 
-**Freigeben:** Ein neues Datenblatt ist ein **Entwurf** und nur für seinen Ersteller (und den Admin) sichtbar. Ist es fertig,
-in der Liste „Meine Datenblätter“ oder oben im Editor auf **„Freigeben“** klicken: Dann steht es unter „Freigegebene
-Datenblätter“ für **alle** Benutzer (Datenblatt | Benutzer | Geändert). Andere können es ansehen, drucken/als PDF
-speichern und als eigenen Entwurf kopieren, aber nicht ändern; Bearbeiten, Freigabe zurücknehmen und Löschen bleiben
-beim Ersteller und beim Admin. Änderungen nach der Freigabe sind sofort in der gemeinsamen Liste sichtbar. Die Suche
-über der gemeinsamen Liste findet Titel und Artikelnummern (Leerzeichen, Bindestriche, Groß-/Kleinschreibung egal) –
-so sieht man schnell, ob es zu einem Artikel schon ein Datenblatt gibt.
+**Freigeben (Marketing und Admin):** Ein neues Datenblatt ist ein **Entwurf** und nur für seinen Ersteller sichtbar –
+und für Marketing und Admin, die dafür unter „Alle Datenblätter“ die Entwürfe aller Benutzer sehen. Marketing oder Admin
+klicken in dieser Liste, oben im Editor oder in der Vorschau auf **„Freigeben“**: Dann steht das Blatt unter
+„Freigegebene Datenblätter“ für **alle** Benutzer (Datenblatt | Benutzer | Geändert). Benutzer können nicht freigeben.
+Freigegebene Blätter anderer kann man ansehen, drucken/als PDF speichern und als eigenen Entwurf kopieren, aber nicht
+ändern; Bearbeiten und Löschen bleiben beim Ersteller und beim Admin, „Freigabe zurücknehmen“ bei Marketing und Admin.
+Änderungen nach der Freigabe sind sofort in der gemeinsamen Liste sichtbar. Die Suche über der gemeinsamen Liste findet
+Titel und Artikelnummern (Leerzeichen, Bindestriche, Groß-/Kleinschreibung egal) – so sieht man schnell, ob es zu einem
+Artikel schon ein Datenblatt gibt.
 
 **Aus Hersteller-Datenblatt erstellen:** In der Datenblatt-Übersicht das PDF des Herstellers hochladen, den
 Hersteller wählen (oder „automatisch erkennen“: der Herstellername bzw. ein Alias wird im PDF gesucht, unter den
@@ -435,7 +440,8 @@ gleich aus und die Seitenaufteilung stimmt.
 
 ## 12. Verwaltung (Administratoren)
 
-- **Benutzer:** anlegen (Rolle Benutzer oder Administrator, Passwort ≥ 12 Zeichen), deaktivieren/aktivieren
+- **Benutzer:** anlegen (Rolle Benutzer, Marketing oder Administrator, Passwort ≥ 12 Zeichen), Rolle ändern (der
+  Betroffene wird abgemeldet; die eigene Admin-Rolle kann man sich nicht nehmen), deaktivieren/aktivieren
   (beendet Sitzungen), Passwort zurücksetzen (hebt Sperre auf). Das eigene Konto kann nicht deaktiviert werden.
   Benutzer werden nicht gelöscht, nur deaktiviert.
 - **Protokoll:** alle Aktionen mit Zeit, Benutzer, IP und Details (Importe, Abgleiche, Prüfungen, Exporte,
