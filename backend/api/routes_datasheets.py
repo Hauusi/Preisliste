@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -18,7 +19,7 @@ from backend.models.entities import Datasheet, DatasheetExample, DatasheetTerm, 
 from backend.services import datasheet_import as dsi
 from backend.services import datasheet_terms
 from backend.services import datasheets as ds
-from backend.services.access import get_visible, is_admin, visible
+from backend.services.access import can_see, get_visible, is_admin, visible
 from backend.services.audit import audit
 
 router = APIRouter()
@@ -45,15 +46,55 @@ async def _json(request: Request) -> dict:
     return data
 
 
+def _readable(db: Session, sheet_id: int, user: User) -> Datasheet:
+    """Eigene (Admin: alle) oder freigegebene Datenblätter – zum Ansehen, Drucken, Kopieren."""
+    sheet = db.get(Datasheet, sheet_id)
+    if sheet is not None and sheet.released_at and not sheet.is_template:
+        return sheet
+    return get_visible(db, Datasheet, sheet_id, user)
+
+
+def _matches(sheet: Datasheet, query: str) -> bool:
+    """Suche in Titel und Artikelnummern (ohne Leerzeichen/Bindestriche, Groß-/Kleinschreibung egal)."""
+    def norm(text):
+        return re.sub(r"[\s\-./]", "", str(text or "")).lower()
+
+    q = norm(query)
+    if q in norm(sheet.title):
+        return True
+    return any(q in norm(r.get("artnr")) for t in ds.tables(sheet.content) for r in t["zeilen"])
+
+
 @router.get("/datenblatt")
-def overview(request: Request, error: str | None = None, db: Session = Depends(get_db),
+def overview(request: Request, error: str | None = None, q: str = "", db: Session = Depends(get_db),
              user: User = Depends(current_user)):
     sheets = db.scalars(visible(select(Datasheet).where(Datasheet.is_template.is_(False))  # Vorlagen: eigene Seite
                                 .order_by(Datasheet.updated_at.desc()), Datasheet, user)).all()
-    owners = {u.id: u.username for u in db.scalars(select(User))} if is_admin(user) else {}
+    released = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(False), Datasheet.released_at.is_not(None))
+                          .order_by(Datasheet.updated_at.desc())).all()
+    q = q.strip()[:60]
+    if q:
+        released = [s_ for s_ in released if _matches(s_, q)]
+    names = {u.id: u.username for u in db.scalars(select(User))}
+    owners = names if is_admin(user) else {}
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
-                                               "manufacturers": manufacturers})
+                                               "manufacturers": manufacturers, "released": released, "names": names,
+                                               "q": q})
+
+
+@router.post("/datenblatt/{sheet_id}/freigeben", dependencies=[Depends(check_csrf)])
+async def release(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Fertiges Datenblatt für alle Benutzer freigeben (gemeinsame Liste) bzw. Freigabe zurücknehmen."""
+    sheet = get_visible(db, Datasheet, sheet_id, user)  # nur Besitzer oder Admin
+    form = await request.form()
+    on = str(form.get("aktiv") or "") == "1"
+    sheet.released_at, sheet.released_by = (utcnow(), user.id) if on else (None, None)
+    audit(db, user, "datenblatt_freigegeben" if on else "datenblatt_freigabe_zurueck", "datasheet", sheet.id,
+          {"titel": sheet.title}, client_ip(request))
+    back = str(form.get("zurueck") or "")
+    return RedirectResponse(back if back in ("/datenblatt", f"/datenblatt/{sheet.id}") else "/datenblatt",
+                            status_code=303)
 
 
 @router.get("/datenblatt/vorlagen")
@@ -311,7 +352,9 @@ async def create(request: Request, db: Session = Depends(get_db), user: User = D
 @router.get("/datenblatt/{sheet_id}")
 def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
            settings: Settings = Depends(get_settings)):
-    sheet = get_visible(db, Datasheet, sheet_id, user)
+    sheet = _readable(db, sheet_id, user)
+    if not can_see(sheet, user):  # freigegebenes Blatt eines anderen: nur ansehen
+        return RedirectResponse(f"/datenblatt/{sheet.id}/vorschau", status_code=303)
     c = ds.normalized(sheet.content)
     html, count = _pages_html(sheet, c)
     imported = None  # Bericht nach „aus Herstellerblatt erstellen“
@@ -381,10 +424,11 @@ async def paste_rows(request: Request, sheet_id: int, db: Session = Depends(get_
 
 @router.get("/datenblatt/{sheet_id}/vorschau")
 def preview(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    sheet = get_visible(db, Datasheet, sheet_id, user)
+    sheet = _readable(db, sheet_id, user)
     content = ds.normalized(sheet.content)
     return render(request, "datasheet_print.html", {
         "sheet": sheet, "c": content, "pages": ds.paginate(content), "footer": ds.FOOTER,
+        "can_edit": can_see(sheet, user),
     })
 
 
@@ -403,7 +447,7 @@ def toggle_background(sheet_id: int, name: str, db: Session = Depends(get_db), u
 @router.get("/datenblatt/{sheet_id}/bild/{name}")
 def image(sheet_id: int, name: str, db: Session = Depends(get_db), user: User = Depends(current_user),
           settings: Settings = Depends(get_settings)):
-    get_visible(db, Datasheet, sheet_id, user)
+    _readable(db, sheet_id, user)
     path = ds.image_path(settings, sheet_id, name)
     if path is None:
         raise HTTPException(404, "Bild nicht gefunden")
@@ -415,7 +459,7 @@ def image(sheet_id: int, name: str, db: Session = Depends(get_db), user: User = 
 @router.post("/datenblatt/{sheet_id}/kopieren", dependencies=[Depends(check_csrf)])
 def duplicate(request: Request, sheet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
               settings: Settings = Depends(get_settings)):
-    src = get_visible(db, Datasheet, sheet_id, user)
+    src = _readable(db, sheet_id, user)
     copy_ = Datasheet(owner_id=user.id, title=f"{src.title} (Kopie)", content=copy.deepcopy(src.content))
     db.add(copy_)
     db.flush()

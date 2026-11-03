@@ -342,6 +342,14 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
 
+**Freigeben:** Ein neues Datenblatt ist ein **Entwurf** und nur für seinen Ersteller (und den Admin) sichtbar. Ist es fertig,
+in der Liste „Meine Datenblätter“ oder oben im Editor auf **„Freigeben“** klicken: Dann steht es unter „Freigegebene
+Datenblätter“ für **alle** Benutzer (Datenblatt | Benutzer | Geändert). Andere können es ansehen, drucken/als PDF
+speichern und als eigenen Entwurf kopieren, aber nicht ändern; Bearbeiten, Freigabe zurücknehmen und Löschen bleiben
+beim Ersteller und beim Admin. Änderungen nach der Freigabe sind sofort in der gemeinsamen Liste sichtbar. Die Suche
+über der gemeinsamen Liste findet Titel und Artikelnummern (Leerzeichen, Bindestriche, Groß-/Kleinschreibung egal) –
+so sieht man schnell, ob es zu einem Artikel schon ein Datenblatt gibt.
+
 **Aus Hersteller-Datenblatt erstellen:** In der Datenblatt-Übersicht das PDF des Herstellers hochladen, den
 Hersteller wählen (oder „automatisch erkennen“: der Herstellername bzw. ein Alias wird im PDF gesucht, unter den
 eigenen Herstellern; der Prüfbericht nennt den erkannten Hersteller) → „Datenblatt erstellen“. Der Hersteller bestimmt
