@@ -8,7 +8,7 @@
 </head>
 <body class="ds-print">
 <div class="ds-toolbar">
-  <a href="/datenblatt/{{ sheet.id }}">← Bearbeiten</a>
+  {% if can_edit %}<a href="/datenblatt/{{ sheet.id }}">← Bearbeiten</a>{% endif %}
   <a href="/datenblatt">Alle Datenblätter</a>
   <span class="grow"></span>
   <span class="ds-pages">{{ pages | length }} {{ "Seite" if pages | length == 1 else "Seiten" }}</span>

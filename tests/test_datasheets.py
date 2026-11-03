@@ -469,3 +469,51 @@ def test_group_split_over_pages_shows_image_again():
     for piece in pieces:
         assert piece["zeilen"][0]["gspan"] >= 1 and piece["zeilen"][0]["gbild"]  # jedes Teil beginnt mit Bild
         assert sum(r["gspan"] for r in piece["zeilen"]) == len(piece["zeilen"])
+
+
+def test_release_makes_sheet_visible_to_everyone_read_only(admin_client, user_client):
+    """Entwurf sieht nur der Besitzer; nach „Freigeben“ steht das Blatt in der gemeinsamen Liste für alle
+    (ansehen, drucken, kopieren), bearbeiten und freigeben bleibt beim Besitzer bzw. Admin."""
+    u, a = user_client, admin_client
+    sid = _new(u, titel="LED Lichtsignalgeber", untertitel="200 mm")
+    name = _upload(u, sid).json()["name"]
+    table = {**ds.new_table(), "titel": "Bestellinformationen",
+             "zeilen": [{"bild": None, "artnr": "RO2401-A-CW", "farbe": "rot", "beschreibung": "rot, 12 V DC", "werte": []}]}
+    _save(u, sid, _content(kopf={"titel": "LED Lichtsignalgeber", "untertitel": "200 mm"}, bilder_oben=[name],
+                           bloecke=[*ds.DEFAULT_BLOCKS, table]))
+    # Entwurf: andere sehen nichts
+    other_id = _new(a, titel="Admin Blatt")
+    assert "LED Lichtsignalgeber" not in _shared(a.get("/datenblatt").text)  # Entwurf nicht in der gemeinsamen Liste
+    assert a.get(f"/datenblatt/{sid}/vorschau").status_code == 200  # Admin sieht alles
+    page = u.get("/datenblatt").text
+    assert "Entwurf" in page and "Freigegebene Datenblätter" in page
+    assert u.get(f"/datenblatt/{other_id}/vorschau").status_code == 404
+    # anderer Benutzer darf fremdes Blatt nicht freigeben
+    assert u.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"}).status_code == 404
+    # Admin-Blatt freigeben -> Benutzer sieht es in der gemeinsamen Liste, nur lesend
+    r = a.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": a.csrf, "aktiv": "1"}, follow_redirects=False)
+    assert r.status_code == 303
+    page = u.get("/datenblatt").text
+    assert "Admin Blatt" in _shared(page) and "admin" in _shared(page)
+    assert u.get(f"/datenblatt/{other_id}/vorschau").status_code == 200
+    assert "← Bearbeiten" not in u.get(f"/datenblatt/{other_id}/vorschau").text
+    r = u.get(f"/datenblatt/{other_id}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("/vorschau")  # Editor nur für Besitzer
+    assert _save(u, other_id, _content()).status_code == 404  # nicht bearbeitbar
+    copy_ = u.post(f"/datenblatt/{other_id}/kopieren", data={"csrf_token": u.csrf}, follow_redirects=False)
+    assert copy_.status_code == 303  # kopieren geht (wird eigener Entwurf)
+    # eigenes Blatt freigeben, Bild für alle sichtbar, Suche nach Artikelnummer
+    u.post(f"/datenblatt/{sid}/freigeben", data={"csrf_token": u.csrf, "aktiv": "1"})
+    assert a.get(f"/datenblatt/{sid}/bild/{name}").status_code == 200
+    assert "LED Lichtsignalgeber" in _shared(a.get("/datenblatt?q=ro 2401a").text)
+    assert "LED Lichtsignalgeber" not in _shared(a.get("/datenblatt?q=XYZ999").text)
+    # zurücknehmen -> wieder nur Besitzer
+    a.post(f"/datenblatt/{other_id}/freigeben", data={"csrf_token": a.csrf})
+    assert u.get(f"/datenblatt/{other_id}/vorschau").status_code == 404
+    assert "Admin Blatt" not in _shared(u.get("/datenblatt").text)
+
+
+def _shared(page: str) -> str:
+    """Nur der Abschnitt „Freigegebene Datenblätter“ der Übersicht."""
+    start = page.index('id="freigegeben"')
+    return page[start:page.index("</section>", start)]

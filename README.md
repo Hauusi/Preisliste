@@ -54,7 +54,8 @@ hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speicher
 Technische Daten, Artikelnummern, Bilder), danach nur prüfen. Optional formuliert die lokale KI den Text. Hersteller
 wird gewählt oder im PDF erkannt; der Admin pflegt ein Wörterbuch (Herstellerbegriff → unser Begriff, pro Hersteller)
 und Design-Vorlagen (eure fertigen PDFs; das Tool liest Bild-Platzierung und Textstil ab und baut danach).
-Details: `docs/HANDBUCH.md`, Abschnitt 11.
+Fertige Datenblätter werden freigegeben und stehen dann für alle Benutzer in einer gemeinsamen Liste (mit Suche nach
+Artikelnummer). Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
 ## Benutzer und Sichtbarkeit
 
