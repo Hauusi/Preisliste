@@ -8,89 +8,133 @@
 <div class="dse-slot{{ ' filled' if name }}{{ ' small' if small }}{{ ' cut' if name in twins }}" data-slot data-name="{{ name or '' }}" tabindex="0"
      title="{{ 'Ziehen zum Tauschen, × zum Entfernen' if name else 'Klicken oder Bild hierher ziehen' }}">
   <img src="{{ '/datenblatt/%d/bild/%s' % (sheet.id, name) if name else '' }}" alt=""{% if not name %} hidden{% endif %}>
-  <span class="dse-slot-empty">{{ icon("upload", 16) }}{% if not small %}<span>{{ label }}</span>{% endif %}</span>
+  <span class="dse-slot-empty">{{ icon("image" if small else "upload", 16) }}{% if not small %}<span>{{ label }}</span>{% endif %}</span>
   <button type="button" class="dse-slot-x" data-slot-remove title="Bild entfernen" aria-label="Bild entfernen">×</button>
   <button type="button" class="dse-slot-bg{{ ' on' if name and '-o.' in name }}" data-slot-bg title="Hintergrund behalten (an) oder entfernen (aus)" aria-label="Hintergrund behalten oder entfernen">Hintergrund</button>
   <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
 </div>
 {%- endmacro %}
 
-{% macro row_tools() -%}
+{% macro grip() -%}
 <button type="button" class="dse-grip" data-grip title="Ziehen zum Verschieben (oder Pfeiltasten)" aria-label="Verschieben">{{ icon("grip", 16) }}</button>
 {%- endmacro %}
 {% macro row_del() -%}
 <button type="button" class="icon-btn dse-del" data-remove title="Entfernen" aria-label="Entfernen">{{ trash() }}</button>
 {%- endmacro %}
+{% macro eye(on, label="Im Datenblatt ein-/ausblenden") -%}
+<button type="button" class="icon-btn dse-eye" data-visible aria-pressed="{{ 'true' if on else 'false' }}" title="{{ label }}" aria-label="{{ label }}"><span class="eye-on">{{ icon("eye", 16) }}</span><span class="eye-off">{{ icon("eyeoff", 16) }}</span></button>
+{%- endmacro %}
+{# Kleines Menü (⋯) für seltene Aktionen; öffnet als schwebende Liste #}
+{% macro menu(label="Weitere Aktionen") -%}
+<details class="dse-menu"><summary class="icon-btn" title="{{ label }}" aria-label="{{ label }}">{{ icon("more", 18) }}</summary>
+  <div class="dse-menu-pop" role="menu">{{ caller() }}</div></details>
+{%- endmacro %}
 
 {% macro prop_row(e) -%}
-<div class="dse-row prop{{ '' if e.sichtbar is not defined or e.sichtbar else ' off' }}" data-row data-prop>
-  {{ row_tools() }}
-  <input class="prop-name" data-f="name" value="{{ e.name }}" maxlength="40" placeholder="Eigenschaft" list="dse-suggestions">
-  <input class="prop-value" data-f="wert" value="{{ e.wert }}" maxlength="150" placeholder="Wert eintragen">
-  <button type="button" class="icon-btn dse-eye" data-visible aria-pressed="{{ 'true' if e.sichtbar is not defined or e.sichtbar else 'false' }}" title="Ein-/ausblenden"><span class="eye-on">{{ icon("eye", 16) }}</span><span class="eye-off">{{ icon("eyeoff", 16) }}</span></button>
+{% set on = e.sichtbar is not defined or e.sichtbar %}
+<div class="dse-row prop{{ '' if on else ' off' }}" data-row data-prop>
+  {{ grip() }}
+  <input class="prop-name" data-f="name" value="{{ e.name }}" maxlength="40" placeholder="Eigenschaft" list="dse-suggestions" aria-label="Eigenschaft">
+  <textarea class="prop-value" data-f="wert" rows="1" maxlength="150" placeholder="leer = wird nicht gedruckt" aria-label="Wert">{{ e.wert }}</textarea>
+  {{ eye(on, "Ein-/ausblenden") }}
+  {{ row_del() }}
+</div>
+{%- endmacro %}
+
+{% macro bullet_row(e) -%}
+{% set on = e.sichtbar is not defined or e.sichtbar %}
+<div class="dse-row bullet{{ '' if on else ' off' }}" data-row data-prop>
+  {{ grip() }}
+  <span class="bullet-dot" aria-hidden="true"></span>
+  <textarea class="prop-value" data-f="wert" rows="1" maxlength="150" placeholder="z. B. 5 Jahre Garantie" aria-label="Aufzählungspunkt">{{ e.wert }}</textarea>
+  {{ eye(on, "Ein-/ausblenden") }}
   {{ row_del() }}
 </div>
 {%- endmacro %}
 
 {% macro spec_row(z) -%}
 <div class="dse-row spec" data-row>
-  {{ row_tools() }}
-  <input data-f="merkmal" value="{{ z.merkmal }}" maxlength="60" placeholder="Merkmal, z. B. Spannungsbereich">
-  <textarea data-f="wert" rows="1" maxlength="300" placeholder="Wert">{{ z.wert }}</textarea>
+  {{ grip() }}
+  <input data-f="merkmal" value="{{ z.merkmal }}" maxlength="60" placeholder="Merkmal, z. B. Leistung" aria-label="Merkmal">
+  <textarea data-f="wert" rows="1" maxlength="300" placeholder="Wert, mehrere Zeilen möglich" aria-label="Wert">{{ z.wert }}</textarea>
   {{ row_del() }}
 </div>
 {%- endmacro %}
 
+{# Artikelzeile als Tabellenzeile; Gruppenbild ab dieser Zeile erscheint unter der Beschreibung #}
 {% macro table_row(r) -%}
-<div class="dse-row trow{{ ' has-group' if r.gruppe }}" data-row>
-  {{ row_tools() }}
-  <span class="t-img">{{ slot(r.bild, small=true) }}</span>
-  <input data-f="artnr" value="{{ r.artnr }}" maxlength="60" placeholder="Artikelnr." class="t-nr">
-  <select data-f="farbe" title="Farbpunkt (mehrfarbig: Tortenstücke)">{% for v, l in color_choices(r.farbe).items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-  <input data-f="beschreibung" value="{{ r.beschreibung }}" maxlength="300" placeholder="Beschreibung" class="t-desc">
-  {% for k in range(max_columns) %}<input data-w="{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="t-val">{% endfor %}
-  <button type="button" class="link t-group-btn" data-group-toggle title="Ab dieser Zeile ein anderes Gruppenbild links neben den Zeilen">{{ "Gruppenbild ab hier" if not r.gruppe else "kein eigenes Gruppenbild" }}</button>
-  <span class="t-grp" title="Gruppenbild ab dieser Zeile – gilt bis zur nächsten Zeile mit eigenem Gruppenbild">{{ slot(r.gruppe, "Gruppenbild ab hier") }}</span>
-  {{ row_del() }}
-</div>
+<tr class="dse-trow{{ ' has-group' if r.gruppe }}" data-row>
+  <td class="t-grip">{{ grip() }}</td>
+  <td class="t-img">{{ slot(r.bild, small=true) }}</td>
+  <td><input data-f="artnr" value="{{ r.artnr }}" maxlength="60" placeholder="Artikelnr." class="t-nr" aria-label="Artikelnummer"></td>
+  <td><select data-f="farbe" title="Farbpunkt (mehrfarbig: Tortenstücke)" aria-label="Farbe">{% for v, l in color_choices(r.farbe).items() %}<option value="{{ v }}"{% if r.farbe == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+  <td class="t-desc-cell"><input data-f="beschreibung" value="{{ r.beschreibung }}" maxlength="300" placeholder="Beschreibung" class="t-desc" aria-label="Beschreibung">
+    <div class="t-grp" title="Gilt bis zur nächsten Zeile mit eigenem Gruppenbild"><span>Gruppenbild ab hier</span>{{ slot(r.gruppe, "Bild wählen") }}</div></td>
+  {% for k in range(max_columns) %}<td data-wcell="{{ k }}"><input data-w="{{ k }}" value="{{ r.werte[k] if r.werte and k < r.werte | length else '' }}" maxlength="80" class="t-val"></td>{% endfor %}
+  <td class="t-menu">{% call menu("Zeile: weitere Aktionen") %}
+    <button type="button" role="menuitem" data-insert-row>{{ icon("plus", 16) }} Zeile darunter einfügen</button>
+    <button type="button" role="menuitem" data-dup-row>{{ icon("copy", 16) }} Zeile duplizieren</button>
+    <button type="button" role="menuitem" data-group-toggle>{{ icon("image", 16) }} <span data-group-label>{{ "Kein eigenes Gruppenbild" if r.gruppe else "Gruppenbild ab dieser Zeile" }}</span></button>
+    <hr><button type="button" role="menuitem" class="danger" data-remove>{{ trash() }} Zeile löschen</button>
+  {% endcall %}</td>
+</tr>
 {%- endmacro %}
 
 {% macro card(b) -%}
 {% set t = b.typ %}
+{% set names = {"intro": "Einleitung", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder", "tabelle": "Tabelle", "bild": "Bild"} %}
 <section class="dse-card{{ ' hidden-block' if not b.sichtbar }}" data-row data-card data-typ="{{ t }}">
   <header class="dse-card-head">
-    {{ row_tools() }}
+    {{ grip() }}
     <button type="button" class="dse-card-title" data-collapse aria-expanded="false">
-      <span class="dse-card-name">{{ {"intro": "Einleitung", "spez": "Spezifikationen", "anwendung": "Anwendungsbilder", "tabelle": "Tabelle", "bild": "Bild"}[t] }}</span>
+      <span class="dse-card-name">{{ names[t] }}</span>
       <span class="dse-card-sub" data-sub></span>
     </button>
-    <label class="dse-newpage" title="Baustein beginnt auf einer neuen Seite"><input type="checkbox" data-f="neue_seite"{% if b.neue_seite %} checked{% endif %}> neue Seite</label>
-    <button type="button" class="icon-btn dse-eye" data-visible aria-pressed="{{ 'true' if b.sichtbar else 'false' }}" title="Im Datenblatt ein-/ausblenden"><span class="eye-on">{{ icon("eye", 16) }}</span><span class="eye-off">{{ icon("eyeoff", 16) }}</span></button>
-    {% if t in ("tabelle", "bild") %}{{ row_del() }}{% endif %}
+    {{ eye(b.sichtbar) }}
+    {% call menu("Baustein: weitere Aktionen") %}
+      <label class="dse-menu-check" role="menuitemcheckbox"><input type="checkbox" data-f="neue_seite"{% if b.neue_seite %} checked{% endif %}> Auf neuer Seite beginnen</label>
+      <hr>
+      <button type="button" role="menuitem" data-move-block="-1">{{ icon("up", 16) }} Nach oben</button>
+      <button type="button" role="menuitem" data-move-block="1">{{ icon("down", 16) }} Nach unten</button>
+      <hr>
+      <button type="button" role="menuitem" data-insert-block="tabelle">{{ icon("list", 16) }} Artikeltabelle darunter</button>
+      <button type="button" role="menuitem" data-insert-block="zubehoer">{{ icon("box", 16) }} Zubehör darunter</button>
+      <button type="button" role="menuitem" data-insert-block="bild">{{ icon("image", 16) }} Bild darunter</button>
+      {% if t in ("tabelle", "bild") %}
+      {% if t == "tabelle" %}<button type="button" role="menuitem" data-dup-block>{{ icon("copy", 16) }} Tabelle duplizieren</button>{% endif %}
+      <hr><button type="button" role="menuitem" class="danger" data-remove>{{ trash() }} Baustein entfernen</button>
+      {% endif %}
+    {% endcall %}
   </header>
   <div class="dse-card-body">
   {% if t == "intro" %}
-    <h4>Beschreibungstext <small>oben links, Blocksatz; Absätze mit einer Leerzeile trennen</small></h4>
+    <h4>Beschreibungstext <small>Absätze mit einer Leerzeile trennen</small></h4>
     <textarea data-f="einleitung" rows="4" maxlength="2000" class="dse-text" placeholder="z. B. Die LED Leuchtbalken der Serie 12+ Vantage sind leistungsstarke und vielseitige Warnbalken, die auf vielen Fahrzeugtypen einsetzbar sind.">{{ c.einleitung }}</textarea>
-    <h4>Eigenschaften <small>mit Namen in die Spezifikationstabelle, ohne Namen als Aufzählung unter dem Text; nur Zeilen mit Wert werden gedruckt</small></h4>
-    <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften %}{{ prop_row(e) }}{% endfor %}</div>
+    <h4>Eigenschaften <small>stehen in der Spezifikationstabelle, leere werden nicht gedruckt</small></h4>
+    <div class="dse-list" data-sortable data-list="eigenschaften">{% for e in c.eigenschaften if e.name %}{{ prop_row(e) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="prop">{{ icon("plus", 16) }} Eigenschaft</button>
-    <h4>Produktbilder <small>rechts, untereinander; einfarbiger Hintergrund wird automatisch entfernt (PNG, transparent)</small></h4>
-    <label class="dse-inline-label">Aufteilung Text / Bilder
-      <select data-f="aufteilung">{% for k, v in splits.items() %}<option value="{{ k }}"{% if (c.aufteilung or "normal") == k %} selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
+    <h4>Aufzählung <small>Punkte unter dem Text</small></h4>
+    <div class="dse-list" data-sortable data-list="punkte">{% for e in c.eigenschaften if not e.name %}{{ bullet_row(e) }}{% endfor %}</div>
+    <button type="button" class="dse-add-row" data-add-row="bullet">{{ icon("plus", 16) }} Punkt</button>
+    <div class="dse-h4-row">
+      <h4>Produktbilder <small>einfarbiger Hintergrund wird entfernt</small></h4>
+      <label class="dse-inline-label">Aufteilung
+        <select data-f="aufteilung">{% for k, v in splits.items() %}<option value="{{ k }}"{% if (c.aufteilung or "normal") == k %} selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></label>
+    </div>
     <div class="dse-slots" data-imgs="bilder_oben">{% for i in range(2) %}{{ slot(c.bilder_oben[i] if i < c.bilder_oben | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "spez" %}
-    <p class="hint">Überschrift kommt aus der Kopfzeile. Zulassungslogos (ECE-R65, ECE-R10, CISPR 25 …) entstehen automatisch aus dem Feld „Zulassungen“.</p>
-    <div class="dse-inline">
+    <p class="hint">Überschrift kommt aus der Kopfzeile, Zulassungslogos aus der Eigenschaft „Zulassungen“.</p>
+    <div class="dse-grid2">
       <label>Zusatz in der Überschrift <input data-f="spez.zusatz" value="{{ c.spez.zusatz or '' }}" maxlength="40" placeholder="z. B. Tricolour"></label>
       <label>Farben des Zusatzes <select data-f="spez.zusatz_farben">{% for v, l in color_choices(c.spez.zusatz_farben or '').items() %}<option value="{{ v }}"{% if (c.spez.zusatz_farben or '') == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
     </div>
+    <h4>Weitere Zeilen <small>zusätzlich zu den Eigenschaften</small></h4>
     <div class="dse-list" data-sortable data-list="spez">{% for z in c.spez.zeilen %}{{ spec_row(z) }}{% endfor %}</div>
     <button type="button" class="dse-add-row" data-add-row="spec">{{ icon("plus", 16) }} Zeile</button>
     <h4>Bilder rechts <small>z. B. Maßzeichnungen, unter den Produktbildern</small></h4>
     <div class="dse-slots" data-imgs="zeichnungen">{% for i in range(2) %}{{ slot(c.zeichnungen[i] if i < c.zeichnungen | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "anwendung" %}
-    <p class="hint">Zwei Bilder nebeneinander (auf gleiche Höhe zugeschnitten) oder ein Bild über die ganze Breite.</p>
+    <p class="hint">Zwei Bilder nebeneinander (gleiche Höhe) oder eines über die ganze Breite.</p>
     <div class="dse-slots" data-imgs="bilder_unten">{% for i in range(2) %}{{ slot(c.bilder_unten[i] if i < c.bilder_unten | length else none, "Bild %d" % (i + 1)) }}{% endfor %}</div>
   {% elif t == "bild" %}
     <div class="dse-inline">
@@ -102,24 +146,34 @@
       <label>Überschrift (fett) <input data-f="titel" value="{{ b.titel }}" maxlength="80" placeholder="z. B. Bestellinformationen"></label>
       <label>Zusatz (normal) <input data-f="zusatz" value="{{ b.zusatz }}" maxlength="80" placeholder="z. B. Serie 12+ Standard Version"></label>
     </div>
-    <div class="dse-inline">
-      <div class="dse-slots one" data-imgs="bild">{{ slot(b.bild, "Gruppenbild") }}</div>
-      <label>Gruppenbild (gilt bis zur ersten Zeile mit „Gruppenbild ab hier“) <select data-f="bild_pos">{% for k, l in image_pos.items() %}<option value="{{ k }}"{% if b.bild_pos == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-      <label>Bilder je Zeile <select data-f="zeilenbilder">{% for k, l in row_images.items() %}<option value="{{ k }}"{% if b.zeilenbilder == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <div class="dse-tsettings">
+      <div class="dse-slots one" data-imgs="bild" title="Gruppenbild: gilt bis zur ersten Zeile mit eigenem Gruppenbild">{{ slot(b.bild, "Gruppenbild") }}</div>
+      <div class="dse-tsettings-fields">
+        <label>Gruppenbild <select data-f="bild_pos">{% for k, l in image_pos.items() %}<option value="{{ k }}"{% if b.bild_pos == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+        <label>Bilder je Zeile <select data-f="zeilenbilder">{% for k, l in row_images.items() %}<option value="{{ k }}"{% if b.zeilenbilder == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+        <div class="dse-cols" title="Weitere Spalten rechts neben der Beschreibung, z. B. Zulassung oder Montage">
+          <span>Zusatzspalten</span>
+          {% for k in range(max_columns) %}<input data-col="{{ k }}" value="{{ b.spalten[k] if k < b.spalten | length else '' }}" maxlength="30" placeholder="{{ 'weitere Spalte' if k else 'z. B. Zulassung' }}" aria-label="Zusatzspalte {{ k + 1 }}">{% endfor %}
+        </div>
+      </div>
     </div>
-    <div class="dse-cols">
-      <span>Zusatzspalten</span>
-      {% for k in range(max_columns) %}<input data-col="{{ k }}" value="{{ b.spalten[k] if k < b.spalten | length else '' }}" maxlength="30" placeholder="Spalte {{ k + 1 }} (leer = keine)">{% endfor %}
+    <div class="dse-table-wrap">
+      <table class="dse-table">
+        <thead><tr><th></th><th>Bild</th><th>Artikelnr.</th><th>Farbe</th><th>Beschreibung</th>
+          {% for k in range(max_columns) %}<th data-wcell="{{ k }}" data-colhead="{{ k }}">{{ b.spalten[k] if k < b.spalten | length else '' }}</th>{% endfor %}<th></th></tr></thead>
+        <tbody data-sortable data-list="zeilen">{% for r in b.zeilen %}{{ table_row(r) }}{% endfor %}</tbody>
+      </table>
+      <p class="dse-table-empty hint">Noch keine Zeilen. „Zeile“ klicken oder aus Excel einfügen.</p>
     </div>
-    <div class="dse-list" data-sortable data-list="zeilen">{% for r in b.zeilen %}{{ table_row(r) }}{% endfor %}</div>
     <div class="dse-row-actions">
       <button type="button" class="dse-add-row" data-add-row="trow">{{ icon("plus", 16) }} Zeile</button>
       <details class="dse-paste"><summary>Aus Excel einfügen</summary>
-        <p class="hint">Spalten markieren und kopieren: Artikelnummer, Beschreibung, dann die Zusatzspalten. Die Farbe wird aus dem letzten Farbwort der Beschreibung übernommen.</p>
+        <p class="hint">Spalten kopieren: Artikelnummer, Beschreibung, dann die Zusatzspalten. Die Farbe kommt aus dem letzten Farbwort der Beschreibung.</p>
         <textarea rows="3" data-paste-text placeholder="RTG3HSA0CB&#9;LED Blitzmodul Gecko 3, 11-30V, gelb&#9;ECE-R65 Klasse I"></textarea>
         <button type="button" class="secondary" data-paste>Zeilen übernehmen</button>
       </details>
     </div>
+    <p class="hint dse-keys">Enter: nächste Zeile (am Ende neue Zeile) · Pfeil hoch/runter: Zeile wechseln</p>
   {% endif %}
   </div>
 </section>
@@ -128,12 +182,13 @@
 {% block content %}
 <div class="dse" data-editor data-sheet="{{ sheet.id }}" data-csrf="{{ csrf_token }}" data-twins="{{ twins | join(' ') }}" data-offsets='{{ c.bild_versatz | tojson }}' data-sizes='{{ c.bild_groesse | tojson }}'>
   <div class="dse-top">
-    <div>
+    <div class="dse-top-title">
       <div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>
       <h1 data-live-title>{{ sheet.title }}</h1>
     </div>
     <div class="dse-top-actions">
-      <span class="dse-status" data-status>Alle Änderungen gespeichert</span>
+      <span class="dse-status ok" data-status role="status">Alle Änderungen gespeichert</span>
+      <button type="button" class="secondary" data-undo disabled title="Letzte Änderung zurücknehmen (Strg+Z)">{{ icon("undo", 18) }} Rückgängig</button>
       {% if sheet.released_at %}<span class="badge OK" title="In der gemeinsamen Liste für alle Benutzer">Freigegeben {{ sheet.released_at | dt }}</span>
       {% elif not can_release %}<span class="badge UNKLAR" title="Freigeben: Marketing oder Admin">Entwurf</span>{% endif %}
       {% if can_release %}
@@ -152,9 +207,13 @@
     </div>
   </div>
   {% if imported %}
-  <section class="msg UNKLAR import-report">
+  <section class="msg UNKLAR import-report" data-import-report>
+    <button type="button" class="icon-btn import-close" data-dismiss title="Ausblenden" aria-label="Ausblenden">{{ icon("x", 16) }}</button>
     <b>Aus dem Herstellerblatt erstellt – bitte prüfen.</b>
-    {{ imported.zahlen.technische_daten }} Technische Daten, {{ imported.zahlen.artikel }} Artikelnummern, {{ imported.zahlen.bilder }} Bilder übernommen.
+    {% set z = imported.zahlen %}
+    {{ z.technische_daten }} {{ "Technisches Datum" if z.technische_daten == 1 else "Technische Daten" }},
+    {{ z.artikel }} {{ "Artikelnummer" if z.artikel == 1 else "Artikelnummern" }},
+    {{ z.bilder }} {{ "Bild" if z.bilder == 1 else "Bilder" }} übernommen.
     Beschreibung {{ "von der lokalen KI formuliert" if imported.ki else "als gekürzter Originaltext" }}.
     {% if imported.bericht %}<ul>{% for r in imported.bericht %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
     {% if imported.unbekannt %}
@@ -167,6 +226,12 @@
 
   <div class="dse-grid">
     <div class="dse-edit">
+      <section class="dse-check" data-checklist hidden>
+        <button type="button" class="dse-check-head" data-check-toggle aria-expanded="true">
+          <span class="dse-check-dot" aria-hidden="true"></span><b data-check-title>Noch prüfen</b></button>
+        <ul data-check-list></ul>
+      </section>
+
       <section class="dse-card fixed open" data-card data-typ="kopf">
         <header class="dse-card-head"><span class="dse-lock" title="Kopfzeile ist fest">{{ icon("shield", 16) }}</span>
           <button type="button" class="dse-card-title" data-collapse aria-expanded="true"><span class="dse-card-name">Kopfzeile</span><span class="dse-card-sub">auf jeder Seite gleich</span></button></header>
@@ -181,15 +246,15 @@
       </div>
 
       <div class="dse-add">
-        <span>Baustein hinzufügen:</span>
+        <span>Baustein hinzufügen</span>
         <button type="button" class="secondary" data-add-block="tabelle">{{ icon("list", 16) }} Artikeltabelle</button>
         <button type="button" class="secondary" data-add-block="zubehoer">{{ icon("box", 16) }} Zubehör</button>
-        <button type="button" class="secondary" data-add-block="bild">{{ icon("upload", 16) }} Bild</button>
+        <button type="button" class="secondary" data-add-block="bild">{{ icon("image", 16) }} Bild</button>
       </div>
 
       <section class="dse-card fixed" data-card data-typ="fuss">
         <header class="dse-card-head"><span class="dse-lock" title="Fußzeile ist fest">{{ icon("shield", 16) }}</span>
-          <button type="button" class="dse-card-title" data-collapse aria-expanded="false"><span class="dse-card-name">Fußzeile</span><span class="dse-card-sub">fest, nur Version änderbar</span></button></header>
+          <button type="button" class="dse-card-title" data-collapse aria-expanded="false"><span class="dse-card-name">Fußzeile</span><span class="dse-card-sub" data-foot-sub>Version {{ c.fuss.version or "fehlt" }}</span></button></header>
         <div class="dse-card-body">
           <label>Version <input data-f="fuss.version" value="{{ c.fuss.version }}" maxlength="30" placeholder="z. B. 29052024"></label>
         </div>
@@ -197,9 +262,20 @@
     </div>
 
     <div class="dse-preview">
-      <div class="dse-preview-bar"><b>Live-Vorschau</b> <span data-page-count>{{ page_count }} {{ "Seite" if page_count == 1 else "Seiten" }}</span>
-        <span class="hint">Klick auf einen Bereich öffnet die Eingabe · Produktbilder oben rechts verschieben · Ecke eines Bilds ziehen = Größe</span>
-        <button type="button" class="link" data-reset-images title="Größe und Position aller Bilder zurücksetzen">Bilder zurücksetzen</button></div>
+      <div class="dse-preview-bar">
+        <b>Live-Vorschau</b>
+        <span class="dse-pager">
+          <button type="button" class="icon-btn" data-page-step="-1" title="Vorherige Seite" aria-label="Vorherige Seite">{{ icon("left", 16) }}</button>
+          <span data-page-label>Seite 1 von {{ page_count }}</span>
+          <button type="button" class="icon-btn" data-page-step="1" title="Nächste Seite" aria-label="Nächste Seite">{{ icon("right", 16) }}</button>
+        </span>
+        <span class="grow"></span>
+        <button type="button" class="link" data-reset-images hidden title="Größe und Position aller Bilder zurücksetzen">Bilder zurücksetzen</button>
+        <select data-zoom aria-label="Zoom" title="Zoom">
+          <option value="fit">Breite</option><option value="0.5">50 %</option><option value="0.75">75 %</option><option value="1">100 %</option>
+        </select>
+        <span class="dse-help" tabindex="0" title="Klick auf einen Bereich öffnet die Eingabe. Produktbilder oben rechts mit der Maus verschieben, an der Ecke ziehen = Größe, Doppelklick = zurück." aria-label="Hilfe zur Vorschau">?</span>
+      </div>
       <div class="ds-warnings" data-warnings hidden></div>
       <div class="dse-preview-scroll" data-preview-scroll>
         <div class="ds-doc" data-preview>{{ pages_html | safe }}</div>
@@ -207,8 +283,12 @@
     </div>
   </div>
 
+  <div class="dse-toast" data-toast hidden role="status"><span data-toast-text></span>
+    <button type="button" class="link" data-undo>Rückgängig</button></div>
+
   <datalist id="dse-suggestions">{% for n in suggestions %}<option value="{{ n }}">{% endfor %}</datalist>
   <template data-tpl="prop">{{ prop_row({"name": "", "wert": "", "sichtbar": true}) }}</template>
+  <template data-tpl="bullet">{{ bullet_row({"name": "", "wert": "", "sichtbar": true}) }}</template>
   <template data-tpl="spec">{{ spec_row({"merkmal": "", "wert": ""}) }}</template>
   <template data-tpl="trow">{{ table_row({"bild": none, "artnr": "", "farbe": "", "beschreibung": "", "werte": []}) }}</template>
   <template data-tpl="tabelle">{{ card(new_table) }}</template>

@@ -324,7 +324,11 @@ Minute dauern.
 
 ## 11. Modul Datenblatt erstellen
 
-Startseite → **Datenblatt erstellen** → Titel (Produktgruppe) und Untertitel (Serie) eingeben → „Neues Datenblatt“.
+Startseite → **Datenblatt erstellen**. Die Übersicht zeigt oben eine **Suche** (Titel oder Artikelnummer, gilt für die
+eigenen und die freigegebenen Datenblätter), darunter „Meine Datenblätter“ (mit erstem Produktbild und Zahl der Artikel)
+und „Freigegebene Datenblätter“. Je Zeile: Vorschau/PDF, Kopieren, Löschen (Symbole rechts). Neu anlegen über
+**„Neues Datenblatt“** oben rechts: im Fenster entweder **aus dem Hersteller-PDF** (Hauptweg, siehe unten) oder **leer
+beginnen** (Titel und Serie). Wer noch kein Datenblatt hat, sieht beide Wege direkt auf der Seite.
 Es öffnet sich der **Editor**: links die Eingabe, rechts das **Live-Blatt** im Druckformat A4. Jede Änderung wird
 nach einer kurzen Pause automatisch gespeichert („Gespeichert hh:mm:ss“ oben), das Blatt rechts aktualisiert sich
 sofort. Vorschau und Druck verwenden dieselbe Vorlage – was rechts steht, wird gedruckt.
@@ -336,14 +340,21 @@ Firmendaten). Änderbar sind nur Titel, Untertitel und die Version in der Fußze
 
 | Baustein | Inhalt |
 |---|---|
-| Einleitung | **Beschreibungstext** oben links (Blocksatz, Absätze mit Leerzeile), darunter Aufzählung „**Name:** Wert“ (vorbelegt wie in den Braun-&-Braun-Datenblättern: Spannungsbereich, Wasserdicht, Montage, Zulassungen, Gehäuse, Abmessungen; weitere z. B. Lichtleistung, Leuchtbild; Name leer lassen = nur der Text, z. B. „5 Jahre Garantie“), bis zu 2 Produktbilder rechts. In der Live-Vorschau zeigt ein Platzhalter, wo der Text hinkommt (wird nicht gedruckt). |
-| Spezifikationen | Tabelle Merkmal/Wert (mehrzeilig), Überschrift automatisch aus der Kopfzeile, optional mit **farbigem Zusatz** (z. B. „Tricolour“ in gelb/klar/blau wie beim Spartan), **Zulassungslogos automatisch** aus dem Feld „Zulassungen“, bis zu 2 Bilder rechts (z. B. Maßzeichnungen). Steht sie direkt nach der Einleitung, bilden beide den **Kopfbereich wie im Standard**: links Text, Aufzählung, Spezifikation untereinander, rechts alle Bilder über die ganze Höhe. |
+| Einleitung | **Beschreibungstext** oben links (Blocksatz, Absätze mit Leerzeile), **Eigenschaften** „Name: Wert“ (vorbelegt wie in den Braun-&-Braun-Datenblättern: Spannungsbereich, Wasserdicht, Montage, Zulassungen, Gehäuse, Abmessungen; weitere z. B. Lichtleistung, Leuchtbild; leere werden nicht gedruckt; Werte dürfen mehrzeilig sein, z. B. „12V: …“ / „24V: …“ untereinander), getrennt davon die **Aufzählung** (Punkte unter dem Text, z. B. „5 Jahre Garantie“), bis zu 2 Produktbilder rechts. In der Live-Vorschau zeigt ein Platzhalter, wo der Text hinkommt (wird nicht gedruckt). |
+| Spezifikationen | weitere Zeilen Merkmal/Wert (mehrzeilig) zusätzlich zu den Eigenschaften, Überschrift automatisch aus der Kopfzeile, optional mit **farbigem Zusatz** (z. B. „Tricolour“ in gelb/klar/blau wie beim Spartan), **Zulassungslogos automatisch** aus dem Feld „Zulassungen“, bis zu 2 Bilder rechts (z. B. Maßzeichnungen). Steht sie direkt nach der Einleitung, bilden beide den **Kopfbereich wie im Standard**: links Text, Aufzählung, Spezifikation untereinander, rechts alle Bilder über die ganze Höhe. |
 | Anwendungsbilder | 2 Bilder nebeneinander (gleiche Höhe zugeschnitten) oder 1 Bild über die ganze Breite |
-| **Tabelle** (beliebig oft) | Überschrift fett + Zusatz normal („**BESTELLINFORMATIONEN** - SERIE 12+ STANDARD VERSION“), Gruppenbild **links neben** der Tabelle (Gecko; mehrere Gruppenbilder in einer Tabelle: in einer Zeile „Gruppenbild ab hier“ anklicken und ein Bild setzen – es steht links neben dieser und den folgenden Zeilen bis zur nächsten Zeile mit eigenem Gruppenbild, das Gruppenbild der Tabelle gilt für die Zeilen davor; wird eine Gruppe auf zwei Seiten geteilt, steht ihr Bild auf beiden) oder **über** der Tabelle (Leuchtbalken), Bilder je Zeile klein (Artikelliste) oder groß (Zubehör), bis zu 3 frei benennbare Zusatzspalten (z. B. Länge, Zulassung, Brutto VK), Zeilen mit Bild, Artikelnr., Farbpunkt (auch **mehrfarbig** als Tortendiagramm, z. B. gelb/blau/klar), Beschreibung, Werten. Zeilen auch **aus Excel einfügen** (Artikelnr. ⇥ Beschreibung ⇥ Zusatzspalten; Farbe aus dem letzten Farbwort der Beschreibung). |
+| **Tabelle** (beliebig oft) | Überschrift fett + Zusatz normal („**BESTELLINFORMATIONEN** - SERIE 12+ STANDARD VERSION“), Gruppenbild **links neben** der Tabelle (Gecko; mehrere Gruppenbilder in einer Tabelle: im Zeilenmenü (⋯) „Gruppenbild ab dieser Zeile“ wählen und ein Bild setzen – es steht links neben dieser und den folgenden Zeilen bis zur nächsten Zeile mit eigenem Gruppenbild, das Gruppenbild der Tabelle gilt für die Zeilen davor; wird eine Gruppe auf zwei Seiten geteilt, steht ihr Bild auf beiden) oder **über** der Tabelle (Leuchtbalken), Bilder je Zeile klein (Artikelliste) oder groß (Zubehör), bis zu 3 frei benennbare Zusatzspalten (z. B. Länge, Zulassung, Brutto VK), Zeilen mit Bild, Artikelnr., Farbpunkt (auch **mehrfarbig** als Tortendiagramm, z. B. gelb/blau/klar), Beschreibung, Werten. Zeilen auch **aus Excel einfügen** (Artikelnr. ⇥ Beschreibung ⇥ Zusatzspalten; Farbe aus dem letzten Farbwort der Beschreibung). |
 | **Zubehör** | eine Tabelle mit Überschrift „Zubehör“ und großen Zeilenbildern |
 | **Bild** (beliebig oft) | ein Bild über die volle Breite, Höhe klein/mittel/groß (30/50/80 mm), z. B. Seitenansicht unter der Spezifikation |
 
-Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen.
+Neue Tabellen, Zubehör und Bilder: Knöpfe unter den Bausteinen, oder im Menü (⋯) eines Bausteins „… darunter“ –
+dann steht der neue Baustein direkt unter diesem.
+
+**Artikeltabelle** im Editor: eine Tabelle mit Spaltenköpfen (Bild, Artikelnr., Farbe, Beschreibung, Zusatzspalten).
+Zusatzspalten über der Tabelle benennen (leeres Feld = keine weitere Spalte). **Enter** springt in die gleiche Spalte
+der nächsten Zeile, in der letzten Zeile entsteht eine neue; **Pfeil hoch/runter** wechselt die Zeile. Im Zeilenmenü
+(⋯): Zeile darunter einfügen, duplizieren, Gruppenbild ab dieser Zeile, löschen. Viele Spalten: die Tabelle scrollt
+waagrecht.
 
 **Freigeben (Marketing und Admin):** Ein neues Datenblatt ist ein **Entwurf** und nur für seinen Ersteller sichtbar –
 und für Marketing und Admin, die dafür unter „Alle Datenblätter“ die Entwürfe aller Benutzer sehen. Marketing oder Admin
@@ -359,7 +370,7 @@ Artikel schon ein Datenblatt gibt.
 Hersteller wählen (oder „automatisch erkennen“: der Herstellername bzw. ein Alias wird im PDF gesucht, unter den
 eigenen Herstellern; der Prüfbericht nennt den erkannten Hersteller) → „Datenblatt erstellen“. Der Hersteller bestimmt
 Kürzel, Preislisten-Abgleich und das Wörterbuch. Ein Hintergrundjob füllt den Baukasten, danach öffnet sich der
-Editor mit einem Prüfbericht oben. Übernommen werden:
+Editor mit einem Prüfbericht oben (mit × ausblendbar). Übernommen werden:
 
 | Aus dem PDF | In den Baukasten |
 |---|---|
@@ -407,7 +418,17 @@ bleiben unverändert. Bei englischen Blättern listet der Prüfbericht Begriffe 
 
 - **Verschieben:** am Griff (⋮⋮) ziehen – Bausteine, Eigenschaften, Spezifikationszeilen und Tabellenzeilen.
   Alternativ Griff anklicken und Pfeiltasten ↑/↓.
-- **Neue Seite:** Häkchen am Baustein – er beginnt auf einer neuen Seite.
+- **Menü (⋯) am Baustein:** „Auf neuer Seite beginnen“, nach oben/unten, Artikeltabelle/Zubehör/Bild darunter einfügen,
+  Tabelle duplizieren, Baustein entfernen. „neue Seite“ steht danach in der Kurzinfo des Bausteins.
+- **Rückgängig:** Knopf oben (oder Strg+Z außerhalb eines Textfelds) nimmt die letzte Änderung zurück, auch mehrmals
+  (bis 30 Schritte, gilt im geöffneten Browser-Tab; Tippen wird zu Schritten von einigen Sekunden zusammengefasst). Nach
+  dem Entfernen von Bausteinen oder Zeilen erscheint unten ein Hinweis mit „Rückgängig“ – deshalb gibt es keine
+  Sicherheitsfrage mehr. In Textfeldern gilt das normale Rückgängig des Browsers.
+- **Prüfliste** über den Bausteinen: zeigt, was vor dem Druck noch fehlt (Titel, Beschreibungstext, Produktbild,
+  technische Daten, leere Tabellen, Zeilen ohne Artikelnummer oder Beschreibung, doppelte Artikelnummern, Bild-Baustein
+  ohne Bild, Version). Klick auf einen Punkt öffnet die Stelle. Ist alles da: „Alles Wichtige ist ausgefüllt“.
+- **Vorschau:** Seitenwechsel mit ‹ › („Seite 1 von 2“), Zoom „Breite“ (passt sich an) oder 50/75/100 %; „?“ zeigt die
+  Maus-Funktionen der Vorschau.
 - **Ausblenden:** Auge am Baustein oder an einer Eigenschaft – bleibt gespeichert, wird aber nicht gedruckt.
 - **Produktbilder oben rechts verschieben:** in der Live-Vorschau mit gedrückter Maustaste an die gewünschte
   Stelle ziehen (gilt auch für den Druck). Doppelklick setzt das Bild an seinen Platz zurück.
@@ -415,9 +436,9 @@ bleiben unverändert. Bei englischen Blättern listet der Prüfbericht Begriffe 
   (nach rechts/unten größer, nach links/oben kleiner, 30–300 %, die Prozentzahl wird beim Ziehen angezeigt). Gilt für
   Produktbilder, Bilder bei der Spezifikation, Anwendungsbilder, Bild-Bausteine und Gruppenbilder der Tabellen (nicht
   für die kleinen Zeilenbilder). Doppelklick auf den Griff = Originalgröße; Doppelklick auf ein Produktbild setzt Platz
-  und Größe zurück. „Bilder zurücksetzen“ über der Vorschau setzt alle Bilder zurück. Die Seitenaufteilung rechnet mit
+  und Größe zurück. „Bilder zurücksetzen“ über der Vorschau (erscheint, sobald ein Bild verschoben oder skaliert ist) setzt alle Bilder zurück. Die Seitenaufteilung rechnet mit
   der Größe; wird eine Seite zu voll, erscheint wie gewohnt der rote Hinweis.
-- **Aufteilung Text / Bilder** (Baustein Einleitung, unter den Produktbildern): „Standard“ (Text 92 mm), „Größere Bilder“
+- **Aufteilung Text / Bilder** (Baustein Einleitung, neben „Produktbilder“): „Standard“ (Text 92 mm), „Größere Bilder“
   (Text 78 mm, Bildspalte breiter) oder „Mehr Text“ (Text 106 mm).
 - **Bilder:** Platz anklicken oder eine Datei hineinziehen. Gefüllte Bilder per Ziehen zwischen beliebigen Plätzen
   **tauschen**, × entfernt. JPG, PNG, GIF, WebP bis 10 MB; geprüft wird der Inhalt, nicht die Endung.
@@ -432,7 +453,8 @@ bleiben unverändert. Bei englischen Blättern listet der Prüfbericht Begriffe 
 „Class“; mehrere R65-Klassen ergeben ein Logo mit der höchsten. Andere Zeichen (E-Prüfzeichen, SAE) werden nicht
 erkannt. Die Eigenschaft „Zulassung“ kann ausgeblendet werden, die Logos bleiben.
 
-**Weiteres:** „Kopieren“ in der Übersicht legt eine Kopie mit allen Bildern an (Vorlage für die nächste Serie).
+**Weiteres:** Der PDF-Import läuft als Hintergrundjob; die Warteseite zeigt den Fortschritt und öffnet das Datenblatt
+automatisch. „Kopieren“ in der Übersicht legt eine Kopie mit allen Bildern an (Vorlage für die nächste Serie).
 Löschen mit Bestätigung entfernt auch die Bilder. Datenblätter aus der früheren Schritt-Eingabe werden beim Öffnen
 automatisch in Bausteine übernommen. **Schrift:** Myriad Pro, falls auf dem Rechner installiert, sonst die mitgelieferte
 **Source Sans 3** (Adobe, gleiche Schriftfamilie, freie Lizenz SIL OFL 1.1) – damit sieht das Blatt auf jedem Rechner

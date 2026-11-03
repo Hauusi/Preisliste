@@ -29,4 +29,6 @@ Barlow (Verkehrsschild-Grotesk) für Text, Barlow Semi Condensed für Überschri
 - Navigation: helle Seitenleiste links mit Symbolen, Kernablauf oben, Seltenes unter „Weitere“; ein Hauptknopf
   „Liste einspielen“. Aktiver Eintrag blau hinterlegt mit Balken links. Startseite und Datenblatt: schmale Kopfleiste.
 - Offene Zeilen/Aufgaben: Amber-Streifen links. Rot nur für echte Fehler.
+- Werkzeuge mit vielen Aktionen (Datenblatt-Editor): häufige Aktionen sichtbar, seltene ins Menü (⋯); nach Entfernen
+  ein Hinweis mit „Rückgängig“ statt einer Sicherheitsfrage. Hinweise kurz halten, Erklärungen in Tooltips.
 - Schnell bleiben: Server-HTML, reines CSS, nur kleine Scripts; keine Frameworks, keine externen Ressourcen.

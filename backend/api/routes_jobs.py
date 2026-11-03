@@ -15,6 +15,7 @@ from backend.models.entities import Job, User
 from backend.services.audit import audit
 
 router = APIRouter()
+STATUS_LABELS = {"WARTEND": "wartet", "LAEUFT": "läuft", "FERTIG": "fertig", "FEHLER": "Fehler", "ABGEBROCHEN": "abgebrochen"}
 
 
 def _job(db: Session, job_id: int, user: User) -> Job:
@@ -81,7 +82,10 @@ def job_detail(request: Request, job_id: int, db: Session = Depends(get_db), use
     job = _job(db, job_id, user)
     return render(request, "job.html", {"job": job, "labels": JOB_LABELS, "link": result_link(job),
                                         "step": 3 if job.type == "IMPORT" else None, "auto_go": _auto_go(job),
-                                        "running": job.status in ("WARTEND", "LAEUFT"), "live": live_progress(job)})
+                                        "running": job.status in ("WARTEND", "LAEUFT"), "live": live_progress(job),
+                                        "status_labels": STATUS_LABELS,
+                                        # Datenblatt-Jobs: schmale Kopfleiste wie im Modul, ohne Preislisten-Menü
+                                        "portal": job.type.startswith("DATENBLATT")})
 
 
 @router.get("/api/jobs/{job_id}")

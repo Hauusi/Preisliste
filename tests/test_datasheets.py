@@ -557,3 +557,49 @@ def test_marketing_role_releases_all_sheets_but_edits_only_own(app, admin_client
         assert db.get(User, uid).role == "marketing"
         admin_id = db.query(User).filter_by(username="admin").one().id
     assert a.post(f"/benutzer/{admin_id}/rolle", data={"csrf_token": a.csrf, "role": "benutzer"}).status_code == 400
+
+
+def test_editor_keeps_multiline_values_and_splits_bullets(user_client):
+    """Mehrzeilige Werte (z. B. 12V/24V untereinander) stehen in Textfeldern, nicht in einzeiligen Eingaben – sonst
+    gingen die Zeilenumbrüche beim nächsten automatischen Speichern verloren. Aufzählungspunkte (ohne Namen) stehen
+    in einer eigenen Liste, Artikelzeilen in einer echten Tabelle mit Menü."""
+    c = user_client
+    sid = _new(c)
+    props = [{"name": "Spannungsbereich", "wert": "12V: 10 bis 15V\n24V: 20 bis 30V", "sichtbar": True},
+             {"name": "", "wert": "5 Jahre Garantie", "sichtbar": True}]
+    table = {**ds.new_table(), "titel": "Bestellinformationen",
+             "zeilen": [{"bild": None, "artnr": "RO2401", "farbe": "rot", "beschreibung": "rot", "werte": ["", ""]}]}
+    assert _save(c, sid, _content(eigenschaften=props, bloecke=[*ds.DEFAULT_BLOCKS, table])).status_code == 200
+    assert _saved(c, sid)["eigenschaften"][0]["wert"] == "12V: 10 bis 15V\n24V: 20 bis 30V"
+    page = c.get(f"/datenblatt/{sid}").text
+    assert re.search(r'<textarea class="prop-value" data-f="wert"[^>]*>12V: 10 bis 15V\n24V: 20 bis 30V</textarea>', page)
+    named, bullets = page.split('data-list="eigenschaften"')[1].split('data-list="punkte"')
+    assert "Spannungsbereich" in named and "5 Jahre Garantie" not in named
+    assert "5 Jahre Garantie" in bullets.split("</div>\n    <button")[0]
+    assert '<tbody data-sortable data-list="zeilen"><tr class="dse-trow"' in page and "data-insert-row" in page
+    assert "data-undo" in page and "data-checklist" in page and "data-zoom" in page
+
+
+def test_overview_search_covers_own_sheets_and_shows_counts(user_client):
+    c = user_client
+    page = c.get("/datenblatt").text
+    assert "Erstes Datenblatt anlegen" in page and "data-open-dialog" not in page  # ohne Blätter: Formulare direkt
+    sid = _new(c, titel="LED Lichtsignalgeber", untertitel="200 mm")
+    _new(c, titel="Arbeitsscheinwerfer")
+    table = {**ds.new_table(), "zeilen": [{"bild": None, "artnr": "RO2401-A", "farbe": "", "beschreibung": "x", "werte": []}]}
+    _save(c, sid, _content(kopf={"titel": "LED Lichtsignalgeber", "untertitel": "200 mm"}, bloecke=[*ds.DEFAULT_BLOCKS, table]))
+    page = c.get("/datenblatt").text
+    assert 'data-open-dialog="neu-dialog"' in page and "1 Artikel" in page
+    found = c.get("/datenblatt?q=ro2401a").text.split('id="freigegeben"')[0]
+    assert "LED Lichtsignalgeber" in found and "Arbeitsscheinwerfer" not in found
+
+
+def test_datasheet_job_page_uses_module_layout(admin_client, app):
+    from tests.test_datasheet_import import _pdf
+
+    c = admin_client
+    r = c.post("/datenblatt/aus-pdf", data={"csrf_token": c.csrf},
+               files={"datei": ("h.pdf", _pdf(), "application/pdf")}, follow_redirects=False)
+    page = c.get(r.headers["location"]).text
+    assert ">None<" not in page and ">wartet<" in page and "Liste einspielen" not in page  # kein Preislisten-Menü
+    assert "öffnet sich automatisch" in page

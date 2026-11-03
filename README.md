@@ -46,10 +46,13 @@ automatisch durchgespielt in `tests/test_e2e_szenarien.py`.
 
 ## Datenblatt erstellen (Sales Assistant → Datenblatt erstellen)
 
-Editor mit Live-Vorschau: links Bausteine (Eigenschaften & Produktbilder, Spezifikationen mit automatischen
-Zulassungslogos, Anwendungsbilder, beliebig viele Tabellen, Zubehör und Bilder), rechts das A4-Blatt, das sich bei
-jeder Eingabe aktualisiert. Bausteine und Zeilen per Ziehen sortieren, ausblenden, auf neuer Seite beginnen; Bilder
-hineinziehen und tauschen. Kopf- und Fußzeile sind fest. Automatisches Speichern, Druck/PDF über den Browser.
+Übersicht mit Suche (Titel, Artikelnummer) und „Neues Datenblatt“ (aus Hersteller-PDF oder leer).
+Editor mit Live-Vorschau: links Bausteine (Eigenschaften, Aufzählung & Produktbilder, Spezifikationen mit automatischen
+Zulassungslogos, Anwendungsbilder, beliebig viele Artikeltabellen, Zubehör und Bilder), rechts das A4-Blatt, das sich
+bei jeder Eingabe aktualisiert (Zoom, Seitenwechsel). Bausteine und Zeilen per Ziehen oder Menü (⋯) sortieren,
+einfügen, duplizieren, ausblenden, auf neuer Seite beginnen; Artikeltabelle mit Spaltenköpfen und Enter/Pfeil-Navigation;
+Prüfliste „was fehlt noch“; Rückgängig (auch Strg+Z). Bilder hineinziehen und tauschen. Kopf- und Fußzeile sind fest.
+Automatisches Speichern, Druck/PDF über den Browser.
 **Aus Hersteller-Datenblatt erstellen:** PDF hochladen, der Baukasten wird automatisch gefüllt (Produktart als Titel, Serie, Beschreibung,
 Technische Daten, Artikelnummern, Bilder), danach nur prüfen. Optional formuliert die lokale KI den Text. Hersteller
 wird gewählt oder im PDF erkannt; der Admin pflegt ein Wörterbuch (Herstellerbegriff → unser Begriff, pro Hersteller)

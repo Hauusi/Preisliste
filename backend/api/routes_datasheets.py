@@ -74,14 +74,26 @@ def overview(request: Request, error: str | None = None, q: str = "", db: Sessio
     released = db.scalars(select(Datasheet).where(Datasheet.is_template.is_(False), Datasheet.released_at.is_not(None))
                           .order_by(Datasheet.updated_at.desc())).all()
     q = q.strip()[:60]
-    if q:
+    has_own = bool(sheets)
+    if q:  # eine Suche für beide Listen
         released = [s_ for s_ in released if _matches(s_, q)]
+        sheets = [s_ for s_ in sheets if _matches(s_, q)]
     names = {u.id: u.username for u in db.scalars(select(User))}
     owners = names if can_release(user) else {}
     manufacturers = db.scalars(visible(select(Manufacturer).order_by(Manufacturer.name), Manufacturer, user)).all()
+    info = {s_.id: _list_info(s_) for s_ in {*sheets, *released}}
     return render(request, "datasheets.html", {"portal": True, "sheets": sheets, "owners": owners, "error": error,
                                                "manufacturers": manufacturers, "released": released, "names": names,
-                                               "q": q, "can_release": can_release(user)})
+                                               "q": q, "can_release": can_release(user), "info": info,
+                                               "has_own": has_own})
+
+
+def _list_info(sheet: Datasheet) -> dict:
+    """Vorschaubild (erstes Produktbild) und Zahl der Artikel für die Übersicht."""
+    c = sheet.content or {}
+    pics = c.get("bilder_oben") if isinstance(c.get("bilder_oben"), list) else []
+    return {"bild": pics[0] if pics and isinstance(pics[0], str) else None,
+            "artikel": sum(len(t["zeilen"]) for t in ds.tables(c))}
 
 
 @router.post("/datenblatt/{sheet_id}/freigeben", dependencies=[Depends(check_csrf)])
