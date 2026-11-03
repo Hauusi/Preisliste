@@ -3,14 +3,15 @@
 {% block head %}{% if running %}<noscript><meta http-equiv="refresh" content="2"></noscript>{% elif auto_go and link %}<meta http-equiv="refresh" content="0;url={{ link[0] }}">{% endif %}{% endblock %}
 {% block content %}
 {% if step %}{% include "_steps.html" %}{% endif %}
+{% if portal %}<div class="eyebrow"><a href="/datenblatt">Datenblätter</a></div>{% endif %}
 <h1>{{ labels.get(job.type, job.type) }} <small class="hint">Job {{ job.id }}</small></h1>
 <section class="card"{% if running %} data-job-poll="{{ job.id }}"{% endif %}>
-  <p>Status: <span data-job-status class="badge {{ {'FERTIG': 'OK', 'FEHLER': 'FEHLER', 'ABGEBROCHEN': 'WARNUNG'}.get(job.status, 'UNKLAR') }}">{{ job.status }}</span>
+  <p>Status: <span data-job-status data-code="{{ job.status }}" class="badge {{ {'FERTIG': 'OK', 'FEHLER': 'FEHLER', 'ABGEBROCHEN': 'WARNUNG'}.get(job.status, 'UNKLAR') }}">{{ status_labels.get(job.status, job.status) }}</span>
     {% if job.started_at %} · gestartet {{ job.started_at | dt }}{% endif %}{% if job.finished_at %} · beendet {{ job.finished_at | dt }}{% endif %} (UTC)</p>
   {% if live.total %}
     <progress data-job-bar max="{{ live.total }}" value="{{ live.progress }}"></progress> <span data-job-count>{{ live.progress }} / {{ live.total }}</span>
   {% elif running %}<progress data-job-bar></progress> <span data-job-count></span>{% endif %}
-  {% if live.message or running %}<p data-job-message class="{{ 'msg FEHLER' if job.status == 'FEHLER' else 'hint' }}">{{ live.message }}</p>{% endif %}
+  {% if live.message or running %}<p data-job-message class="{{ 'msg FEHLER' if job.status == 'FEHLER' else 'hint' }}">{{ live.message or "" }}</p>{% endif %}
   {% if job.result %}
     {% set r = job.result %}
     {% if r.status and r.status != "OK" %}<p class="msg UNKLAR">Ergebnis {{ r.status }}: {{ r.message }}</p>{% endif %}
@@ -35,7 +36,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary">Abbrechen</button>
     </form>
-    <p class="hint">Der Fortschritt aktualisiert sich automatisch.</p>
+    <p class="hint">{{ "Das Datenblatt öffnet sich automatisch, sobald es fertig ist." if job.type == "DATENBLATT_IMPORT" else "Der Fortschritt aktualisiert sich automatisch." }}</p>
   {% endif %}
   {% if link %}<div class="actions">
     <a class="button" href="{{ link[0] }}">{{ link[1] }}</a>

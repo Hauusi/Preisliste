@@ -8,13 +8,14 @@
   var bar = box.querySelector("[data-job-bar]");
   var count = box.querySelector("[data-job-count]");
   var message = box.querySelector("[data-job-message]");
+  var LABELS = { WARTEND: "wartet", LAEUFT: "läuft" };
 
   function poll() {
     fetch("/api/jobs/" + id, { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (j) {
         if (j.status !== "WARTEND" && j.status !== "LAEUFT") { location.reload(); return; }
-        if (status) status.textContent = j.status;
+        if (status) status.textContent = LABELS[j.status] || j.status;
         if (bar && j.gesamt) { bar.max = j.gesamt; bar.value = j.fortschritt || 0; }
         if (count) count.textContent = j.gesamt ? (j.fortschritt || 0) + " / " + j.gesamt : "";
         if (message) message.textContent = j.meldung || "";

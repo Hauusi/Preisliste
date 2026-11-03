@@ -126,3 +126,17 @@
     cb.addEventListener("change", function () { if (cb.checked) { box.open = true; } });
   });
 })();
+// Dialoge: Knopf mit data-open-dialog="id" öffnet, data-close-dialog oder Klick daneben schließt
+(function () {
+  document.querySelectorAll("[data-open-dialog]").forEach(function (btn) {
+    var dlg = document.getElementById(btn.getAttribute("data-open-dialog"));
+    if (!dlg || !dlg.showModal) { return; }
+    btn.addEventListener("click", function () { dlg.showModal(); });
+    if (dlg.hasAttribute("data-open-on-load")) { dlg.showModal(); }
+  });
+  document.querySelectorAll("dialog").forEach(function (dlg) {
+    dlg.addEventListener("click", function (e) {
+      if (e.target.closest("[data-close-dialog]") || e.target === dlg) { dlg.close(); }
+    });
+  });
+})();

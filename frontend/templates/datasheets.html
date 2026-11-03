@@ -1,71 +1,142 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, delete_link %}
 {% block title %}Datenblätter{% endblock %}
+
+{# Neu anlegen: aus Hersteller-PDF (Hauptweg) oder leer #}
+{% macro new_forms() -%}
+<div class="dsl-new">
+  <form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="from-pdf">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h3>Aus Hersteller-Datenblatt</h3>
+    <p class="hint">Titel, Text, Technische Daten, Artikelnummern und Bilder werden übernommen. Danach nur prüfen.</p>
+    <label class="dropzone">
+      <span class="dropzone-icon">{{ icon("doc", 24) }}</span>
+      <b data-file-label>PDF hierher ziehen oder klicken</b>
+      <span class="hint">PDF mit echtem Text, bis 25 MB</span>
+      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
+    </label>
+    <label>Hersteller
+      <select name="hersteller"><option value="">automatisch erkennen</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}</select>
+      <span class="hint">Für Kürzel vor den Artikelnummern, Abgleich mit eurer Preisliste und Wörterbuch.</span></label>
+    <button type="submit">{{ icon("upload", 18) }} Datenblatt erstellen</button>
+  </form>
+  <form method="post" action="/datenblatt/neu" class="dse-new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h3>Leer beginnen</h3>
+    <p class="hint">Mit dem Braun-&amp;-Braun-Aufbau: Einleitung, Spezifikationen, Anwendungsbilder.</p>
+    <label>Titel (Produktgruppe) <input name="titel" maxlength="60" required placeholder="z. B. LED Leuchtbalken"></label>
+    <label>Untertitel (Serie) <input name="untertitel" maxlength="80" placeholder="z. B. Serie 12+"></label>
+    <button type="submit" class="secondary">{{ icon("plus", 18) }} Leeres Datenblatt anlegen</button>
+  </form>
+</div>
+{%- endmacro %}
+
+{% macro thumb(s) -%}
+{% set b = info[s.id].bild %}
+<span class="dsl-thumb">{% if b %}<img src="/datenblatt/{{ s.id }}/bild/{{ b }}" alt="" loading="lazy">{% else %}{{ icon("doc", 18) }}{% endif %}</span>
+{%- endmacro %}
+{% macro sheet_name(s, href) -%}
+<a class="dsl-name" href="{{ href }}">{{ thumb(s) }}<span><b>{{ s.title }}</b>
+  <small>{{ info[s.id].artikel }} Artikel</small></span></a>
+{%- endmacro %}
+{% macro copy_btn(s, label) -%}
+<form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="icon-btn" title="{{ label }}" aria-label="{{ label }}">{{ icon("copy", 18) }}</button>
+</form>
+{%- endmacro %}
+{% macro preview_btn(s) -%}
+<a class="icon-btn" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener" title="Vorschau / PDF" aria-label="Vorschau / PDF">{{ icon("doc", 18) }}</a>
+{%- endmacro %}
+
 {% block content %}
 <div class="page-head">
   <div>
     <div class="eyebrow"><a href="/">Alle Tools</a></div>
     <h1>Datenblätter</h1>
-    <p>Festes Layout mit Kopf- und Fußzeile, Inhalt aus verschiebbaren Bausteinen mit Live-Vorschau.</p>
+    <p>Produktdatenblätter im Braun-&amp;-Braun-Layout, mit Live-Vorschau und Druck als PDF.</p>
   </div>
-  {% if user.role == "admin" %}<div class="row">
+  <div class="row">
+    {% if user.role == "admin" %}
     <a class="button secondary" href="/datenblatt/vorlagen">{{ icon("doc", 18) }} Design-Vorlagen</a>
-    <a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a></div>{% endif %}
+    <a class="button secondary" href="/datenblatt/woerterbuch">{{ icon("list", 18) }} Wörterbuch</a>
+    {% endif %}
+    {% if has_own %}<button type="button" data-open-dialog="neu-dialog">{{ icon("plus", 18) }} Neues Datenblatt</button>{% endif %}
+  </div>
 </div>
 
 {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
-<form method="post" action="/datenblatt/aus-pdf" enctype="multipart/form-data" class="card from-pdf">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <h2>Aus Hersteller-Datenblatt erstellen</h2>
-  <p class="hint">PDF des Herstellers hochladen: Titel, Beschreibung, Technische Daten, Artikelnummern und Bilder kommen
-    in den Baukasten, im Braun-&amp;-Braun-Layout. Danach nur noch prüfen und korrigieren.</p>
-  <div class="row">
-    <label class="dropzone grow">
-      <span class="dropzone-icon">{{ icon("doc", 24) }}</span>
-      <b data-file-label>PDF hierher ziehen oder klicken</b>
-      <span class="hint">Nur PDF mit echtem Text, bis 25 MB</span>
-      <input type="file" name="datei" accept="application/pdf,.pdf" required data-file-input>
-    </label>
-  </div>
-  <div class="row">
-    <label>Hersteller
-      <select name="hersteller"><option value="">automatisch erkennen</option>{% for m in manufacturers %}<option value="{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</option>{% endfor %}</select></label>
-    <span class="hint grow">Bestimmt Kürzel vor den Artikelnummern, Abgleich mit eurer Preisliste und das Wörterbuch
-      dieses Herstellers. „Automatisch“ sucht den Herstellernamen im PDF.</span>
-    <button type="submit">{{ icon("upload", 18) }} Datenblatt erstellen</button>
-  </div>
+
+{% if has_own %}
+<dialog id="neu-dialog" class="dsl-dialog" aria-labelledby="neu-titel"{% if error %} data-open-on-load{% endif %}>
+  <div class="dsl-dialog-head"><h2 id="neu-titel">Neues Datenblatt</h2>
+    <button type="button" class="icon-btn" data-close-dialog title="Schließen" aria-label="Schließen">{{ icon("x", 18) }}</button></div>
+  {{ new_forms() }}
+</dialog>
+{% else %}
+<section class="card"><h2>Erstes Datenblatt anlegen</h2>{{ new_forms() }}</section>
+{% endif %}
+
+<form method="get" action="/datenblatt" class="dsl-search" role="search">
+  <span class="dsl-search-icon">{{ icon("search", 18) }}</span>
+  <input type="search" name="q" value="{{ q }}" maxlength="60" placeholder="Suchen nach Titel oder Artikelnummer, z. B. RO2401" aria-label="Suchen (Titel oder Artikelnummer)">
+  <button type="submit" class="secondary">Suchen</button>
+  {% if q %}<a href="/datenblatt" class="button secondary-link">Suche löschen</a>{% endif %}
 </form>
 
-
-<form method="post" action="/datenblatt/neu" class="card row dse-new">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label class="grow">Titel (Produktgruppe) <input name="titel" maxlength="60" required placeholder="z. B. LED Leuchtbalken"></label>
-  <label class="grow">Untertitel (Serie) <input name="untertitel" maxlength="80" placeholder="z. B. Serie 12+"></label>
-  <button type="submit">{{ icon("plus", 18) }} Neues Datenblatt</button>
-</form>
+{% if has_own %}
+<section class="card">
+<h2>{{ "Alle Datenblätter" if owners else "Meine Datenblätter" }} <small class="hint">{{ "Entwürfe aller Benutzer zur Freigabe" if can_release else "Entwürfe sieht nur du – freigeben: Marketing oder Admin" }}</small></h2>
+{% if sheets %}
+<div class="scroll">
+<table class="dsl-table">
+  <thead><tr><th>Datenblatt</th>{% if owners %}<th class="sm-hide">Benutzer</th>{% endif %}<th class="sm-hide">Geändert</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for s in sheets %}
+    {% set own = s.owner_id == user.id or user.role == "admin" %}
+    <tr>
+      <td>{{ sheet_name(s, "/datenblatt/%d%s" % (s.id, "" if own else "/vorschau")) }}</td>
+      {% if owners %}<td class="sm-hide">{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
+      <td class="nowrap sm-hide">{{ s.updated_at | dt }}</td>
+      <td>{% if s.released_at %}<span class="badge OK">freigegeben</span>{% else %}<span class="badge UNKLAR">Entwurf</span>{% endif %}</td>
+      <td class="row-actions">
+        {% if can_release %}
+        <form method="post" action="/datenblatt/{{ s.id }}/freigeben" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% if s.released_at %}<button type="submit" class="link" title="Wieder nur für den Ersteller sichtbar">Zurücknehmen</button>
+          {% else %}<input type="hidden" name="aktiv" value="1"><button type="submit" class="secondary" title="In die gemeinsame Liste für alle Benutzer">Freigeben</button>{% endif %}
+        </form>
+        {% endif %}
+        {{ preview_btn(s) }}
+        {{ copy_btn(s, "Kopieren (neues Datenblatt mit gleichem Inhalt)") }}
+        {% if own %}{{ delete_link("/datenblatt/" ~ s.id ~ "/loeschen", "Datenblatt löschen") }}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="hint">Kein eigenes Datenblatt zu „{{ q }}“.</p>
+{% endif %}
+</section>
+{% endif %}
 
 <section class="card" id="freigegeben">
-  <form method="get" action="/datenblatt#freigegeben" class="row shared-head">
-    <h2 class="grow">Freigegebene Datenblätter <small class="hint">für alle sichtbar</small></h2>
-    <label class="grow">Suchen (Titel oder Artikelnummer) <input type="search" name="q" value="{{ q }}" maxlength="60" placeholder="z. B. RO2401 oder Serie Unity"></label>
-    <button type="submit" class="secondary">Suchen</button>
-  </form>
+  <h2>Freigegebene Datenblätter <small class="hint">für alle sichtbar</small></h2>
   {% if released %}
   <div class="scroll">
-  <table>
-    <thead><tr><th>Datenblatt</th><th>Benutzer</th><th>Geändert</th><th></th></tr></thead>
+  <table class="dsl-table">
+    <thead><tr><th>Datenblatt</th><th class="sm-hide">Benutzer</th><th class="sm-hide">Geändert</th><th></th></tr></thead>
     <tbody>
     {% for s in released %}
       <tr>
-        <td><a href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener"><b>{{ s.title }}</b></a></td>
-        <td>{{ names.get(s.owner_id, "–") }}</td>
-        <td>{{ s.updated_at | dt }}</td>
+        <td>{{ sheet_name(s, "/datenblatt/%d/vorschau" % s.id) }}</td>
+        <td class="sm-hide">{{ names.get(s.owner_id, "–") }}</td>
+        <td class="nowrap sm-hide">{{ s.updated_at | dt }}</td>
         <td class="row-actions">
-          <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
-          <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="secondary" title="Als Vorlage für ein eigenes neues Datenblatt kopieren">Kopieren</button>
-          </form>
+          {{ preview_btn(s) }}
+          {{ copy_btn(s, "Als Vorlage für ein eigenes neues Datenblatt kopieren") }}
         </td>
       </tr>
     {% endfor %}
@@ -77,45 +148,6 @@
   {% else %}
   <p class="hint">Noch nichts freigegeben. Fertige Datenblätter gibt Marketing oder der Admin mit „Freigeben“ für alle frei.</p>
   {% endif %}
-</section>
-
-<section class="card">
-<h2>{{ "Alle Datenblätter" if owners else "Meine Datenblätter" }} <small class="hint">{{ "Entwürfe aller Benutzer zur Freigabe" if can_release else "Entwürfe sieht nur du – freigeben: Marketing oder Admin" }}</small></h2>
-{% if sheets %}
-<div class="scroll">
-<table>
-  <thead><tr><th>Datenblatt</th>{% if owners %}<th>Benutzer</th>{% endif %}<th>Geändert</th><th>Status</th><th></th></tr></thead>
-  <tbody>
-  {% for s in sheets %}
-    <tr>
-      {% set own = s.owner_id == user.id or user.role == "admin" %}
-      <td><a href="/datenblatt/{{ s.id }}{{ '' if own else '/vorschau' }}"><b>{{ s.title }}</b></a></td>
-      {% if owners %}<td>{{ owners.get(s.owner_id, "–") }}</td>{% endif %}
-      <td>{{ s.updated_at | dt }}</td>
-      <td>{% if s.released_at %}<span class="badge OK">freigegeben</span>{% else %}<span class="badge UNKLAR">Entwurf</span>{% endif %}</td>
-      <td class="row-actions">
-        {% if can_release %}
-        <form method="post" action="/datenblatt/{{ s.id }}/freigeben" class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          {% if s.released_at %}<button type="submit" class="secondary" title="Wieder nur für den Ersteller sichtbar">Freigabe zurücknehmen</button>
-          {% else %}<input type="hidden" name="aktiv" value="1"><button type="submit" title="In die gemeinsame Liste für alle Benutzer">Freigeben</button>{% endif %}
-        </form>
-        {% endif %}
-        <a class="button secondary" href="/datenblatt/{{ s.id }}/vorschau" target="_blank" rel="noopener">{{ icon("doc", 16) }} Vorschau / PDF</a>
-        <form method="post" action="/datenblatt/{{ s.id }}/kopieren" class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary" title="Als Vorlage für ein neues Datenblatt kopieren">Kopieren</button>
-        </form>
-        {% if own %}{{ delete_link("/datenblatt/" ~ s.id ~ "/loeschen", "Datenblatt löschen") }}{% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-<div class="empty-state"><div class="dot info">{{ icon("doc", 22) }}</div>Noch keine eigenen Datenblätter. Oben Titel eingeben und anlegen.</div>
-{% endif %}
 </section>
 <script src="/static/app.js"></script>
 {% endblock %}
