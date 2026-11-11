@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, trash %}
+{% block title %}{{ topic.name if topic else "Herstellerwissen" }}{% endblock %}
+
+{% macro who(uid) -%}{{ names.get(uid, "–") }}{%- endmacro %}
+
+{# Auswahl der Art als Chips (Radio-Knöpfe, funktioniert auch ohne Script) #}
+{% macro type_chips(name, current, auto=false) -%}
+<span class="kb-types" role="radiogroup" aria-label="Art">
+  {% if auto %}<label class="kb-type t-auto"><input type="radio" name="{{ name }}" value="" checked><span>automatisch</span></label>{% endif %}
+  {% for k, label in types.items() %}<label class="kb-type t-{{ k }}"><input type="radio" name="{{ name }}" value="{{ k }}"{% if current == k %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+</span>
+{%- endmacro %}
+
+{% macro entry_card(e, here=None, chips=true) -%}
+{% set stale = is_stale(e) %}
+<article class="kb-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
+  <p class="kb-text">{{ e.text }}</p>
+  {% set others = e.topic_ids | reject("equalto", here) | list %}
+  {% if others and chips %}<div class="kb-chips">{% for t in others if t in by_id %}<a class="kb-chip" href="/wissen/{{ t }}">{{ by_id[t].name }}</a>{% endfor %}</div>{% endif %}
+  <div class="kb-meta">
+    <span>{{ who(e.author_id) }}, {{ e.created_at | dt }}</span>
+    {% if e.updated_at > e.created_at and e.updated_by %}<span>geändert von {{ who(e.updated_by) }}, {{ e.updated_at | dt }}</span>{% endif %}
+    {% if e.private %}<span class="kb-private">nur für mich</span>{% endif %}
+    {% if stale %}<span class="kb-stale">seit {{ e.checked_at | dt }} nicht geprüft</span>
+      <form method="post" action="/wissen/eintrag/{{ e.id }}/geprueft" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here or '' }}">
+        <button type="submit" class="link">stimmt noch</button></form>{% endif %}
+  </div>
+  {% if here %}
+  <div class="kb-tools">
+    <details class="kb-edit"><summary>{{ icon("pencil", 15) }} Bearbeiten</summary>
+      <form method="post" action="/wissen/eintrag/{{ e.id }}" class="kb-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here }}">
+        <textarea name="text" rows="2" maxlength="1000" required aria-label="Text">{{ e.text }}</textarea>
+        {{ type_chips("art", e.type) }}
+        <label>Gehört zu <select name="themen" multiple size="5">{% for t in topics %}<option value="{{ t.id }}"{% if t.id in e.topic_ids %} selected{% endif %}>{{ t.name }} ({{ kinds[t.kind] }})</option>{% endfor %}</select>
+          <span class="hint">Mehrere mit Strg/⌘ auswählen</span></label>
+        {% if e.author_id == user.id %}<input type="hidden" name="privat_feld" value="1"><label class="inline-label"><input type="checkbox" name="privat" value="1"{% if e.private %} checked{% endif %}> nur für mich</label>{% endif %}
+        <div class="row"><button type="submit">Speichern</button>
+          <a class="icon-btn danger" href="/wissen/eintrag/{{ e.id }}/loeschen" title="Eintrag löschen" aria-label="Eintrag löschen">{{ trash() }}</a></div>
+      </form>
+    </details>
+    {% set h = histories.get(e.id, []) %}
+    {% if h | length > 1 or e.original and e.original != e.text %}
+    <details class="kb-hist"><summary>{{ icon("history", 15) }} Verlauf</summary>
+      <ol>
+        {% for c in h %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {{ c.action }}{% if c.action == "geändert" and c.before %}{% set b = c.before | fromjson %}<br><span class="hint">vorher: {{ b.text }}</span>{% endif %}</li>{% endfor %}
+        {% if e.original and e.original != e.text %}<li class="hint">So eingetippt: „{{ e.original }}“</li>{% endif %}
+      </ol>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+</article>
+{%- endmacro %}
+
+{% block content %}
+<div class="kb" data-kb data-csrf="{{ csrf_token }}" data-topics='{{ topic_json }}'>
+  <div class="kb-top">
+    <div>
+      <div class="eyebrow"><a href="/">Alle Tools</a>{% if topic %} · <a href="/wissen">Herstellerwissen</a>{% endif %}</div>
+      <h1>{{ "Herstellerwissen" if not topic else topic.name }}</h1>
+    </div>
+    <form method="get" action="/wissen/suche" class="kb-search" role="search">
+      <span class="kb-search-icon">{{ icon("search", 17) }}</span>
+      <input type="search" name="q" placeholder="Suchen: Hersteller, Stichwort, z. B. MOQ" aria-label="Herstellerwissen durchsuchen" data-kb-search autocomplete="off">
+      <kbd>Strg K</kbd>
+      <div class="kb-results" data-kb-results hidden role="listbox"></div>
+    </form>
+  </div>
+
+  {% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+
+  <form method="post" action="/wissen/eintrag" class="kb-capture" data-capture>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if topic %}<input type="hidden" name="vorgabe" value="{{ topic.id }}">{% endif %}
+    <div class="kb-capture-row">
+      <textarea name="text" rows="1" maxlength="1000" required data-capture-text aria-label="Neuer Eintrag"
+        placeholder="{{ 'Einfach reinschreiben, z. B.: ' ~ (topic.name if topic else 'Nordic Lights') ~ ' Mindestbestellmenge 36 Stück' }}"></textarea>
+      <button type="submit">Speichern</button>
+    </div>
+    <div class="kb-capture-more" data-capture-more>
+      <div class="kb-line"><span class="kb-label">Art</span>{{ type_chips("art", "", auto=true) }}</div>
+      <div class="kb-line"><span class="kb-label">Gehört zu</span>
+        <span class="kb-chips" data-capture-chips><span class="hint">{{ "wird erkannt, sonst " ~ topic.name if topic else "wird aus dem Text erkannt" }}</span></span>
+        <select data-capture-add aria-label="Weitere Zuordnung"><option value="">+ zuordnen</option>{% for t in topics %}<option value="{{ t.id }}">{{ t.name }} ({{ kinds[t.kind] }})</option>{% endfor %}</select></div>
+      <div class="kb-line kb-preview" data-capture-preview hidden><span class="kb-label">Wird gespeichert als</span><span data-capture-tidy></span></div>
+      <label class="inline-label kb-private-check"><input type="checkbox" name="privat" value="1"> nur für mich</label>
+    </div>
+  </form>
+
+  <div class="kb-grid">
+    <aside class="kb-side">
+      {% for kind, label in kinds.items() %}
+      <section>
+        <h2>{{ "Hersteller" if kind == "hersteller" else "Artikelgruppen" }}</h2>
+        {% set list = topics | selectattr("kind", "equalto", kind) | list %}
+        {% if not list %}<p class="hint">Noch keine.</p>{% endif %}
+        <ul class="kb-topics">
+        {% for t in list %}
+          {% set on = t.id not in hidden %}
+          <li class="{{ 'active' if topic and topic.id == t.id }}{{ ' off' if not on }}">
+            <a href="/wissen/{{ t.id }}"><b>{{ t.name }}</b><small>{{ counts.get(t.id, 0) }} {{ "Eintrag" if counts.get(t.id, 0) == 1 else "Einträge" }}</small></a>
+            <form method="post" action="/wissen/{{ t.id }}/folgen" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="zurueck" value="{{ '/wissen/%d' % topic.id if topic else '/wissen' }}">
+              {% if not on %}<input type="hidden" name="aktiv" value="1">{% endif %}
+              <button type="submit" class="kb-follow" aria-pressed="{{ 'true' if on else 'false' }}" title="{{ 'Nicht mehr folgen' if on else 'Folgen' }}" aria-label="{{ ('Nicht mehr folgen: ' if on else 'Folgen: ') ~ t.name }}"><span class="kb-switch"></span></button>
+            </form>
+          </li>
+        {% endfor %}
+        </ul>
+      </section>
+      {% endfor %}
+      <details class="kb-new">
+        <summary>{{ icon("plus", 16) }} Hersteller oder Artikelgruppe</summary>
+        <form method="post" action="/wissen/thema" class="kb-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>Art <select name="art"><option value="hersteller">Hersteller</option><option value="gruppe">Artikelgruppe</option></select></label>
+          <label>Name <input name="name" maxlength="120" required placeholder="z. B. Leuchtbalken"></label>
+          <label>Andere Schreibweisen <input name="aliase" maxlength="300" placeholder="z. B. Lichtbalken, Warnbalken"></label>
+          <button type="submit">Anlegen</button>
+        </form>
+      </details>
+      <p class="hint">Schalter: folgen. Was du nicht folgst, taucht nicht in deiner Übersicht und Suche auf. Hersteller aus euren Preislisten stehen automatisch hier.</p>
+    </aside>
+
+    <main class="kb-main">
+    {% if topic %}
+      <div class="kb-head">
+        <div>
+          <div class="kind">{{ kinds[topic.kind] }}{% if topic.aliases %} · auch: {{ topic.aliases | join(", ") }}{% endif %}</div>
+          {% if own %}<p class="hint m0">In deiner Preisliste: {% for m in own %}<a href="/hersteller/{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</a>{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+        </div>
+        <div class="row">
+          <form method="post" action="/wissen/{{ topic.id }}/folgen" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="/wissen/{{ topic.id }}">
+            {% if not following %}<input type="hidden" name="aktiv" value="1">{% endif %}
+            <button type="submit" class="secondary kb-follow-big" aria-pressed="{{ 'true' if following else 'false' }}"><span class="kb-switch"></span>{{ "Folge ich" if following else "Folgen" }}</button>
+          </form>
+          <details class="kb-edit kb-topic-edit"><summary class="button secondary">{{ icon("pencil", 16) }} Name</summary>
+            <form method="post" action="/wissen/{{ topic.id }}/bearbeiten" class="kb-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>Name <input name="name" value="{{ topic.name }}" maxlength="120" required></label>
+              <label>Andere Schreibweisen (mit Komma) <input name="aliase" value="{{ topic.aliases | join(', ') }}" maxlength="300"></label>
+              <button type="submit">Speichern</button>
+            </form>
+          </details>
+        </div>
+      </div>
+
+      <section class="kb-facts" id="angaben" aria-label="Angaben">
+        {% for f in facts %}
+        <div class="kb-fact">
+          <span>{{ f.label }}</span><b>{{ f.value }}</b>
+          <small>{{ who(f.updated_by) }}, {{ f.updated_at | dt }}</small>
+          <details class="kb-edit"><summary aria-label="Angabe ändern" title="Ändern">{{ icon("pencil", 14) }}</summary>
+            <form method="post" action="/wissen/{{ topic.id }}/angabe" class="kb-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ f.id }}">
+              <label>Bezeichnung <input name="bezeichnung" value="{{ f.label }}" maxlength="60"></label>
+              <label>Wert <input name="wert" value="{{ f.value }}" maxlength="200"><span class="hint">leer = Angabe entfernen</span></label>
+              <button type="submit">Speichern</button>
+            </form>
+          </details>
+        </div>
+        {% endfor %}
+        <details class="kb-fact kb-fact-new">
+          <summary>{{ icon("plus", 16) }} Angabe</summary>
+          <form method="post" action="/wissen/{{ topic.id }}/angabe" class="kb-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Bezeichnung <input name="bezeichnung" maxlength="60" required list="kb-fact-names" placeholder="z. B. Mindestbestellmenge"></label>
+            <label>Wert <input name="wert" maxlength="200" required placeholder="z. B. 36 Stück"></label>
+            <button type="submit">Hinzufügen</button>
+          </form>
+        </details>
+        <datalist id="kb-fact-names"><option value="Mindestbestellmenge"><option value="Lieferzeit"><option value="Ansprechpartner"><option value="Bezug kleiner Mengen"><option value="Lagerartikel"><option value="Kalkulation"><option value="Mindestbestellwert"><option value="Frachtfrei ab"></datalist>
+      </section>
+
+      <section class="kb-panel">
+        <div class="kb-panel-head"><h2>Einträge</h2><span class="hint">{{ entries | length }} {{ "Eintrag" if entries | length == 1 else "Einträge" }}, nach Art</span></div>
+        {% if entries %}
+        <div class="kb-groups">
+          {% for k, label, items in grouped if items %}
+          <div class="kb-group t-{{ k }}"><h3><i></i>{{ label }}</h3>{% for e in items %}{{ entry_card(e, topic.id) }}{% endfor %}</div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="hint">Noch nichts eingetragen. Oben einfach reinschreiben, es landet bei {{ topic.name }}.</p>
+        {% endif %}
+      </section>
+
+      {% if graph %}
+      <section class="kb-panel">
+        <div class="kb-panel-head"><h2>Verknüpfungen</h2><span class="hint">über gemeinsame Einträge · Klick öffnet den Steckbrief</span></div>
+        {% set g = graph %}
+        <svg class="kb-graph" viewBox="0 0 {{ g.w }} {{ g.h }}" role="img" aria-label="Verknüpfungen von {{ topic.name }}">
+          {% for n in g.nodes %}<line x1="{{ g.cx }}" y1="{{ g.cy }}" x2="{{ n.x }}" y2="{{ n.y }}" class="l-{{ n.kind }}"/>{% endfor %}
+          {% for n in g.nodes %}
+          <a href="/wissen/{{ n.id }}" class="kb-gnode"><g transform="translate({{ n.x }},{{ n.y }})">
+            <rect x="{{ -n.w / 2 }}" y="-21" width="{{ n.w }}" height="42" rx="8"/>
+            <text y="-3" text-anchor="middle">{{ n.name | truncate(26, true, "…") }}</text>
+            <text y="13" text-anchor="middle" class="sub">{{ n.sub }}</text></g></a>
+          {% endfor %}
+          <g class="kb-gnode center" transform="translate({{ g.cx }},{{ g.cy }})">
+            <rect x="{{ -g.center.w / 2 }}" y="-22" width="{{ g.center.w }}" height="44" rx="8"/>
+            <text y="-3" text-anchor="middle">{{ g.center.name | truncate(28, true, "…") }}</text>
+            <text y="13" text-anchor="middle" class="sub">{{ g.center.sub }}</text></g>
+        </svg>
+        <ul class="kb-graph-list">{% for n in g.nodes %}<li class="t-{{ n.kind }}"><a href="/wissen/{{ n.id }}">{{ n.name }}</a><small>{{ n.sub }}</small></li>{% endfor %}</ul>
+        <div class="kb-legend"><span class="l-bezug">Bezugsweg</span><span class="l-pflicht">Pflicht-Zubehör</span><span class="l-kalk">Kalkulation</span><span>sonstiges</span></div>
+      </section>
+      {% endif %}
+
+      {% if changes %}
+      <details class="kb-panel kb-changes">
+        <summary><h2>Verlauf</h2><span class="hint">wer hat wann was geändert</span></summary>
+        <ol>{% for c in changes %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {{ {"eintrag": "Eintrag", "angabe": "Angabe", "thema": "Name"}[c.object] }} {{ c.action }}{% if c.object == "angabe" and (c.after or c.before) %}: {{ c.after or c.before }}{% endif %}</li>{% endfor %}</ol>
+      </details>
+      {% endif %}
+
+    {% else %}
+      {% if stale %}
+      <section class="kb-panel kb-attention">
+        <div class="kb-panel-head"><h2>Bitte prüfen</h2><span class="hint">seit über einem Jahr nicht bestätigt</span></div>
+        <div class="kb-list">{% for e in stale %}{{ entry_card(e) }}{% endfor %}</div>
+      </section>
+      {% endif %}
+      <section class="kb-panel">
+        <div class="kb-panel-head"><h2>Zuletzt geändert</h2><span class="hint">bei Herstellern und Gruppen, denen du folgst</span></div>
+        {% if recent %}
+        <div class="kb-list">
+          {% for e in recent %}
+          <div class="kb-recent">
+            <div class="kb-chips">{% for t in e.topic_ids if t in by_id %}<a class="kb-chip strong" href="/wissen/{{ t }}#e{{ e.id }}">{{ by_id[t].name }}</a>{% endfor %}<span class="kb-typetag t-{{ e.type }}">{{ types[e.type] }}</span></div>
+            {{ entry_card(e, chips=false) }}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state"><div class="dot info">{{ icon("book", 22) }}</div>
+          Noch keine Einträge. Oben einfach reinschreiben, z. B. „Nordic Lights Mindestbestellmenge 36 Stück“.
+          Hersteller aus euren Preislisten werden erkannt; Artikelgruppen links anlegen.</div>
+        {% endif %}
+      </section>
+    {% endif %}
+    </main>
+  </div>
+</div>
+<script src="/static/knowledge.js"></script>
+{% endblock %}

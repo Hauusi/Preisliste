@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Suche{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/wissen">Herstellerwissen</a></div>
+    <h1>Suche</h1>
+  </div>
+</div>
+<form method="get" action="/wissen/suche" class="dsl-search" role="search">
+  <span class="dsl-search-icon">{{ icon("search", 18) }}</span>
+  <input type="search" name="q" value="{{ q }}" maxlength="80" placeholder="Hersteller, Artikelgruppe oder Stichwort" aria-label="Suchen" autofocus>
+  <button type="submit" class="secondary">Suchen</button>
+</form>
+<section class="card">
+  {% if hits %}
+  <ul class="kb-hits">{% for h in hits %}<li><a href="{{ h.url }}"><b>{{ h.title }}</b><small>{{ h.sub }}</small></a></li>{% endfor %}</ul>
+  {% elif q %}
+  <p class="hint">Nichts zu „{{ q }}“ gefunden. Hersteller und Gruppen, denen du nicht folgst, werden nicht durchsucht.</p>
+  {% else %}
+  <p class="hint">Suchbegriff eingeben.</p>
+  {% endif %}
+</section>
+{% endblock %}

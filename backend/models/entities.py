@@ -508,3 +508,81 @@ class DatasheetExample(Base):
     profile: Mapped[dict] = mapped_column(JSON, default=dict)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_datasheet_examples_user"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------- Herstellerwissen: gemeinsames Wissen zu Herstellern und Artikelgruppen ----------
+
+class KbTopic(Base):
+    """Hersteller oder Artikelgruppe im Herstellerwissen. Gemeinsam für alle Benutzer (anders als die Hersteller der
+    Preisliste, die jeder selbst pflegt; diese werden über Name/Alias zugeordnet)."""
+
+    __tablename__ = "kb_topics"
+    __table_args__ = (UniqueConstraint("kind", "key", name="uq_kb_topics_kind_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # hersteller | gruppe
+    name: Mapped[str] = mapped_column(String(120))
+    key: Mapped[str] = mapped_column(String(120))  # Name normalisiert (Kleinbuchstaben, ohne Sonderzeichen)
+    aliases: Mapped[list] = mapped_column(JSON, default=list)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_created_by"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_updated_by"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class KbFact(Base):
+    """Feste Angabe im Steckbrief (z. B. Mindestbestellmenge: 36 Stück)."""
+
+    __tablename__ = "kb_facts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("kb_topics.id", ondelete="CASCADE", name="fk_kb_facts_topic"), index=True)
+    label: Mapped[str] = mapped_column(String(60))
+    value: Mapped[str] = mapped_column(String(200))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_facts_updated_by"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class KbEntry(Base):
+    """Eintrag: Hinweis, Kalkulation, Pflicht-Zubehör, Bezugsweg, Lieferzeit. Gehört zu einem oder mehreren Themen."""
+
+    __tablename__ = "kb_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)
+    original: Mapped[str | None] = mapped_column(Text)  # so eingetippt
+    private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_author"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_updated_by"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    checked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_checked_by"))
+    checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    topic_ids: Mapped[list] = mapped_column(JSON, default=list)  # zugehörige Themen (kb_topics.id)
+
+
+class KbUnfollow(Base):
+    """Thema, dem ein Benutzer nicht folgt (Standard: allen folgen)."""
+
+    __tablename__ = "kb_unfollow"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE", name="fk_kb_unfollow_user"), primary_key=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("kb_topics.id", ondelete="CASCADE", name="fk_kb_unfollow_topic"), primary_key=True)
+
+
+class KbChange(Base):
+    """Verlauf: wer hat wann was geändert (Einträge, Angaben, Themen)."""
+
+    __tablename__ = "kb_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    object: Mapped[str] = mapped_column(String(16))  # eintrag | angabe | thema
+    object_id: Mapped[int] = mapped_column(Integer, index=True)
+    topic_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_changes_user"))
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    action: Mapped[str] = mapped_column(String(16))  # angelegt | geändert | geprüft | gelöscht
+    before: Mapped[str | None] = mapped_column(Text)
+    after: Mapped[str | None] = mapped_column(Text)

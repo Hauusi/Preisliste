@@ -85,3 +85,17 @@ def _color_word(text, farben):
 
 templates.env.filters["color_dot"] = _color_dot
 templates.env.globals["color_word"] = _color_word
+
+
+def _fromjson(value):
+    """JSON-Text (z. B. Verlauf im Herstellerwissen) lesen; Ungültiges ergibt ein leeres Objekt."""
+    import json
+
+    try:
+        data = json.loads(value or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+templates.env.filters["fromjson"] = _fromjson

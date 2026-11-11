@@ -93,6 +93,13 @@ def clear_data(settings, everything: bool = False, rules: bool = False) -> tuple
             db.execute(delete(e.Datasheet).where(e.Datasheet.id.in_(gone_sheets)))
             db.execute(delete(e.UserSession).where(e.UserSession.user_id.in_(others)))
             db.execute(update(e.AuditLog).where(e.AuditLog.user_id.in_(others)).values(user_id=None))
+            # Herstellerwissen gehört allen und bleibt; private Einträge der Gelöschten gehen mit, Namen werden leer
+            db.execute(delete(e.KbEntry).where(e.KbEntry.private.is_(True), e.KbEntry.author_id.in_(others)))
+            db.execute(delete(e.KbUnfollow).where(e.KbUnfollow.user_id.in_(others)))
+            for model, cols in ((e.KbEntry, ("author_id", "updated_by", "checked_by")), (e.KbFact, ("updated_by",)),
+                                (e.KbTopic, ("created_by", "updated_by")), (e.KbChange, ("user_id",))):
+                for col in cols:
+                    db.execute(update(model).where(getattr(model, col).in_(others)).values({col: None}))
             db.execute(delete(e.User).where(e.User.role != "admin"))
             db.execute(delete(e.Setting))
         elif not rules:

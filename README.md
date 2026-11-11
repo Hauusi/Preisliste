@@ -60,9 +60,19 @@ und Design-Vorlagen (eure fertigen PDFs; das Tool liest Bild-Platzierung und Tex
 Fertige Datenblätter gibt Marketing oder der Admin frei; sie stehen dann für alle Benutzer in einer gemeinsamen Liste (mit Suche nach
 Artikelnummer). Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
+## Herstellerwissen (Sales Assistant → Herstellerwissen)
+
+Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
+Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen
+Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
+Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.
+Alle dürfen ändern, jede Änderung mit Name und Zeitpunkt; private Einträge möglich; Suche mit Strg+K. Details:
+`docs/HANDBUCH.md`, Abschnitt 12.
+
 ## Benutzer und Sichtbarkeit
 
-Jeder Benutzer sieht nur seine eigenen Hersteller, Regeln, Preislisten, Abgleiche und Vergleiche und pflegt sie
+Ausnahmen: freigegebene Datenblätter und das Herstellerwissen sind gemeinsam (dort erscheinen die Namen der Hersteller
+aller Benutzer). Sonst gilt: Jeder Benutzer sieht nur seine eigenen Hersteller, Regeln, Preislisten, Abgleiche und Vergleiche und pflegt sie
 selbst. Name und Kürzel eines Herstellers sind pro Benutzer eindeutig (zwei Benutzer dürfen je einen „Strand“
 haben). Administratoren sehen und bearbeiten alles, mit Benutzerspalte in den Übersichten. Fremde Inhalte
 werden wie nicht vorhanden behandelt (404). Benutzer anlegen: Seite „Benutzer“ (nur Administratoren).
