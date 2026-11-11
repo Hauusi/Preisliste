@@ -21,8 +21,9 @@ zuletzt die Technik für Entwickler (Teil C). Wer nur damit arbeitet, braucht Te
   - [9. Regeln, Kalkulationen, Vergleiche](#9-regeln-kalkulationen-vergleiche)
   - [10. KI-Funktionen](#10-ki-funktionen)
   - [11. Modul Datenblatt erstellen](#11-modul-datenblatt-erstellen)
-  - [12. Verwaltung (Administratoren)](#12-verwaltung-administratoren)
-  - [13. Häufige Fragen und Fehlerbilder](#13-häufige-fragen-und-fehlerbilder)
+  - [12. Modul Herstellerwissen](#12-modul-herstellerwissen)
+  - [13. Verwaltung (Administratoren)](#13-verwaltung-administratoren)
+  - [14. Häufige Fragen und Fehlerbilder](#14-häufige-fragen-und-fehlerbilder)
 - [Teil B – Betrieb](#teil-b--betrieb)
 - [Teil C – Technik](#teil-c--technik)
 - [Glossar](#glossar)
@@ -40,6 +41,7 @@ Nach der Anmeldung erscheint die Startseite mit Kacheln:
 |---|---|
 | **Preisliste** | Herstellerlisten einspielen, EK/VK kalkulieren, Jahresabgleich prüfen, Excel exportieren |
 | **Datenblatt erstellen** | Produktdatenblätter im festen Firmenlayout Schritt für Schritt erstellen, als PDF speichern |
+| **Herstellerwissen** | Wissen zu Herstellern und Artikelgruppen (Mindestmengen, Bezugswege, Kalkulationshinweise, Pflicht-Zubehör) für alle eintragen und schnell finden |
 | **Weitere Tools** | Platzhalter für künftige Module |
 | **Verwaltung** | nur Administratoren: Benutzer, Passwörter, Protokoll |
 
@@ -460,7 +462,63 @@ automatisch in Bausteine übernommen. **Schrift:** Myriad Pro, falls auf dem Rec
 **Source Sans 3** (Adobe, gleiche Schriftfamilie, freie Lizenz SIL OFL 1.1) – damit sieht das Blatt auf jedem Rechner
 gleich aus und die Seitenaufteilung stimmt.
 
-## 12. Verwaltung (Administratoren)
+## 12. Modul Herstellerwissen
+
+Startseite → **Herstellerwissen**. Gemeinsames Wissen, das sonst nur in Köpfen steckt: „Nordic Lights hat eine
+Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
+„dieser Scheinwerfer braucht unbedingt den Montageadapter“.
+
+**Themen:** links die **Hersteller** und **Artikelgruppen**. Die Herstellerliste ist **gemeinsam für alle**: Jeder
+Hersteller aus den Preislisten aller Benutzer steht automatisch einmal darin (gleicher Name oder Alias = derselbe
+Hersteller, Schreibweise wie „Nordic-Lights“/„nordic lights“ egal). Im Steckbrief steht dann „In deiner Preisliste:
+Nordic Lights (NL)“ mit Link. Weitere Hersteller und Artikelgruppen links über „+ Hersteller oder Artikelgruppe“
+anlegen, mit **anderen Schreibweisen** (z. B. Lichtbalken, Warnbalken), damit sie im Text erkannt werden.
+
+**Folgen:** Schalter neben jedem Thema. Standard: allem folgen. Was man ausschaltet, verschwindet aus der eigenen
+Übersicht und Suche; für die anderen bleibt alles da. Beispiel: Michi verkauft nur Fahrzeugtechnik und schaltet alle
+anderen Hersteller aus.
+
+**Eintragen:** oben in das Feld einfach so schreiben, wie man denkt, z. B. „nordic moq 36 stk“. Noch beim Tippen zeigt
+das Tool (ohne KI, mit festen Regeln):
+
+- die **Art**: Bezugsweg / Bedingung (Mindestmenge, „bestellen über“, Lagerartikel), Kalkulation (Aufschlag, Faktor,
+  „mehr kalkulieren“, %), Pflicht-Zubehör („braucht“, „unbedingt“, „nur mit“), Lieferzeit / Kontakt, sonst Hinweis.
+  Anklicken ändert sie.
+- **Gehört zu**: alle Hersteller und Gruppen, deren Name oder Schreibweise im Text vorkommt; mit × entfernen, mit
+  „+ zuordnen“ ergänzen. Wird nichts erkannt, gehört der Eintrag zum gerade geöffneten Steckbrief; auf der Übersicht
+  muss man dann selbst zuordnen.
+- **Wird gespeichert als**: einheitliche Schreibweise – Herstellername wie im Steckbrief, Abkürzungen ausgeschrieben
+  (stk → Stück, moq → Mindestbestellmenge, mind. → mindestens, zb → z. B.), bekannte Artikelgruppen groß, Zahl und
+  Einheit getrennt (1,80m → 1,80 m), großer Satzanfang, Punkt am Ende. Zahlen bleiben unverändert. Das Original
+  bleibt im Verlauf („So eingetippt“).
+
+Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller sieht.
+
+**Steckbrief** eines Herstellers oder einer Gruppe:
+
+- **Angaben** oben: feste Kurzinfos wie Mindestbestellmenge, Lieferzeit, Ansprechpartner, Bezug kleiner Mengen
+  („+ Angabe“, Bleistift ändert, leerer Wert entfernt). Unter jeder Angabe steht, wer sie wann zuletzt geändert hat.
+- **Einträge** nach Art gruppiert (Farbe je Art). Jeder Eintrag zeigt Ersteller und Zeitpunkt, nach Änderungen
+  „geändert von … am …“, und die anderen zugeordneten Themen als Links. **Bearbeiten** dürfen alle (Text, Art,
+  Zuordnung); privat schalten nur der Ersteller. **Verlauf** zeigt jede Änderung mit Name, Zeitpunkt und dem Text
+  davor. Löschen mit Bestätigung; im Verlauf bleibt vermerkt, wer wann gelöscht hat.
+- **Verknüpfungen**: Bild mit allen Herstellern und Gruppen, die über gemeinsame Einträge verbunden sind (Linie nach
+  der wichtigsten Art: Pflicht-Zubehör gestrichelt orange, Bezugsweg, Kalkulation). Klick öffnet den Steckbrief.
+  Auf dem Handy als Liste.
+- **Verlauf** unten: die letzten Änderungen an diesem Thema.
+
+**Kalkulationshinweise** sind Information und frei änderbar; sie rechnen nicht in der Preisliste mit.
+
+**Bitte prüfen:** Einträge, die seit über einem Jahr niemand bestätigt hat, sind orange markiert und stehen auf der
+Übersicht unter „Bitte prüfen“. „stimmt noch“ bestätigt sie (mit Name und Datum), Bearbeiten ebenfalls.
+
+**Suche:** Feld oben rechts oder **Strg+K**. Findet Hersteller, Gruppen (auch über andere Schreibweisen), Angaben und
+Einträge (auch den ursprünglich eingetippten Text), nur bei Themen, denen man folgt. Pfeiltasten + Enter öffnen den
+Treffer; Enter ohne Auswahl öffnet die ausführliche Trefferliste.
+
+**Übersicht** ohne gewähltes Thema: „Zuletzt geändert“ bei allem, dem man folgt, und „Bitte prüfen“.
+
+## 13. Verwaltung (Administratoren)
 
 - **Benutzer:** anlegen (Rolle Benutzer, Marketing oder Administrator, Passwort ≥ 12 Zeichen), Rolle ändern (der
   Betroffene wird abgemeldet; die eigene Admin-Rolle kann man sich nicht nehmen), deaktivieren/aktivieren
@@ -471,7 +529,7 @@ gleich aus und die Seitenaufteilung stimmt.
 - Administratoren sehen in allen Übersichten eine Spalte „Benutzer“ und können fremde Daten bearbeiten. Übernimmt
   ein Administrator den Abgleich eines Benutzers, gehört die neue Liste weiterhin dem Benutzer.
 
-## 13. Häufige Fragen und Fehlerbilder
+## 14. Häufige Fragen und Fehlerbilder
 
 | Frage / Bild | Antwort |
 |---|---|
@@ -557,6 +615,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes` | Herstellerwissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen), Angaben im Steckbrief, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

@@ -4,7 +4,7 @@
 {% block content %}
 <section class="portal-hero">
   <h1>Hallo {{ user.username }}</h1>
-  <p>Preislisten abgleichen oder ein Datenblatt erstellen.</p>
+  <p>Preislisten abgleichen, Datenblätter erstellen, Herstellerwissen nachschlagen.</p>
 </section>
 
 <div class="tiles">
@@ -23,6 +23,13 @@
     <h2>Datenblatt erstellen</h2>
     <p>Produktdatenblätter im Firmenlayout mit Live-Vorschau erstellen und als PDF speichern.</p>
     <div class="tile-meta"><span class="badge">{{ stats.datasheets }} {{ "Datenblatt" if stats.datasheets == 1 else "Datenblätter" }}</span></div>
+    <span class="tile-go">Öffnen</span>
+  </a>
+  <a class="tile tile-active" href="/wissen">
+    <span class="tile-icon">{{ icon("book", 28) }}</span>
+    <h2>Herstellerwissen</h2>
+    <p>Mindestmengen, Bezugswege, Kalkulationshinweise und Pflicht-Zubehör zu Herstellern und Artikelgruppen.</p>
+    <div class="tile-meta"><span class="badge">{{ stats.knowledge }} {{ "Eintrag" if stats.knowledge == 1 else "Einträge" }}</span></div>
     <span class="tile-go">Öffnen</span>
   </a>
   <div class="tile tile-soon" aria-disabled="true">

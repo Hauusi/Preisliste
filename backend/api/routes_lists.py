@@ -43,6 +43,12 @@ def query_articles(db: Session, list_id: int, status: str | None, q: str | None,
     return rows, info
 
 
+def _knowledge_count(db: Session, user: User) -> int:
+    from backend.services import knowledge as kb
+
+    return db.scalar(select(func.count()).select_from(kb.visible_entries(db, user).subquery()))
+
+
 @router.get("/")
 def portal(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Startseite des Sales Assistant: Kacheln für die einzelnen Werkzeuge."""
@@ -56,6 +62,7 @@ def portal(request: Request, db: Session = Depends(get_db), user: User = Depends
             visible(select(Manufacturer.id), Manufacturer, user).subquery())),
         "datasheets": db.scalar(select(func.count()).select_from(
             visible(select(Datasheet.id), Datasheet, user).subquery())),
+        "knowledge": _knowledge_count(db, user),
     }
     return render(request, "portal.html", {"portal": True, "stats": stats})
 
