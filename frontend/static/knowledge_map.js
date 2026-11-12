@@ -335,14 +335,16 @@
     g.label.setAttribute("text-anchor", "middle");
   }
   // Auswahl: Nachbarn hervorheben und der Seite Bescheid geben (Infofenster rechts lädt die Infos)
-  function select(n, quiet) {
+  // Mit zweitem Thema (Hersteller × Artikelgruppe): nur diese beiden und ihre Verbindung hervorheben
+  function select(n, quiet, second) {
     selected = n;
     svg.classList.toggle("focus", !!n);
     var near = {};
-    if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
-    nodes.forEach(function (x) { x.g.classList.toggle("hi", !!n && !!near[x.id]); x.g.classList.toggle("sel", !!n && x === n); });
+    if (n && second) { near[n.id] = near[second.id] = true; }
+    else if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
+    nodes.forEach(function (x) { x.g.classList.toggle("hi", !!n && !!near[x.id]); x.g.classList.toggle("sel", !!n && (x === n || x === second)); });
     edges.forEach(function (e) {
-      var on = !!n && (e.a === n.id || e.b === n.id);
+      var on = !!n && (second ? near[e.a] && near[e.b] : e.a === n.id || e.b === n.id);
       e.line.classList.toggle("hi", on);
       if (e.text) { e.text.classList.toggle("hi", on); }
     });
@@ -592,7 +594,7 @@
   if (groupBox) { groupBox.addEventListener("change", function () { if (groupLayer) { groupLayer.style.display = showGroups() ? "" : "none"; } }); }
   window.addEventListener("resize", function () { if (box.clientWidth) { fit(); } });
   window.kbMap = {
-    select: function (id) { var n = byId[id]; select(n || null, true); if (n && box.clientWidth) { show(n); } },
+    select: function (id, second) { var n = byId[id]; select(n || null, true, byId[second] || null); if (n && box.clientWidth) { show(n); } },
     show: function () { fit(); },  // Karte war verborgen (Reiter „Karte“): jetzt Größe kennen und einpassen
     reload: function (id) { if (data) { reload(id); } }
   };
@@ -602,7 +604,7 @@
     .then(function (d) {
       data = d; build();
       var pre = document.querySelector("[data-kb-detail] [data-panel]");  // per Link geöffnet (?t=…): gleich markieren
-      if (pre && byId[pre.getAttribute("data-panel")]) { window.kbMap.select(+pre.getAttribute("data-panel")); }
+      if (pre && byId[pre.getAttribute("data-panel")]) { window.kbMap.select(+pre.getAttribute("data-panel"), +pre.getAttribute("data-g") || null); }
     })
     .catch(function () { empty.textContent = "Karte konnte nicht geladen werden. Seite neu laden."; empty.hidden = false; });
 })();

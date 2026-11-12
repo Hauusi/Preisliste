@@ -142,7 +142,6 @@
       </div>
       <div class="kb-list-scroll">
         <h2>Hersteller <small>{{ side_rows | length }}</small></h2>
-        <p class="kb-rel-hint" data-rel-hint hidden></p>
         <ul class="kb-rows" data-list data-kind="hersteller">
         {% for t, depth, color in side_rows %}
           <li class="{{ 'child' if depth }}{{ ' grp c%d' % color if color is not none }}{{ ' off' if t.id in hidden }}{{ ' active' if sel_f and sel_f.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">
@@ -208,7 +207,6 @@
       </div>
       <div class="kb-list-scroll">
         <h2>Artikelgruppen <small>{{ topics | selectattr("kind", "equalto", "gruppe") | list | length }}</small></h2>
-        <p class="kb-rel-hint" data-rel-hint hidden></p>
         <ul class="kb-rows" data-list data-kind="gruppe">
         {% for t in topics if t.kind == "gruppe" %}
           <li class="{{ 'off' if t.id in hidden }}{{ ' active' if sel_g and sel_g.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">

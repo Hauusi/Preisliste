@@ -43,14 +43,24 @@
     </div>
     <a class="icon-btn" href="/wissen" data-panel-close title="Schließen" aria-label="Auswahl aufheben">{{ icon("x", 18) }}</a>
   </header>
+  {# Verbindung grafisch: Hersteller ── führt ── Artikelgruppe #}
+  <div class="kb-link {{ 'on' if assigned else 'off' }}" role="img"
+       aria-label="{{ f.name ~ ' führt ' ~ g.name if assigned else f.name ~ ' und ' ~ g.name ~ ': nicht zugeordnet' }}">
+    <a class="kb-link-node maker" href="/wissen?t={{ f.id }}" data-only="{{ f.id }}"><small>Hersteller</small><b>{{ f.name }}</b></a>
+    <div class="kb-link-wire">
+      <span class="kb-link-label">{{ "führt" if assigned else "nicht zugeordnet" }}</span>
+      <i></i>
+      <span class="kb-link-sub">{{ P.mine | length }} Artikel · {{ P.entries | length }} {{ "Eintrag" if P.entries | length == 1 else "Einträge" }}{% if P.pflicht %} · Pflicht-Zubehör{% endif %}</span>
+    </div>
+    <a class="kb-link-node group" href="/wissen?t={{ g.id }}" data-only="{{ g.id }}"><small>Artikelgruppe</small><b>{{ g.name }}</b></a>
+  </div>
   <div class="kb-d-bar">
     <a class="button secondary" href="/wissen?t={{ f.id }}" data-only="{{ f.id }}">Alles zu {{ f.name }}</a>
     <a class="button secondary" href="/wissen?t={{ g.id }}" data-only="{{ g.id }}">Alles zu {{ g.name }}</a>
     <form method="post" action="/wissen/sortiment" class="inline kb-d-asg" data-panel-form>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ back }}">
       <input type="hidden" name="hersteller" value="{{ f.id }}"><input type="hidden" name="gruppe" value="{{ g.id }}">
-      {% if assigned %}<span class="kb-d-ok">{{ icon("check", 15) }} {{ f.name }} führt {{ g.name }}</span>
-        <input type="hidden" name="aktion" value="entfernen"><button type="submit" class="link">Zuordnung lösen</button>
+      {% if assigned %}<input type="hidden" name="aktion" value="entfernen"><button type="submit" class="link">Zuordnung lösen</button>
       {% else %}<button type="submit">{{ icon("plus", 15) }} {{ g.name }} zu {{ f.name }} hinzufügen</button>{% endif %}
     </form>
   </div>

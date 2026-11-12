@@ -1371,3 +1371,35 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .kb-d-asg { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
 .kb-d-asg button[type=submit]:not(.link) { padding: 6px 12px; font-size: .88rem; }
 .kb-d-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-weight: 600; font-size: .9rem; }
+
+/* Verbindung Hersteller × Artikelgruppe (nur wenn beide gewählt) */
+.kb-link { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 1.2fr) minmax(0, 1fr); align-items: center; gap: 0;
+  padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.kb-link-node { display: grid; gap: 1px; padding: 10px 14px; border-radius: var(--radius); border: 2px solid var(--accent); background: var(--surface);
+  color: var(--fg); text-decoration: none; min-width: 0; text-align: center; }
+.kb-link-node.group { border-color: var(--ok); }
+.kb-link-node small { color: var(--muted); font-size: .76rem; }
+.kb-link-node b { font-family: var(--font-display); font-size: 1.15rem; overflow-wrap: anywhere; }
+.kb-link-node:hover { background: var(--accent-soft); }
+.kb-link-wire { display: grid; justify-items: center; gap: 4px; padding: 0 6px; }
+.kb-link-wire i { display: block; width: 100%; border-top: 3px solid var(--accent); position: relative; }
+.kb-link-wire i::before, .kb-link-wire i::after { content: ""; position: absolute; top: -6px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.kb-link-wire i::before { left: -4px; } .kb-link-wire i::after { right: -4px; background: var(--ok); }
+.kb-link-label { font-weight: 700; font-size: .86rem; color: var(--accent); }
+.kb-link-sub { font-size: .78rem; color: var(--muted); text-align: center; }
+.kb-link.off .kb-link-wire i { border-top-style: dashed; border-color: var(--line-2); }
+.kb-link.off .kb-link-wire i::before, .kb-link.off .kb-link-wire i::after { background: var(--line-2); }
+.kb-link.off .kb-link-label { color: var(--muted); font-weight: 600; }
+.kb-link.off .kb-link-node { border-style: dashed; }
+.kb-link.on { animation: kb-link-in .35s ease-out; }
+@keyframes kb-link-in { from { opacity: .3; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kb-link.on { animation: none; } }
+/* Beide Listen: gewählte Zeile bei Hersteller × Gruppe als Verbindungsende kennzeichnen */
+.kb-list.paired li.active > a { box-shadow: inset -4px 0 0 var(--ok); }
+.kb-list[data-side="gruppe"].paired li.active > a { box-shadow: inset 4px 0 0 var(--accent); }
+@media (max-width: 600px) {
+  .kb-link { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px; }
+  .kb-link-wire i { width: 3px; height: 26px; border-top: 0; border-left: 3px solid var(--accent); }
+  .kb-link.off .kb-link-wire i { border-left-style: dashed; border-color: var(--line-2); }
+  .kb-link-wire i::before, .kb-link-wire i::after { display: none; }
+}

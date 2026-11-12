@@ -569,9 +569,10 @@ def test_assortment_assign_groups_to_maker(user_client):
     u.post(f"/wissen/{red}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "3 Wochen"})
     _entry(u, "Redtronic Preise netto ab Werk", themen=[red])
     frag = u.get(f"/wissen/kombi?f={red}&g={balken}").text
-    assert "Redtronic führt Leuchtbalken" in frag and "Zuordnung lösen" in frag
+    assert 'class="kb-link on"' in frag and 'aria-label="Redtronic führt Leuchtbalken"' in frag and "Zuordnung lösen" in frag
     assert "Gilt für alles von Redtronic" in frag and "3 Wochen" in frag and "netto ab Werk" in frag
-    assert "Rundumleuchten zu Redtronic hinzufügen" in u.get(f"/wissen/kombi?f={red}&g={rund}").text
+    frag = u.get(f"/wissen/kombi?f={red}&g={rund}").text
+    assert "Rundumleuchten zu Redtronic hinzufügen" in frag and 'class="kb-link off"' in frag and "nicht zugeordnet" in frag
 
     # Karte: Linie Hersteller–Gruppe auch ohne Artikel im Vergleich
     edges = u.get("/api/wissen/karte").json()["edges"]

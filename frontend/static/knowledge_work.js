@@ -14,57 +14,21 @@
     var p = detail.querySelector("[data-panel]");
     state.f = p ? num(p.getAttribute("data-f")) : null;
     state.g = p ? num(p.getAttribute("data-g")) : null;
-    mark(p);
+    mark();
   }
   // Listen: Auswahl markieren, Passendes hervorheben und nach oben holen
-  function mark(p) {
-    function ids(attr) { return (p.getAttribute(attr) || "").split(",").filter(Boolean).map(Number); }
-    var rel = { gruppe: p && state.f ? ids("data-rel-f") : null, hersteller: p && state.g ? ids("data-rel-g") : null };
-    var fest = { gruppe: p && state.f ? ids("data-asg-f") : [], hersteller: p && state.g ? ids("data-asg-g") : [] };
+  // Listen: nur die eigene Auswahl markieren (keine Dauer-Hervorhebung); die Verbindung zeigt die Mitte,
+  // sobald Hersteller und Artikelgruppe gewählt sind
+  function mark() {
     document.querySelectorAll("[data-list]").forEach(function (ul) {
-      var kind = ul.getAttribute("data-kind"), sel = kind === "hersteller" ? state.f : state.g, r = rel[kind];
-      ul.classList.toggle("has-rel", !!r);
+      var sel = ul.getAttribute("data-kind") === "hersteller" ? state.f : state.g;
       ul.querySelectorAll("li").forEach(function (li) {
-        var id = +li.querySelector("[data-pick]").getAttribute("data-pick");
-        li.classList.toggle("active", id === sel);
-        li.classList.toggle("rel", !!r && r.indexOf(id) >= 0);
-        li.classList.toggle("fest", fest[kind].indexOf(id) >= 0);
-        addButton(li, kind, id, r ? (kind === "gruppe" ? state.f : state.g) : null);
+        li.classList.toggle("active", +li.querySelector("[data-pick]").getAttribute("data-pick") === sel);
       });
-      var hint = ul.parentNode.querySelector("[data-rel-hint]"), other = kind === "hersteller" ? state.g : state.f;
-      if (hint) {
-        hint.hidden = !r;
-        if (r) {
-          var name = (document.querySelector('[data-list] [data-pick="' + other + '"] span') || {}).textContent || "";
-          hint.textContent = fest[kind].length ? "Oben: zu " + name + " zugeordnet · + ordnet weitere zu"
-            : r.length ? "Hervorgehoben: mit Infos zu " + name + " · + ordnet fest zu"
-            : "Noch nichts zu " + name + " · + ordnet zu";
-        }
-      }
     });
-  }
-  // „+“ in der Zeile: Artikelgruppe dem gewählten Hersteller zuordnen (bzw. umgekehrt), ohne Seitenwechsel
-  var csrf = root.getAttribute("data-csrf") || "";
-  function addButton(li, kind, id, other) {
-    var b = li.querySelector(".kb-row-add");
-    if (!other || li.classList.contains("fest")) { if (b) { b.hidden = true; } return; }
-    if (!b) {
-      b = document.createElement("button"); b.type = "button"; b.className = "kb-row-add"; b.textContent = "+";
-      li.appendChild(b);
-      b.addEventListener("click", function () {
-        var maker = kind === "gruppe" ? b.dataset.other : b.dataset.id, group = kind === "gruppe" ? b.dataset.id : b.dataset.other;
-        var body = new URLSearchParams({ csrf_token: csrf, hersteller: maker, gruppe: group });
-        b.disabled = true;
-        fetch("/wissen/sortiment", { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
-          .then(function () { b.disabled = false; return load({ fromMap: true, keepScroll: true }); })
-          .then(function () { if (window.kbMap) { window.kbMap.reload(state.f || state.g); } });
-      });
-    }
-    var oname = (document.querySelector('[data-list] [data-pick="' + other + '"] span') || {}).textContent || "";
-    var name = li.querySelector("span").textContent;
-    b.dataset.id = id; b.dataset.other = other; b.hidden = false;
-    b.title = kind === "gruppe" ? name + " zu " + oname + " hinzufügen" : oname + " zu " + name + " hinzufügen";
-    b.setAttribute("aria-label", b.title);
+    document.querySelectorAll("[data-side]").forEach(function (side) {
+      side.classList.toggle("paired", !!(state.f && state.g));
+    });
   }
   function url() {
     if (state.f && state.g) { return "/wissen?f=" + state.f + "&g=" + state.g; }
@@ -85,7 +49,7 @@
         detail.scrollTop = opts.keepScroll ? top : 0;
         readPanel();
         try { history.replaceState(null, "", url()); } catch (e) { /* egal */ }
-        if (!opts.fromMap && window.kbMap) { window.kbMap.select(state.f || state.g); }
+        if (window.kbMap) { window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
         if (!opts.fromMap && !opts.keepScroll && window.innerWidth < 1100) { detail.scrollIntoView({ behavior: "smooth", block: "start" }); }
       })
       .catch(function () { if (my === seq) { location.href = url(); } });
@@ -118,7 +82,7 @@
   function showTab(name) {
     tabs.forEach(function (t) { t.setAttribute("aria-selected", t.getAttribute("data-tab") === name ? "true" : "false"); });
     document.querySelectorAll("[data-pane]").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== name; });
-    if (name === "karte" && window.kbMap) { window.kbMap.show(); window.kbMap.select(state.f || state.g); }
+    if (name === "karte" && window.kbMap) { window.kbMap.show(); window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
   }
   tabs.forEach(function (t) { t.addEventListener("click", function () { showTab(t.getAttribute("data-tab")); }); });
 
