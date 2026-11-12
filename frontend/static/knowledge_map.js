@@ -78,10 +78,21 @@
   function draw() {
     svg.textContent = "";
     var gEdges = el("g", { "class": "m-edges" }, svg), gNodes = el("g", { "class": "m-nodes" }, svg);
+    var defs = el("defs", {}, svg);
+    ["bezug", "pflicht"].forEach(function (t) {
+      var mk = el("marker", { id: "mk-" + t, viewBox: "0 0 10 10", refX: "10", refY: "5", markerWidth: "7", markerHeight: "7",
+                              orient: "auto-start-reverse", "class": "mk-" + t }, defs);
+      el("path", { d: "M0,0 L10,5 L0,10 z" }, mk);
+    });
+    svg.insertBefore(defs, gEdges);
+    var gLabels = el("g", { "class": "m-elabels" }, svg);
+    svg.insertBefore(gLabels, gNodes);
     infoLayer = el("g", { "class": "m-infos" }, svg);
     edges.forEach(function (e) {
       var cls = "m-edge e-" + e.type + (e.stage ? " s-" + e.stage : "");
       e.line = el("line", { "class": cls, "stroke-width": Math.min(1.5 + e.n * 0.8, 6) }, gEdges);
+      if (e.source && (e.type === "bezug" || e.type === "pflicht")) { e.line.setAttribute("marker-end", "url(#mk-" + e.type + ")"); }
+      if (e.label) { e.text = el("text", { "class": "m-elabel e-" + e.type, "text-anchor": "middle" }, gLabels); e.text.textContent = e.label; }
       var title = el("title", {}, e.line);
       title.textContent = byId[e.a].name + " – " + byId[e.b].name + ": " + LABEL[e.type] + (e.stage ? " (" + STAGE[e.stage] + ")" : "");
     });
@@ -107,7 +118,12 @@
   function place() {
     edges.forEach(function (e) {
       var a = byId[e.a], b = byId[e.b];
-      e.line.setAttribute("x1", a.x); e.line.setAttribute("y1", a.y); e.line.setAttribute("x2", b.x); e.line.setAttribute("y2", b.y);
+      if (e.source === e.b) { var t = a; a = b; b = t; }  // Richtung: von der Bedingung zum Ziel
+      // Pfeilspitze am Rand des Zielknotens enden lassen
+      var dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, cut = e.source ? (b.r || 12) + 4 : 0;
+      e.line.setAttribute("x1", a.x); e.line.setAttribute("y1", a.y);
+      e.line.setAttribute("x2", b.x - dx / d * cut); e.line.setAttribute("y2", b.y - dy / d * cut);
+      if (e.text) { e.text.setAttribute("x", ((a.x + b.x) / 2).toFixed(1)); e.text.setAttribute("y", ((a.y + b.y) / 2 - 5).toFixed(1)); }
     });
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
     if (selected) { drawInfos(selected); }
@@ -151,7 +167,13 @@
       });
       var title = el("title", {}, g); title.textContent = it.text + (it.stale ? " (bitte prüfen)" : "");
       var url = "/wissen/" + n.id + (it.entry ? "#e" + it.entry : it.type === "artikel" ? "#vergleich" : "#angaben");
-      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { link: url }; moved = false; });
+      var target = it.target && byId[it.target];
+      if (target) {
+        el("line", { x1: x, y1: y, x2: target.x, y2: target.y, "class": "m-info-target t-" + it.type }, infoLayer).parentNode.insertBefore(
+          infoLayer.lastChild, infoLayer.firstChild);
+        el("text", { x: (w - fs * 0.6).toFixed(1), y: (fs * 1.25).toFixed(1), "text-anchor": "end", "class": "m-info-go" }, g).textContent = "→";
+      }
+      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = target ? { jump: target } : { link: url }; moved = false; });
       g.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { location.href = url; } });
     });
     return bb;
@@ -177,7 +199,11 @@
     var near = {};
     if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
     nodes.forEach(function (x) { x.g.classList.toggle("hi", !!n && !!near[x.id]); x.g.classList.toggle("sel", !!n && x === n); });
-    edges.forEach(function (e) { e.line.classList.toggle("hi", !!n && (e.a === n.id || e.b === n.id)); });
+    edges.forEach(function (e) {
+      var on = !!n && (e.a === n.id || e.b === n.id);
+      e.line.classList.toggle("hi", on);
+      if (e.text) { e.text.classList.toggle("hi", on); }
+    });
     if (!n) { info.hidden = true; return; }
     info.textContent = "";
     var h = document.createElement("b"); h.textContent = n.name; info.appendChild(h);
@@ -270,7 +296,9 @@
   function endDrag() {
     if (drag && !moved) {
       if (drag.link) { location.href = drag.link; return; }
-      if (drag.pan) { select(null); }
+      if (drag.jump) { var j = drag.jump; drag = null; lastTap = { node: j, t: 0 }; select(j); return; }  // zur Gegenseite springen
+      if (drag.pan) { if (connect.on) { setConnect(true); } else { select(null); } }
+      else if (connect.on) { connectTap(drag.node); }
       else {
         var now = Date.now();
         if (lastTap.node === drag.node && now - lastTap.t < 400) { location.href = "/wissen/" + drag.node.id; return; }
@@ -282,6 +310,117 @@
     drag = null;
     moved = false;
   }
+  // ---------- Verbinden: erst Thema A antippen, dann B; kleines Fenster fragt, welche Verbindung ----------
+  var connect = { on: false, from: null }, connectBtn = document.querySelector("[data-map-connect]");
+  var csrf = (document.querySelector("[data-kb]") || {}).getAttribute ? document.querySelector("[data-kb]").getAttribute("data-csrf") : "";
+  var hint = document.createElement("p"); hint.className = "kb-connect-hint"; hint.hidden = true; box.appendChild(hint);
+  var dialog = document.createElement("form"); dialog.className = "kb-connect"; dialog.hidden = true; box.appendChild(dialog);
+  function setConnect(on) {
+    connect.on = on; connect.from = null;
+    if (connectBtn) { connectBtn.setAttribute("aria-pressed", on ? "true" : "false"); }
+    box.classList.toggle("connecting", on);
+    hint.hidden = !on; hint.textContent = "Verbinden: erstes Thema antippen (z. B. Nordic Lights)";
+    dialog.hidden = true;
+    nodes.forEach(function (x) { x.g.classList.remove("from"); });
+    if (on) { select(null); }
+  }
+  if (connectBtn) { connectBtn.addEventListener("click", function () { setConnect(!connect.on); }); }
+  function connectTap(n) {
+    if (!connect.from) {
+      connect.from = n; n.g.classList.add("from");
+      hint.textContent = n.name + " → jetzt das zweite Thema antippen (z. B. Riedfeld)";
+      return;
+    }
+    if (n === connect.from) { setConnect(true); return; }
+    openDialog(connect.from, n);
+  }
+  function field(label, input) {
+    var l = document.createElement("label"); l.appendChild(document.createTextNode(label)); l.appendChild(input); return l;
+  }
+  function input(attrs) { var i = document.createElement("input"); for (var k in attrs) { i.setAttribute(k, attrs[k]); } return i; }
+  function openDialog(a, b) {
+    hint.hidden = true;
+    dialog.textContent = "";
+    var head = document.createElement("div"); head.className = "kb-connect-head";
+    var title = document.createElement("b"); title.textContent = a.name + " → " + b.name;
+    var swap = document.createElement("button"); swap.type = "button"; swap.className = "link"; swap.textContent = "⇄ umdrehen";
+    swap.addEventListener("click", function () { openDialog(b, a); });
+    head.appendChild(title); head.appendChild(swap); dialog.appendChild(head);
+    function option(value, text, checked, extra) {
+      var row = document.createElement("label"); row.className = "kb-connect-opt";
+      var r = input({ type: "radio", name: "art", value: value }); if (checked) { r.checked = true; }
+      row.appendChild(r);
+      var span = document.createElement("span"); span.innerHTML = ""; text.forEach(function (part) {
+        if (typeof part === "string") { span.appendChild(document.createTextNode(part)); } else { span.appendChild(part); }
+      });
+      row.appendChild(span);
+      if (extra) { row.appendChild(extra); }
+      dialog.appendChild(row);
+      return r;
+    }
+    var moq = input({ type: "number", min: "1", max: "99999", name: "moq", value: a.moq || "", placeholder: "36", "aria-label": "Mindestbestellmenge" });
+    var qty = input({ type: "number", min: "1", max: "999", name: "menge", value: "1", "aria-label": "Stück" });
+    var note = input({ type: "text", name: "text", maxlength: "1000", placeholder: "z. B. gleiche Halter, austauschbar", "aria-label": "Hinweis" });
+    var bothMakers = a.kind === "hersteller" && b.kind === "hersteller";
+    option("bezug", ["Anfragen an " + a.name + " unter ", moq, " Stück gehen an " + b.name], bothMakers);
+    option("pflicht", [a.name + " braucht ", qty, " × " + b.name + " (Pflicht-Zubehör)"], !bothMakers);
+    option("hinweis", ["Hinweis zu beiden: "], false, note);
+    var err = document.createElement("p"); err.className = "kb-connect-err"; err.hidden = true; dialog.appendChild(err);
+    var row = document.createElement("div"); row.className = "kb-connect-actions";
+    var ok = document.createElement("button"); ok.type = "submit"; ok.textContent = "Verbinden";
+    var cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "secondary"; cancel.textContent = "Abbrechen";
+    cancel.addEventListener("click", function () { setConnect(true); });
+    row.appendChild(ok); row.appendChild(cancel); dialog.appendChild(row);
+    dialog.onsubmit = function (ev) {
+      ev.preventDefault();
+      var art = (dialog.querySelector("input[name=art]:checked") || {}).value, steps = [];
+      if (art === "bezug") {
+        if (moq.value && String(moq.value) !== String(a.moq || "")) { steps.push(["/wissen/" + a.id + "/feld/moq", { wert: moq.value }]); }
+        steps.push(["/wissen/" + a.id + "/feld/bezug_klein", { wert: b.id }]);
+      } else if (art === "pflicht") {
+        steps.push(["/wissen/" + a.id + "/feld/pflicht", { wert: b.id, menge: qty.value || 1 }]);
+      } else if (art === "hinweis") {
+        if (!note.value.trim()) { note.focus(); return; }
+        steps.push(["/wissen/eintrag", { text: note.value, themen: [a.id, b.id] }]);
+      } else { return; }
+      ok.disabled = true;
+      steps.reduce(function (chain, st) { return chain.then(function () { return send(st[0], st[1]); }); }, Promise.resolve())
+        .then(function () { setConnect(false); reload(a.id); })
+        .catch(function (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; });
+    };
+    dialog.hidden = false;
+    (moq.value ? dialog.querySelector("input[name=art]:checked") : moq).focus();
+  }
+  function send(url, values) {
+    var body = new URLSearchParams();
+    body.append("csrf_token", csrf);
+    Object.keys(values).forEach(function (k) {
+      [].concat(values[k]).forEach(function (v) { body.append(k, v); });
+    });
+    return fetch(url, { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
+      .then(function (r) {
+        var m = /[?&]fehler=([^&#]*)/.exec(r.url);
+        if (!r.ok) { throw new Error("Nicht gespeichert (Fehler " + r.status + ")"); }
+        if (m) { throw new Error(decodeURIComponent(m[1].replace(/\+/g, " "))); }
+      });
+  }
+  // Karte neu laden, Positionen behalten, gewähltes Thema wieder auswählen
+  function reload(selectId) {
+    fetch("/api/wissen/karte", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var old = {};
+        data.nodes.forEach(function (n) { old[n.id] = n; });
+        d.nodes.forEach(function (n) { var o = old[n.id]; if (o) { n.x = o.x; n.y = o.y; n.pinned = true; } });
+        data = d;
+        selected = null;
+        var keep = view;
+        build();
+        view = keep; applyView();
+        if (byId[selectId]) { select(byId[selectId]); }
+      });
+  }
+
   svg.addEventListener("pointerup", endDrag);
   svg.addEventListener("pointercancel", endDrag);
   svg.addEventListener("wheel", function (ev) {

@@ -478,7 +478,21 @@ Bezug über, Pflicht-Zubehör), erste Wahl im Artikelvergleich und die Einträge
 zuerst; höchstens 8). Die Ansicht schiebt sich so, dass alle Kärtchen sichtbar sind; Klick auf ein Kärtchen öffnet die
 Stelle im Steckbrief. **Nochmal auf den Kreis oder auf den Hintergrund klicken** blendet die Kärtchen wieder aus –
 dann zeigt die Karte wieder nur Hersteller und Gruppen. Auf dem Handy stehen die Infos als Liste unten in der Karte.
-Oben links: Name und „Steckbrief öffnen“; Doppelklick auf den Kreis öffnet direkt. Am Hintergrund ziehen =
+Oben links: Name und „Steckbrief öffnen“; Doppelklick auf den Kreis öffnet direkt.
+
+**Verbinden auf der Karte:** Knopf **„Verbinden“**, dann das erste Thema antippen (z. B. Nordic Lights), dann das
+zweite (z. B. Riedfeld). Ein Fenster fragt, welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
+
+- **„Anfragen an A unter [36] Stück gehen an B“** – setzt bei A die Mindestbestellmenge und „Darunter beziehen über: B“.
+- **„A braucht [1] × B (Pflicht-Zubehör)“** – Pflicht-Zubehör mit Stückzahl.
+- **„Hinweis zu beiden“** – ein Eintrag, der beiden zugeordnet ist.
+
+„Verbinden“ speichert (mit Name und Zeit wie im Steckbrief), die Karte zeigt sofort die neue Linie. Bezug und
+Pflicht-Zubehör erscheinen als **Pfeil mit Beschriftung** („unter 36 Stk“, „2 ×“). Klick auf Nordic Lights zeigt das
+Kärtchen „Mindestbestellmenge 36 Stück – darunter bei Riedfeld anfragen →“; Klick auf das Kärtchen springt zu
+Riedfeld. Dort steht **umgekehrt** „Für Nordic Lights: Anfragen unter 36 Stück kommen hierher“ – auf der Karte und im
+Steckbrief von Riedfeld oben. Verbindungen ändern oder löschen: im Steckbrief bei den Angaben (Bleistift, leer
+speichern entfernt). Am Hintergrund ziehen =
 verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
 blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
 „Zuletzt geändert“.

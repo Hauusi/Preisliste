@@ -62,6 +62,17 @@ def _context(db: Session, user: User, error: str | None) -> dict:
                                      ensure_ascii=False)}
 
 
+def _incoming_text(db: Session, f: KbFact, by_id: dict) -> str:
+    """Was ein anderes Thema über dieses festlegt, aus Sicht dieses Themas."""
+    src = by_id[f.topic_id].name
+    if f.field == "bezug_klein":
+        moq = (kb.field_facts(db, f.topic_id).get("moq") or [None])[0]
+        return f"Für {src}: Anfragen unter {moq.number} Stück kommen hierher" if moq and moq.number else f"Für {src}: kleine Mengen kommen hierher"
+    if f.field == "pflicht":
+        return f"Pflicht-Zubehör für {src} ({f.number or 1} × je Artikel)"
+    return f"{src}: {f.label}"
+
+
 @router.get("/wissen")
 def overview(request: Request, fehler: str | None = None, neu: str | None = None, db: Session = Depends(get_db),
              user: User = Depends(current_user)):
@@ -178,7 +189,7 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
         "fields": fields, "field_defs": kb.FIELDS, "field_keys": kb.FIELDS_BY_KIND[t.kind], "lager_choices": kb.LAGER_CHOICES,
         "describe": kb.describe, "fact_stale": kb.fact_stale, "flow": kb.flow(t, fields, by_id), "due_date": kb.due_date,
         "users": [u for u in db.scalars(select(User).where(User.active.is_(True)).order_by(User.username))],
-        "referenced_by": [(by_id[f.topic_id], f) for f in incoming if f.topic_id in by_id],
+        "referenced_by": [(by_id[f.topic_id], _incoming_text(db, f, by_id)) for f in incoming if f.topic_id in by_id],
         "graph": kb.graph(t, near) if near else None, "histories": histories, "changes": changes,
         "own": kb.own_manufacturers(db, t, user), "following": t.id not in ctx["hidden"], "is_stale": kb.is_stale,
         "compare": compare, "maker_rows": maker_rows, "criteria": kb.criteria_of(t),
