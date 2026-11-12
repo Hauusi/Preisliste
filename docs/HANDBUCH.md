@@ -470,29 +470,47 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 
 **Karte (Startseite):** Alle Hersteller (Kreise) und Artikelgruppen (Quadrate) mit ihren Verbindungen. Linien bedeuten
 etwas: **Artikel** (Hersteller hat einen Artikel im Vergleich der Gruppe; Farbe = beste Bewertung: grün erste Wahl,
-hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten), **Bezug über** (blau, aus „Darunter beziehen über“),
+hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten), **Bezugsregel** (blauer Pfeil zum Händler, beschriftet z. B. „unter 36 Stk / keine Lagerware“),
 **Pflicht-Zubehör** (orange gestrichelt), **gemeinsame Einträge** (grau, ein Eintrag nennt beide). Je mehr Einträge und
 Artikel, desto größer der Kreis; Themen ohne Verbindung sind blass. **Klick auf einen Kreis** hebt seine
-Verbindungen hervor und klappt rund um den Kreis **Info-Kärtchen** auf: feste Angaben (z. B. Mindestbestellmenge,
-Bezug über, Pflicht-Zubehör), erste Wahl im Artikelvergleich und die Einträge (Pflicht-Zubehör, Bezug, Kalkulation
+Verbindungen hervor und klappt rund um den Kreis **Info-Kärtchen** auf: zuerst die **Bezugsregel** (blau umrandet),
+dann feste Angaben (z. B. Pflicht-Zubehör, Lieferzeit), erste Wahl im Artikelvergleich und die Einträge (Pflicht-Zubehör, Bezug, Kalkulation
 zuerst; höchstens 8). Die Ansicht schiebt sich so, dass alle Kärtchen sichtbar sind; Klick auf ein Kärtchen öffnet die
 Stelle im Steckbrief. **Nochmal auf den Kreis oder auf den Hintergrund klicken** blendet die Kärtchen wieder aus –
 dann zeigt die Karte wieder nur Hersteller und Gruppen. Auf dem Handy stehen die Infos als Liste unten in der Karte.
-Oben links: Name und „Steckbrief öffnen“; Doppelklick auf den Kreis öffnet direkt.
+Oben links: Name, „Steckbrief öffnen“ und bei Herstellern **„Bezugsregel festlegen“** bzw. „ändern“; Doppelklick auf
+den Kreis öffnet direkt.
 
-**Verbinden auf der Karte:** Knopf **„Verbinden“**, dann das erste Thema antippen (z. B. Nordic Lights), dann das
-zweite (z. B. Riedfeld). Ein Fenster fragt, welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
+**Bezugsregel (Beispiel Nordic Lights / Riedfeld):** Eine Bedingung, wann beim Hersteller und wann woanders bestellt
+wird. Festlegen auf der Karte (Nordic Lights antippen → „Bezugsregel festlegen“) oder im Steckbrief oben im Kasten
+„Bezugsregel“ – beides ist derselbe Satz zum Ausfüllen:
 
-- **„Anfragen an A unter [36] Stück gehen an B“** – setzt bei A die Mindestbestellmenge und „Darunter beziehen über: B“.
+> Bei **Nordic Lights** bestellen ab **[36]** Stück **[✓] oder wenn Lagerware**. Sonst bestellen bei **[Riedfeld ▾]**.
+> Bemerkung (optional), z. B. „dort andere Kalkulation“.
+
+Mindestmenge, Lagerware oder beides (mindestens eins). Danach:
+
+- **Steckbrief Nordic Lights:** Kasten „Bezugsregel“ mit Frage „Ab 36 Stück oder Lagerware?“ und zwei Ästen –
+  grün „ja → Bei Nordic Lights bestellen“, blau „nein · unter 36 Stück und keine Lagerware → Bei Riedfeld bestellen →“
+  (Klick öffnet Riedfeld). „Regel ändern“ öffnet den Satz, dort auch „Regel entfernen“ (die Mindestmenge bleibt).
+- **Karte:** blauer Pfeil Nordic Lights → Riedfeld mit „unter 36 Stk / keine Lagerware“. Klick auf Nordic Lights:
+  Kärtchen „Bezugsregel: ab 36 Stück oder Lagerware → Nordic Lights, sonst → Riedfeld →“; Klick darauf springt zu
+  Riedfeld.
+- **Umgekehrt bei Riedfeld:** Kärtchen auf der Karte und oben im Steckbrief „Für Nordic Lights: unter 36 Stück und
+  keine Lagerware → hier bestellen“.
+- **Hinweise bei der Arbeit** (Preisliste, Jahresabgleich, Datenblatt): „Ab 36 Stück oder Lagerware → bei Nordic
+  Lights bestellen, sonst (unter 36 Stück und keine Lagerware) → bei Riedfeld“.
+
+**Verbinden auf der Karte:** Knopf **„Verbinden“**, dann das erste Thema antippen, dann das zweite. Ein Fenster fragt,
+welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
+
+- **Bezugsregel** (nur bei Herstellern): derselbe Satz wie oben, das zweite Thema ist der Händler.
 - **„A braucht [1] × B (Pflicht-Zubehör)“** – Pflicht-Zubehör mit Stückzahl.
 - **„Hinweis zu beiden“** – ein Eintrag, der beiden zugeordnet ist.
 
 „Verbinden“ speichert (mit Name und Zeit wie im Steckbrief), die Karte zeigt sofort die neue Linie. Bezug und
-Pflicht-Zubehör erscheinen als **Pfeil mit Beschriftung** („unter 36 Stk“, „2 ×“). Klick auf Nordic Lights zeigt das
-Kärtchen „Mindestbestellmenge 36 Stück – darunter bei Riedfeld anfragen →“; Klick auf das Kärtchen springt zu
-Riedfeld. Dort steht **umgekehrt** „Für Nordic Lights: Anfragen unter 36 Stück kommen hierher“ – auf der Karte und im
-Steckbrief von Riedfeld oben. Verbindungen ändern oder löschen: im Steckbrief bei den Angaben (Bleistift, leer
-speichern entfernt). Am Hintergrund ziehen =
+Pflicht-Zubehör erscheinen als **Pfeil mit Beschriftung** („unter 36 Stk / keine Lagerware“, „2 ×“). Ändern oder
+löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Angaben (Bleistift, leer speichern entfernt). Am Hintergrund ziehen =
 verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
 blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
 „Zuletzt geändert“.
@@ -532,16 +550,12 @@ Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller s
 
 - **Zuständig** (oben rechts): eine Person je Hersteller/Gruppe. Sie sieht Meldungen und überfällige Einträge dieses
   Themas auf der Übersicht zuerst („Du bist zuständig“). Themen ohne Zuständigen stehen auf der Übersicht.
-- **Angaben** oben als **feste Felder**: Mindestbestellmenge (Stück), Darunter beziehen über (Hersteller, z. B.
-  Riedfeld), Lagerartikel bei uns (ja/teilweise/nein), Lieferzeit, Ansprechpartner (nur Hersteller) und
+- **Bezugsregel** (nur Hersteller, ganz oben): siehe oben.
+- **Angaben** als **feste Felder**: Lieferzeit, Ansprechpartner (nur Hersteller) und
   **Pflicht-Zubehör** (Artikelgruppe oder Hersteller, Stück je Artikel, Bemerkung; mehrere möglich). Bleistift
   ändert, leer speichern entfernt, unverändert speichern bestätigt. Unter jedem Feld stehen Name und Zeitpunkt der
   letzten Änderung; nach 6 Monaten steht dort „bitte prüfen“. Daneben „weitere Angabe“ für freie Kurzinfos
   (z. B. Mindestbestellwert, Frachtfrei ab).
-- **Ablauf bei kleinen Mengen**: entsteht automatisch, sobald eine Mindestbestellmenge eingetragen ist. Menge
-  mindestens X Stück? ja → direkt bestellen; nein → (wenn Lagerartikel ja/teilweise) Lagerartikel bei uns? ja → aus
-  Lager; nein → bei [Darunter beziehen über] anfragen (Klick öffnet dessen Steckbrief mit Kalkulation). Fehlt der
-  Bezugsweg, sagt der Ablauf das.
 - **Artikelvergleich** (nur bei Artikelgruppen, z. B. „Blue-Spot-Scheinwerfer“): Artikel verschiedener Hersteller
   von Hand eintragen („+ Artikel“: Hersteller, Artikelnummer, Bezeichnung, Punkte 1–5 je Kriterium, „Warum?“).
   Vorbelegte Kriterien: Helligkeit, Qualität, Preis, Lieferbarkeit; unter „Kriterien“ umbenennen oder ändern

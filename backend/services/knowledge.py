@@ -40,9 +40,14 @@ FIELDS = {
     "lieferzeit": ("Lieferzeit", "text"),
     "kontakt": ("Ansprechpartner", "text"),
     "pflicht": ("Pflicht-Zubehör", "zubehoer"),
+    # Teile der Bezugsregel (werden zusammen im Kasten „Bezugsregel“ bearbeitet)
+    "regel_lager": ("Bezugsregel: auch Lagerware", "text"),
+    "regel_notiz": ("Bezugsregel: Bemerkung", "text"),
 }
-FIELDS_BY_KIND = {"hersteller": ["moq", "bezug_klein", "lager", "lieferzeit", "kontakt", "pflicht"],
-                  "gruppe": ["moq", "bezug_klein", "lager", "lieferzeit", "pflicht"]}
+# Im Raster „Angaben“; Mindestmenge und Bezug stehen in der Bezugsregel. „lager“ nur noch, wenn schon eingetragen.
+FIELDS_BY_KIND = {"hersteller": ["lieferzeit", "kontakt", "pflicht"],
+                  "gruppe": ["lieferzeit", "pflicht"]}
+RULE_FIELDS = ("moq", "bezug_klein", "regel_lager", "regel_notiz")
 LAGER_CHOICES = ["ja", "teilweise", "nein"]
 HINT_TYPES = ("pflicht", "bezug", "kalk")
 LINK_LABELS = {"bezug": "Bezugsweg", "kalk": "Kalkulation", "pflicht": "Pflicht-Zubehör", "liefer": "Lieferzeit",
@@ -391,7 +396,7 @@ def describe(f: KbFact, by_id: dict[int, KbTopic]) -> str:
 
 def save_field(db: Session, user: User, topic: KbTopic, field: str, form: dict) -> None:
     """Festes Feld setzen oder (leer) entfernen. Pflicht-Zubehör: je Zubehör ein Eintrag (fact_id zum Ändern)."""
-    if field not in FIELDS or field not in FIELDS_BY_KIND[topic.kind]:
+    if field not in FIELDS or (field not in FIELDS_BY_KIND[topic.kind] and field not in RULE_FIELDS + ("lager",)):
         raise ValueError("Unbekanntes Feld.")
     label, kind = FIELDS[field]
     by_id = {t.id: t for t in topics(db)}
@@ -445,19 +450,62 @@ def fact_stale(f: KbFact) -> bool:
     return utcnow() - f.updated_at > timedelta(days=FACT_STALE_DAYS)
 
 
-def flow(topic: KbTopic, fields: dict[str, list[KbFact]], by_id: dict[int, KbTopic]) -> dict | None:
-    """Entscheidungsweg bei kleinen Mengen, aus den festen Feldern gebaut (nur wenn eine Mindestmenge eingetragen ist):
-    Menge ≥ Mindestmenge → direkt; sonst Lagerartikel? → aus Lager; sonst → Bezug über …"""
-    moq = (fields.get("moq") or [None])[0]
-    if not moq or not moq.number:
-        return None
-    via = (fields.get("bezug_klein") or [None])[0]
+def rule_of(fields: dict[str, list[KbFact]], by_id: dict[int, KbTopic]) -> dict | None:
+    """Bezugsregel eines Herstellers: bestellen dort ab Mindestmenge oder (wenn angehakt) bei Lagerware, sonst beim
+    eingetragenen Händler. None, wenn weder Mindestmenge noch Händler eingetragen sind."""
+    def first(key):
+        return (fields.get(key) or [None])[0]
+
+    moq, via, stock, note = first("moq"), first("bezug_klein"), first("regel_lager"), first("regel_notiz")
     via_t = by_id.get(via.ref_topic_id) if via else None
-    lager = ((fields.get("lager") or [None])[0] or None)
-    lager = lager.value if lager else None
-    small = {"text": f"bei {via_t.name} anfragen" if via_t else "Bezugsweg fehlt – unter „Darunter beziehen über“ eintragen",
-             "topic": via_t.id if via_t else None, "missing": not via_t}
-    return {"moq": moq.number, "name": topic.name, "lager": lager, "small": small}
+    if not (moq and moq.number) and not via_t:
+        return None
+    facts = [f for f in (moq, via, stock, note) if f]
+    return {"moq": moq.number if moq else None, "stock": bool(stock and stock.value == "ja"), "via": via_t,
+            "note": note.value if note else "", "stale": any(fact_stale(f) for f in facts),
+            "updated": max(facts, key=lambda f: f.updated_at)}
+
+
+def rule_conditions(r: dict) -> tuple[str, str]:
+    """(„ab 36 Stück oder Lagerware“, „unter 36 Stück und keine Lagerware“)."""
+    pos, neg = [], []
+    if r.get("moq"):
+        pos.append(f"ab {r['moq']} Stück"); neg.append(f"unter {r['moq']} Stück")
+    if r.get("stock"):
+        pos.append("Lagerware"); neg.append("keine Lagerware")
+    return " oder ".join(pos) or "immer", " und ".join(neg) or "sonst"
+
+
+def rule_text(topic: KbTopic, r: dict) -> str:
+    pos, neg = rule_conditions(r)
+    if not r.get("via"):
+        return f"Mindestbestellmenge {r['moq']} Stück – Bezug darunter noch nicht festgelegt"
+    return f"{pos[:1].upper()}{pos[1:]} → bei {topic.name} bestellen, sonst ({neg}) → bei {r['via'].name}"
+
+
+def reverse_rule_text(topic: KbTopic, r: dict) -> str:
+    return f"Für {topic.name}: {rule_conditions(r)[1]} → hier bestellen"
+
+
+def save_rule(db: Session, user: User, topic: KbTopic, moq: str, stock: bool, via: str, note: str) -> None:
+    """Bezugsregel in einem Schritt speichern: Mindestmenge, „oder Lagerware“, Händler, Bemerkung."""
+    if topic.kind != "hersteller":
+        raise ValueError("Eine Bezugsregel gibt es nur bei Herstellern.")
+    moq = re.sub(r"[^\d]", "", str(moq or ""))
+    if not via or not str(via).isdigit() or int(via) == topic.id or db.get(KbTopic, int(via)) is None:
+        raise ValueError("Bitte wählen, bei wem sonst bestellt wird.")
+    if not (moq and int(moq) > 0) and not stock:
+        raise ValueError("Bitte eine Mindestmenge eintragen oder „oder Lagerware“ anhaken.")
+    save_field(db, user, topic, "moq", {"wert": moq if moq and int(moq) > 0 else ""})
+    save_field(db, user, topic, "bezug_klein", {"wert": str(via)})
+    save_field(db, user, topic, "regel_lager", {"wert": "ja" if stock else ""})
+    save_field(db, user, topic, "regel_notiz", {"wert": note or ""})
+
+
+def delete_rule(db: Session, user: User, topic: KbTopic) -> None:
+    """Bezugsregel entfernen (Händler, Lagerware, Bemerkung); die Mindestbestellmenge bleibt als Angabe."""
+    for key in ("bezug_klein", "regel_lager", "regel_notiz"):
+        save_field(db, user, topic, key, {"wert": ""})
 
 
 # ---------- Hinweise am Arbeitsplatz (Preisliste, Datenblatt) ----------
@@ -477,10 +525,10 @@ def hints(db: Session, user: User, topic_list: list[KbTopic], limit: int = 6) ->
     out: list[dict] = []
     for t in wanted:
         f = field_facts(db, t.id)
-        if f.get("moq"):
-            via = by_id.get(f["bezug_klein"][0].ref_topic_id) if f.get("bezug_klein") else None
-            out.append({"type": "bezug", "topic": t, "text": f"Mindestbestellmenge {f['moq'][0].number} Stück"
-                        + (f", darunter über {via.name}" if via else ""), "url": f"/wissen/{t.id}"})
+        r = rule_of(f, by_id)
+        if r:
+            out.append({"type": "bezug", "topic": t, "url": f"/wissen/{t.id}#regel",
+                        "text": rule_text(t, r) if r["via"] else f"Mindestbestellmenge {r['moq']} Stück"})
         for p in f.get("pflicht", []):
             out.append({"type": "pflicht", "topic": t, "text": f"Pflicht-Zubehör: {describe(p, by_id)}", "url": f"/wissen/{t.id}"})
         if f.get("lieferzeit"):
@@ -832,13 +880,17 @@ def map_data(db: Session, user: User) -> dict:
             for y in range(x + 1, len(ids)):
                 edge(ids[x], ids[y], "eintrag")
     moqs = {f.topic_id: f.number for f in db.scalars(select(KbFact).where(KbFact.field == "moq")) if f.number}
+    rules = {}
+    for t in tops.values():
+        r = rule_of(field_facts(db, t.id), tops) if t.kind == "hersteller" else None
+        if r:
+            rules[t.id] = r
     for f in db.scalars(select(KbFact).where(KbFact.ref_topic_id.is_not(None))):
         if f.field == "pflicht":
             edge(f.topic_id, f.ref_topic_id, "pflicht", source=f.topic_id, label=f"{f.number or 1} ×")
-        else:
-            moq = moqs.get(f.topic_id)
-            edge(f.topic_id, f.ref_topic_id, "bezug", source=f.topic_id,
-                 label=f"unter {moq} Stk" if moq else "kleine Mengen")
+        elif f.topic_id in rules:
+            neg = rule_conditions(rules[f.topic_id])[1].replace(" Stück", " Stk").replace(" und ", " / ")
+            edge(f.topic_id, f.ref_topic_id, "bezug", source=f.topic_id, label=neg)
     for g in [t for t in tops.values() if t.kind == "gruppe"]:
         for r in group_products(db, g):
             if r["p"].maker_id:
@@ -851,7 +903,10 @@ def map_data(db: Session, user: User) -> dict:
     infos = map_infos(db, tops, entries)
     nodes = [{"id": t.id, "name": t.name, "kind": t.kind, "n": counts.get(t.id, 0) + pcounts.get(t.id, 0),
               "entries": counts.get(t.id, 0), "products": pcounts.get(t.id, 0), "off": t.id in hidden,
-              "owner": t.owner_id == user.id, "info": infos.get(t.id, []), "moq": moqs.get(t.id)} for t in tops.values()]
+              "owner": t.owner_id == user.id, "info": infos.get(t.id, []), "moq": moqs.get(t.id),
+              "rule": ({"moq": rules[t.id]["moq"], "stock": rules[t.id]["stock"], "note": rules[t.id]["note"],
+                        "via": rules[t.id]["via"].id if rules[t.id]["via"] else None} if t.id in rules else None)}
+             for t in tops.values()]
     return {"nodes": nodes, "edges": list(edges.values())}
 
 
@@ -863,25 +918,28 @@ def map_infos(db: Session, tops: dict[int, KbTopic], entries: list[KbEntry]) -> 
     Einträge (Pflicht-Zubehör, Bezug, Kalkulation zuerst). Höchstens MAP_INFO_MAX je Thema."""
     out: dict[int, list[dict]] = {}
     facts = list(db.scalars(select(KbFact).order_by(KbFact.position, KbFact.id)))
-    moqs = {f.topic_id: f.number for f in facts if f.field == "moq" and f.number}
-    vias = {f.topic_id for f in facts if f.field == "bezug_klein" and f.ref_topic_id in tops}
+    # Bezugsregel zuerst und als eigenes Kärtchen, beim Händler die Gegenrichtung
+    for t in tops.values():
+        if t.kind != "hersteller":
+            continue
+        r = rule_of(field_facts(db, t.id), tops)
+        if not r:
+            continue
+        if not r["via"]:  # nur Mindestmenge, noch ohne Regel
+            out.setdefault(t.id, []).insert(0, {"type": "bezug", "text": f"Mindestbestellmenge: {r['moq']} Stück",
+                                                "stale": r["stale"]})
+            continue
+        pos = rule_conditions(r)[0]
+        out.setdefault(t.id, []).insert(0, {"type": "regel", "target": r["via"].id, "stale": r["stale"],
+                                            "text": f"Bezugsregel: {pos} → {t.name}, sonst → {r['via'].name}"})
+        if r["via"]:
+            out.setdefault(r["via"].id, []).insert(0, {"type": "regel", "target": t.id, "stale": r["stale"],
+                                                       "text": reverse_rule_text(t, r)})
     for f in facts:
-        if f.topic_id not in tops:
+        if f.topic_id not in tops or f.field in RULE_FIELDS:
             continue
         item = None
-        if f.field == "moq" and f.topic_id in vias:
-            continue  # steht zusammen mit dem Bezugsweg auf einem Kärtchen
-        if f.field == "bezug_klein" and f.ref_topic_id in tops:
-            moq = moqs.get(f.topic_id)
-            item = {"type": "bezug", "target": f.ref_topic_id,
-                    "text": (f"Mindestbestellmenge {moq} Stück – darunter bei {tops[f.ref_topic_id].name} anfragen" if moq
-                             else f"Kleine Mengen bei {tops[f.ref_topic_id].name} anfragen")}
-            if f.ref_topic_id in tops:  # Gegenrichtung beim Bezugsweg
-                out.setdefault(f.ref_topic_id, []).append({
-                    "type": "bezug", "target": f.topic_id, "stale": fact_stale(f),
-                    "text": (f"Für {tops[f.topic_id].name}: Anfragen unter {moq} Stück kommen hierher" if moq
-                             else f"Für {tops[f.topic_id].name}: kleine Mengen kommen hierher")})
-        elif f.field == "pflicht" and f.ref_topic_id in tops:
+        if f.field == "pflicht" and f.ref_topic_id in tops:
             item = {"type": "pflicht", "target": f.ref_topic_id,
                     "text": f"Braucht {f.number or 1} × {tops[f.ref_topic_id].name}" + (f" ({f.value})" if f.value else "")}
             out.setdefault(f.ref_topic_id, []).append({

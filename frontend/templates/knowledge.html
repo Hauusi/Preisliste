@@ -31,6 +31,20 @@
 </form>
 {%- endmacro %}
 
+{# Bezugsregel als Satz zum Ausfüllen #}
+{% macro rule_form(r=None) -%}
+<form method="post" action="/wissen/{{ topic.id }}/bezugsregel" class="kb-rule-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <p class="kb-rule-sentence">Bei <b>{{ topic.name }}</b> bestellen ab
+    <input name="moq" type="number" min="1" max="99999" value="{{ r.moq if r and r.moq else '' }}" placeholder="36" aria-label="Mindestmenge"> Stück
+    <label class="kb-rule-check"><input type="checkbox" name="lagerware" value="1"{% if r and r.stock %} checked{% endif %}> oder wenn Lagerware</label>.
+    Sonst bestellen bei
+    <select name="via" required aria-label="Sonst bestellen bei"><option value="">bitte wählen</option>{% for m in makers if m.id != topic.id %}<option value="{{ m.id }}"{% if r and r.via and r.via.id == m.id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select>.</p>
+  <label class="kb-rule-notelabel">Bemerkung (optional) <input name="notiz" maxlength="200" value="{{ r.note if r else '' }}" placeholder="z. B. dort andere Kalkulation"></label>
+  <button type="submit">{{ "Regel speichern" if r and r.via else "Bezugsregel festlegen" }}</button>
+</form>
+{%- endmacro %}
+
 {% macro entry_card(e, here=None, chips=true) -%}
 {% set stale = is_stale(e) %}
 <article class="kb-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
@@ -188,8 +202,33 @@
         </div>
       </div>
 
+      {% if topic.kind == "hersteller" %}
+      <section class="kb-panel kb-rule{{ ' empty' if not rule or not rule.via }}" id="regel">
+        <div class="kb-panel-head"><h2>Bezugsregel</h2>
+          <span class="hint">{% if rule and rule.via %}{{ who(rule.updated.updated_by) }}, {{ rule.updated.updated_at | dt }}{{ " · bitte prüfen" if rule.stale }}{% else %}Wann hier bestellen, wann woanders{% endif %}</span></div>
+        {% if rule and rule.via %}{% set pos, neg = rule_conditions(rule) %}
+        <div class="kb-rule-graph">
+          <div class="kb-rule-q">Anfrage <b>{{ topic.name }}</b>: {{ pos[:1].upper() ~ pos[1:] }}?</div>
+          <div class="kb-rule-branches">
+            <div class="kb-rule-yes"><span class="kb-rule-tag">ja · {{ pos }}</span><b>Bei {{ topic.name }} bestellen</b></div>
+            <a class="kb-rule-no" href="/wissen/{{ rule.via.id }}"><span class="kb-rule-tag">nein · {{ neg }}</span><b>Bei {{ rule.via.name }} bestellen →</b></a>
+          </div>
+          {% if rule.note %}<p class="kb-rule-note">{{ rule.note }}</p>{% endif %}
+        </div>
+        <details class="kb-edit kb-rule-edit"><summary class="button secondary">{{ icon("pencil", 16) }} Regel ändern</summary>{{ rule_form(rule) }}
+          <form method="post" action="/wissen/{{ topic.id }}/bezugsregel" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="aktion" value="entfernen">
+            <button type="submit" class="link danger-text">Regel entfernen</button></form>
+        </details>
+        {% else %}
+        {% if rule and rule.moq %}<p class="hint">Mindestbestellmenge {{ rule.moq }} Stück ist eingetragen – fehlt nur noch, wo darunter bestellt wird.</p>{% endif %}
+        {{ rule_form(rule) }}
+        {% endif %}
+      </section>
+      {% endif %}
+
       <section class="kb-facts" id="angaben" aria-label="Angaben">
-        {% for key in field_keys %}{% set label, kind = field_defs[key] %}{% set items = fields.get(key, []) %}
+        {% for key in field_keys + (["lager"] if fields.get("lager") else []) %}{% set label, kind = field_defs[key] %}{% set items = fields.get(key, []) %}
         {% if key == "pflicht" %}
         <div class="kb-fact kb-fact-wide t-pflicht">
           <span>{{ label }}</span>
@@ -259,35 +298,6 @@
         <datalist id="kb-fact-names"><option value="Mindestbestellwert"><option value="Frachtfrei ab"><option value="Kalkulation"><option value="Garantie"><option value="Kundennummer"></datalist>
       </section>
 
-      {% if flow %}
-      <section class="kb-panel">
-        <div class="kb-panel-head"><h2>Ablauf bei kleinen Mengen</h2><span class="hint">aus den Angaben oben</span></div>
-        <div class="kb-flow">
-          <div class="kb-node start">Anfrage {{ flow.name }}</div>
-          <div class="kb-down"></div>
-          <div class="kb-node q">Menge mindestens {{ flow.moq }} Stück?</div>
-          <div class="kb-down"></div>
-          <div class="kb-branches">
-            <div class="kb-branch yes" data-label="ja"><div class="kb-node end">Direkt bei {{ flow.name }} bestellen</div></div>
-            <div class="kb-branch no" data-label="nein"><div class="kb-chain">
-              {% if flow.lager in ("ja", "teilweise") %}
-              <div class="kb-node q">Lagerartikel bei uns?{% if flow.lager == "teilweise" %} <small>(teilweise)</small>{% endif %}</div>
-              <div class="kb-down"></div>
-              <div class="kb-branches">
-                <div class="kb-branch yes" data-label="ja"><div class="kb-node end stock">Aus Lager liefern</div></div>
-                <div class="kb-branch no" data-label="nein"><div class="kb-chain">
-                  {% if flow.small.topic %}<a class="kb-node end" href="/wissen/{{ flow.small.topic }}">{{ flow.small.text }}</a>{% else %}<div class="kb-node missing">{{ flow.small.text }}</div>{% endif %}
-                </div></div>
-              </div>
-              {% else %}
-              {% if flow.small.topic %}<a class="kb-node end" href="/wissen/{{ flow.small.topic }}">{{ flow.small.text }}</a>{% else %}<div class="kb-node missing">{{ flow.small.text }}</div>{% endif %}
-              {% endif %}
-            </div></div>
-          </div>
-        </div>
-        {% if flow.small.topic %}<p class="hint">Kalkulation und Konditionen dort: <a href="/wissen/{{ flow.small.topic }}">Steckbrief öffnen</a>.</p>{% endif %}
-      </section>
-      {% endif %}
 
       {% if topic.kind == "gruppe" %}
       <section class="kb-panel" id="vergleich">
