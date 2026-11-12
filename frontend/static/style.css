@@ -1157,7 +1157,7 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
 .kb-connect-opt input[name=notiz] { display: block; width: 100%; margin-top: 4px; line-height: normal; }
 
 /* Firmengruppen: Blase auf der Karte, Abschnitt im Steckbrief */
-.m-group { stroke-width: 2; stroke-linejoin: round; transition: d .05s; }
+.m-group { fill-rule: evenodd; stroke-width: 2; stroke-linejoin: round; transition: d .05s; }
 .m-group.c0 { fill: color-mix(in srgb, var(--signal) 22%, transparent); stroke: color-mix(in srgb, var(--signal) 70%, transparent); }
 .m-group.c1 { fill: color-mix(in srgb, var(--info) 18%, transparent); stroke: color-mix(in srgb, var(--info) 60%, transparent); }
 .m-group.c2 { fill: color-mix(in srgb, var(--ok) 18%, transparent); stroke: color-mix(in srgb, var(--ok) 60%, transparent); }
