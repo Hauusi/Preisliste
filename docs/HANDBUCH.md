@@ -492,7 +492,9 @@ Reiter oder den Knopf oben links auf der Karte auf.
   (dort direkt neu eintragen – gehört dann zu beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von
   Redtronic“** (Bezugsregel, Angaben, allgemeine Einträge).
 - Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
-- Nochmal auf den gewählten Eintrag klicken = abwählen; × in der Mitte hebt alles auf (Überblick).
+- **Abwählen:** Klick auf einen gewählten Hersteller oder eine gewählte Gruppe (in der Liste oder auf der Karte) wählt
+  nur diesen ab, der andere bleibt. **Klick auf eine leere Fläche** (Kartenhintergrund oder leerer Bereich einer
+  Liste) wählt beide ab. × im Infofenster hebt ebenfalls alles auf (Überblick).
 - **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
 - **Einzelner Hersteller/Gruppe:** Firmengruppe, **Bezug** (Bezugsregel als zwei Zeilen „Ab 36 Stück oder Lagerware →
   bei Nordic Lights“ / „Unter 36 Stück und keine Lagerware → bei Riedfeld“, beim Händler die Gegenrichtung),
