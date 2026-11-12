@@ -88,7 +88,9 @@ def _panel(db: Session, user: User, ctx: dict, t: KbTopic) -> dict:
             "p_company": groups.get(root.id, []), "p_root": root, "p_products": products,
             "p_following": t.id not in ctx["hidden"], "field_defs": kb.FIELDS, "describe": kb.describe,
             "fact_stale": kb.fact_stale, "by_id": by_id, "p_keys": kb.FIELDS_BY_KIND[t.kind],
-            "p_rel": kb.relations(db, user, t, by_id)}
+            "p_rel": kb.relations(db, user, t, by_id),
+            "p_assigned": sorted((by_id[i] for i in kb.assortment_of(db, t) if i in by_id), key=lambda x: x.name.lower()),
+            "p_options": [x for x in ctx["topics"] if x.kind != t.kind and x.id not in kb.assortment_of(db, t)]}
 
 
 def _pair(db: Session, user: User, ctx: dict, f: KbTopic, g: KbTopic) -> dict:
@@ -96,6 +98,7 @@ def _pair(db: Session, user: User, ctx: dict, f: KbTopic, g: KbTopic) -> dict:
     info = kb.pair_info(db, user, f, g, by_id)
     return {"pair": info, "pf": f, "pg": g, "by_id": by_id, "describe": kb.describe,
             "rel_f": kb.relations(db, user, f, by_id), "rel_g": kb.relations(db, user, g, by_id),
+            "assigned": g.id in kb.assortment_of(db, f), "asg_f": kb.assortment_of(db, f), "asg_g": kb.assortment_of(db, g),
             "rule_conditions": kb.rule_conditions}
 
 
@@ -167,6 +170,22 @@ def overview(request: Request, fehler: str | None = None, neu: str | None = None
                                               "sel": fx or gx, "sel_f": fx, "sel_g": gx,
                                               "side_rows": _side_rows(ctx["topics"]), "flagged": flagged,
                                               "prefill": (neu or "")[:200]})
+
+
+@router.post("/wissen/sortiment", dependencies=[Depends(check_csrf)])
+async def assortment(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Artikelgruppe einem Hersteller zuordnen oder lösen (aus Infofenster, Liste oder Steckbrief)."""
+    form = await request.form()
+    back = str(form.get("zurueck") or "")
+    m, g = str(form.get("hersteller") or ""), str(form.get("gruppe") or "")
+    if not (m.isdigit() and g.isdigit()):
+        return _ret(back, None, "Bitte einen Hersteller und eine Artikelgruppe wählen.")
+    maker, group = _topic(db, int(m)), _topic(db, int(g))
+    try:
+        kb.set_assortment(db, user, maker, group, form.get("aktion") != "entfernen")
+    except ValueError as exc:
+        return _ret(back, maker.id, str(exc))
+    return _ret(back, maker.id)
 
 
 @router.get("/wissen/kombi")

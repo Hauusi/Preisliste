@@ -474,14 +474,24 @@ die **Infos** (Umschalter „Infos | Karte“).
 - **Listen:** Firmengruppen stehen links zusammen (Mutter, darunter eingerückt die Töchter, farbiger Strich wie die
   Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
   eigenes Filterfeld; Enter wählt den ersten Treffer.
-- **Hersteller wählen** (z. B. Redtronic): in der Mitte alles zu Redtronic; **rechts werden die Artikelgruppen
-  hervorgehoben und nach oben geholt, zu denen es bei Redtronic etwas gibt** (Artikel im Vergleich, Einträge zu
-  beiden, Pflicht-Zubehör). Die übrigen bleiben wählbar (grau).
-- **Dazu eine Artikelgruppe wählen** (z. B. Leuchtbalken): die Mitte zeigt nur **„Redtronic × Leuchtbalken“** –
+- **Artikelgruppen beim Hersteller zuordnen** (welche Gruppen er führt, z. B. Redtronic → Leuchtbalken,
+  Rundumleuchten): im Infofenster des Herstellers unter „Artikelgruppen“ wählen und „Hinzufügen“, oder bei gewähltem
+  Hersteller in der rechten Liste auf **„+“** neben der Gruppe. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
+  geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
+  Artikel-Linie.
+- **Nur Hersteller wählen** (z. B. Redtronic): in der Mitte **alle Redtronic-Infos** (zugeordnete Artikelgruppen,
+  Bezug, Angaben, Artikel, Einträge). Rechts stehen oben die **zugeordneten Artikelgruppen** (blau), darunter Gruppen,
+  zu denen es nur Infos gibt (hellblau: Artikel im Vergleich, Einträge zu beiden, Pflicht-Zubehör), dann der Rest
+  (grau). Alle sind wählbar.
+- **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge); links
+  oben die Hersteller, die sie führen.
+- **Hersteller und dann Artikelgruppe wählen** (Klick in der rechten Liste oder auf die Gruppe im Infofenster): die
+  Mitte zeigt **„Redtronic × Leuchtbalken“** – ob zugeordnet (sonst Knopf „Leuchtbalken zu Redtronic hinzufügen“),
   Redtronic-Artikel in der Gruppe mit Platz im Vergleich (aufklappbar die anderen Hersteller), Pflicht-Zubehör
-  zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu beiden), „Gilt für
-  alle Leuchtbalken“ (Einträge der Gruppe ohne Hersteller) und die Bezugsregel von Redtronic. Knöpfe „Alles zu
-  Redtronic“ / „Alles zu Leuchtbalken“ wechseln zu einem der beiden.
+  zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu beiden), **„Gilt für
+  alle Leuchtbalken“** (Einträge der Gruppe ohne Hersteller) und **„Gilt für alles von Redtronic“** (Bezugsregel,
+  Angaben wie Lieferzeit, allgemeine Redtronic-Einträge). Knöpfe „Alles zu Redtronic“ / „Alles zu Leuchtbalken“
+  wechseln zu einem der beiden.
 - Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
 - Nochmal auf den gewählten Eintrag klicken = abwählen; × in der Mitte hebt alles auf (Überblick).
 - **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
@@ -736,6 +746,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
+| `kb_assortment` | Vertriebswissen: welche Artikelgruppen ein Hersteller führt (Hersteller, Gruppe, wer, wann) |
 | `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, Muttergesellschaft `parent_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 

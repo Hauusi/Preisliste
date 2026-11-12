@@ -18,10 +18,9 @@
   }
   // Listen: Auswahl markieren, Passendes hervorheben und nach oben holen
   function mark(p) {
-    var rel = {
-      gruppe: p && state.f ? (p.getAttribute("data-rel-f") || "").split(",").filter(Boolean).map(Number) : null,
-      hersteller: p && state.g ? (p.getAttribute("data-rel-g") || "").split(",").filter(Boolean).map(Number) : null
-    };
+    function ids(attr) { return (p.getAttribute(attr) || "").split(",").filter(Boolean).map(Number); }
+    var rel = { gruppe: p && state.f ? ids("data-rel-f") : null, hersteller: p && state.g ? ids("data-rel-g") : null };
+    var fest = { gruppe: p && state.f ? ids("data-asg-f") : [], hersteller: p && state.g ? ids("data-asg-g") : [] };
     document.querySelectorAll("[data-list]").forEach(function (ul) {
       var kind = ul.getAttribute("data-kind"), sel = kind === "hersteller" ? state.f : state.g, r = rel[kind];
       ul.classList.toggle("has-rel", !!r);
@@ -29,16 +28,43 @@
         var id = +li.querySelector("[data-pick]").getAttribute("data-pick");
         li.classList.toggle("active", id === sel);
         li.classList.toggle("rel", !!r && r.indexOf(id) >= 0);
+        li.classList.toggle("fest", fest[kind].indexOf(id) >= 0);
+        addButton(li, kind, id, r ? (kind === "gruppe" ? state.f : state.g) : null);
       });
       var hint = ul.parentNode.querySelector("[data-rel-hint]"), other = kind === "hersteller" ? state.g : state.f;
       if (hint) {
         hint.hidden = !r;
         if (r) {
           var name = (document.querySelector('[data-list] [data-pick="' + other + '"] span') || {}).textContent || "";
-          hint.textContent = r.length ? "Hervorgehoben: mit Infos zu " + name : "Noch nichts zu " + name + " – trotzdem wählbar";
+          hint.textContent = fest[kind].length ? "Oben: zu " + name + " zugeordnet · + ordnet weitere zu"
+            : r.length ? "Hervorgehoben: mit Infos zu " + name + " · + ordnet fest zu"
+            : "Noch nichts zu " + name + " · + ordnet zu";
         }
       }
     });
+  }
+  // „+“ in der Zeile: Artikelgruppe dem gewählten Hersteller zuordnen (bzw. umgekehrt), ohne Seitenwechsel
+  var csrf = root.getAttribute("data-csrf") || "";
+  function addButton(li, kind, id, other) {
+    var b = li.querySelector(".kb-row-add");
+    if (!other || li.classList.contains("fest")) { if (b) { b.hidden = true; } return; }
+    if (!b) {
+      b = document.createElement("button"); b.type = "button"; b.className = "kb-row-add"; b.textContent = "+";
+      li.appendChild(b);
+      b.addEventListener("click", function () {
+        var maker = kind === "gruppe" ? b.dataset.other : b.dataset.id, group = kind === "gruppe" ? b.dataset.id : b.dataset.other;
+        var body = new URLSearchParams({ csrf_token: csrf, hersteller: maker, gruppe: group });
+        b.disabled = true;
+        fetch("/wissen/sortiment", { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
+          .then(function () { b.disabled = false; return load({ fromMap: true, keepScroll: true }); })
+          .then(function () { if (window.kbMap) { window.kbMap.reload(state.f || state.g); } });
+      });
+    }
+    var oname = (document.querySelector('[data-list] [data-pick="' + other + '"] span') || {}).textContent || "";
+    var name = li.querySelector("span").textContent;
+    b.dataset.id = id; b.dataset.other = other; b.hidden = false;
+    b.title = kind === "gruppe" ? name + " zu " + oname + " hinzufügen" : oname + " zu " + name + " hinzufügen";
+    b.setAttribute("aria-label", b.title);
   }
   function url() {
     if (state.f && state.g) { return "/wissen?f=" + state.f + "&g=" + state.g; }
@@ -66,22 +92,23 @@
   }
   // Wählen: in den Listen und auf der Karte kombinieren (Hersteller + Gruppe), nochmal klicken = abwählen;
   // Links im Infofenster wählen genau dieses eine Thema.
-  function pick(id, only, fromMap) {
+  function pick(id, only, fromMap, keep) {
     var kind = kinds[id] || "hersteller", key = kind === "hersteller" ? "f" : "g";
     if (only) { state.f = state.g = null; state[key] = id; }
-    else { state[key] = state[key] === id && !fromMap ? null : id; }
+    else { state[key] = state[key] === id && !fromMap && !keep ? null : id; }
     showTab("infos");
     load({ fromMap: fromMap });
   }
 
   document.addEventListener("click", function (ev) {
-    var a = ev.target.closest && ev.target.closest("[data-pick], [data-only], [data-panel-close]");
+    var a = ev.target.closest && ev.target.closest("[data-pick], [data-only], [data-combine], [data-panel-close]");
     if (!a || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) { return; }
     ev.preventDefault();
     if (a.hasAttribute("data-panel-close")) {
       state.f = state.g = null; load(); if (window.kbMap) { window.kbMap.select(null); } return;
     }
     if (a.hasAttribute("data-only")) { pick(+a.getAttribute("data-only"), true); return; }
+    if (a.hasAttribute("data-combine")) { pick(+a.getAttribute("data-combine"), false, false, true); return; }
     pick(+a.getAttribute("data-pick"), !a.closest("[data-list]"));
   });
   document.addEventListener("kb:pick", function (ev) { if (ev.detail.id) { pick(ev.detail.id, false, true); } });
@@ -108,6 +135,7 @@
         var m = /[?&]fehler=([^&#]*)/.exec(r.url);
         if (!r.ok) { throw new Error("Nicht gespeichert (Fehler " + r.status + ")"); }
         if (m) { throw new Error(decodeURIComponent(m[1].replace(/\+/g, " "))); }
+        if (/sortiment/.test(form.action) && window.kbMap) { window.kbMap.reload(state.f || state.g); }
         return load({ fromMap: true, keepScroll: true }).then(function () {
           var hit = /#(e\d+)$/.exec(r.url), el = hit && document.getElementById(hit[1]);
           if (el) { el.classList.add("just"); el.scrollIntoView({ block: "nearest" }); }

@@ -34,7 +34,8 @@
 
 {% if pair is defined %}{% set f, g, P = pf, pg, pair %}{% set back = "kombi:%d:%d" % (f.id, g.id) %}
 <div class="kb-d" data-panel="{{ f.id }}" data-f="{{ f.id }}" data-g="{{ g.id }}"
-     data-rel-f="{{ rel_f.keys() | join(',') }}" data-rel-g="{{ rel_g.keys() | join(',') }}">
+     data-rel-f="{{ rel_f.keys() | join(',') }}" data-rel-g="{{ rel_g.keys() | join(',') }}"
+     data-asg-f="{{ asg_f | join(',') }}" data-asg-g="{{ asg_g | join(',') }}">
   <header class="kb-d-head">
     <div class="kb-d-title">
       <span class="kb-d-kind">Hersteller × Artikelgruppe</span>
@@ -45,6 +46,13 @@
   <div class="kb-d-bar">
     <a class="button secondary" href="/wissen?t={{ f.id }}" data-only="{{ f.id }}">Alles zu {{ f.name }}</a>
     <a class="button secondary" href="/wissen?t={{ g.id }}" data-only="{{ g.id }}">Alles zu {{ g.name }}</a>
+    <form method="post" action="/wissen/sortiment" class="inline kb-d-asg" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ back }}">
+      <input type="hidden" name="hersteller" value="{{ f.id }}"><input type="hidden" name="gruppe" value="{{ g.id }}">
+      {% if assigned %}<span class="kb-d-ok">{{ icon("check", 15) }} {{ f.name }} führt {{ g.name }}</span>
+        <input type="hidden" name="aktion" value="entfernen"><button type="submit" class="link">Zuordnung lösen</button>
+      {% else %}<button type="submit">{{ icon("plus", 15) }} {{ g.name }} zu {{ f.name }} hinzufügen</button>{% endif %}
+    </form>
   </div>
 
   <section class="kb-d-sec">
@@ -93,20 +101,24 @@
   </section>
   {% endif %}
 
-  {% if P.rule and P.rule.via %}{% set pos, neg = rule_conditions(P.rule) %}
+  {% if (P.rule and P.rule.via) or P.maker_facts or P.maker_general %}
   <section class="kb-d-sec">
-    <h3>Bezug {{ f.name }}</h3>
+    <h3>Gilt für alles von {{ f.name }}</h3>
+    {% if P.rule and P.rule.via %}{% set pos, neg = rule_conditions(P.rule) %}
     <ul class="kb-d-rule">
       <li class="yes"><span>{{ pos[:1].upper() ~ pos[1:] }}</span><b>bei {{ f.name }}</b></li>
       <li class="no"><span>{{ neg[:1].upper() ~ neg[1:] }}</span><b>bei {{ pick(P.rule.via) }}</b></li>
-    </ul>
+    </ul>{% endif %}
+    {% if P.maker_facts %}<dl class="kb-d-facts">{% for label, value in P.maker_facts %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
+    {% if P.maker_general %}<ul class="kb-d-entries">{% for e in P.maker_general[:8] %}{{ entry_row(e, f.id, back=back) }}{% endfor %}</ul>{% endif %}
   </section>
   {% endif %}
 </div>
 
 {% elif sel %}{% set t = p_topic %}
 <div class="kb-d" data-panel="{{ t.id }}" data-panel-name="{{ t.name }}"
-     data-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ t.id }}" data-rel-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_rel.keys() | join(',') }}">
+     data-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ t.id }}" data-rel-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_rel.keys() | join(',') }}"
+     data-asg-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_assigned | map(attribute='id') | join(',') }}">
   <header class="kb-d-head">
     <div class="kb-d-title">
       <span class="kb-d-kind">{{ kinds[t.kind] }}{% if t.aliases %} · auch {{ t.aliases | join(", ") }}{% endif %}</span>
@@ -123,6 +135,31 @@
       <button type="submit" class="kb-follow labeled" aria-pressed="{{ 'true' if p_following else 'false' }}"><span class="kb-switch"></span> Folge ich</button>
     </form>
   </div>
+
+  {% set maker = t.kind == "hersteller" %}
+  <section class="kb-d-sec kb-d-assort">
+    <h3>{{ "Artikelgruppen" if maker else "Hersteller" }} <small>{{ p_assigned | length }}</small></h3>
+    {% if p_assigned %}
+    <div class="kb-d-chips">{% for x in p_assigned %}
+      <span class="kb-asg-chip"><a href="/wissen?f={{ t.id if maker else x.id }}&g={{ x.id if maker else t.id }}" data-combine="{{ x.id }}" title="Infos {{ t.name }} × {{ x.name }}">{{ x.name }}</a>
+        <form method="post" action="/wissen/sortiment" class="inline" data-panel-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="start:{{ t.id }}">
+          <input type="hidden" name="hersteller" value="{{ t.id if maker else x.id }}"><input type="hidden" name="gruppe" value="{{ x.id if maker else t.id }}">
+          <input type="hidden" name="aktion" value="entfernen">
+          <button type="submit" title="Zuordnung lösen" aria-label="{{ x.name }} entfernen">{{ icon("x", 13) }}</button></form></span>{% endfor %}
+    </div>
+    {% else %}<p class="kb-d-empty">{{ "Welche Artikelgruppen führt " ~ t.name ~ "? Zuordnen, dann lassen sich die Infos kombinieren (z. B. " ~ t.name ~ " × Leuchtbalken)." if maker else "Welche Hersteller führen " ~ t.name ~ "? Zuordnen, dann lassen sich die Infos kombinieren." }}</p>{% endif %}
+    {% if p_options %}
+    <form method="post" action="/wissen/sortiment" class="kb-d-asg-add" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="start:{{ t.id }}">
+      <input type="hidden" name="{{ 'hersteller' if maker else 'gruppe' }}" value="{{ t.id }}">
+      <select name="{{ 'gruppe' if maker else 'hersteller' }}" required aria-label="{{ 'Artikelgruppe' if maker else 'Hersteller' }} hinzufügen">
+        <option value="">{{ "Artikelgruppe hinzufügen …" if maker else "Hersteller hinzufügen …" }}</option>
+        {% for x in p_options | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select>
+      <button type="submit" class="secondary">{{ icon("plus", 15) }} Hinzufügen</button>
+    </form>
+    {% endif %}
+  </section>
 
   {% if p_company | length > 1 %}
   <section class="kb-d-sec">
