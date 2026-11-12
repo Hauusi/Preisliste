@@ -96,8 +96,9 @@ def clear_data(settings, everything: bool = False, rules: bool = False) -> tuple
             # Vertriebswissen gehört allen und bleibt; private Einträge der Gelöschten gehen mit, Namen werden leer
             db.execute(delete(e.KbEntry).where(e.KbEntry.private.is_(True), e.KbEntry.author_id.in_(others)))
             db.execute(delete(e.KbUnfollow).where(e.KbUnfollow.user_id.in_(others)))
-            for model, cols in ((e.KbEntry, ("author_id", "updated_by", "checked_by")), (e.KbFact, ("updated_by",)),
-                                (e.KbTopic, ("created_by", "updated_by")), (e.KbChange, ("user_id",))):
+            for model, cols in ((e.KbEntry, ("author_id", "updated_by", "checked_by", "flagged_by")),
+                                (e.KbFact, ("updated_by",)), (e.KbTopic, ("created_by", "updated_by", "owner_id")),
+                                (e.KbChange, ("user_id",)), (e.KbSynonym, ("updated_by",)), (e.KbSearchMiss, ("last_user",))):
                 for col in cols:
                     db.execute(update(model).where(getattr(model, col).in_(others)).values({col: None}))
             db.execute(delete(e.User).where(e.User.role != "admin"))

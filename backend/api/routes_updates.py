@@ -134,7 +134,10 @@ def update_detail(request: Request, upd_id: int, status: str | None = None, grun
     info = page_info(total, page, settings.page_size)
     rows = db.scalars(stmt.order_by(PriceUpdateItem.id).offset(info["offset"]).limit(settings.page_size)).all()
     reviewers = {u.id: u.username for u in db.scalars(select(User))}
+    from backend.api.routes_manufacturers import kb_context
+
     return render(request, "update.html", {
+        **kb_context(request, db, upd.base_list.manufacturer if upd.base_list else None),
         "upd": upd, "rows": rows, "info": info, "status": status if status in FILTERS else "",
         "grund": grund if grund in REASON_LABELS else "", "q": q or "", "meldung": meldung,
         "statuses": STATUSES, "labels": STATUS_LABELS, "reasons": REASON_LABELS, "codes": code_map(db),

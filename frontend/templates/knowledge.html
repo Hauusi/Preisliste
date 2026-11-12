@@ -22,11 +22,12 @@
     <span>{{ who(e.author_id) }}, {{ e.created_at | dt }}</span>
     {% if e.updated_at > e.created_at and e.updated_by %}<span>geändert von {{ who(e.updated_by) }}, {{ e.updated_at | dt }}</span>{% endif %}
     {% if e.private %}<span class="kb-private">nur für mich</span>{% endif %}
-    {% if stale %}<span class="kb-stale">seit {{ e.checked_at | dt }} nicht geprüft</span>
-      <form method="post" action="/wissen/eintrag/{{ e.id }}/geprueft" class="inline">
+    {% if stale and not e.flagged_at %}<span class="kb-stale">Prüffrist abgelaufen ({{ due_date(e) | dt }})</span>{% endif %}
+    {% if stale %}<form method="post" action="/wissen/eintrag/{{ e.id }}/geprueft" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here or '' }}">
         <button type="submit" class="link">stimmt noch</button></form>{% endif %}
   </div>
+  {% if e.flagged_at %}<p class="kb-flag">Gemeldet „stimmt nicht mehr“ von {{ who(e.flagged_by) }}, {{ e.flagged_at | dt }}{% if e.flag_note %}: {{ e.flag_note }}{% endif %}. Bitte korrigieren (Bearbeiten) oder bestätigen.</p>{% endif %}
   {% if here %}
   <div class="kb-tools">
     <details class="kb-edit"><summary>{{ icon("pencil", 15) }} Bearbeiten</summary>
@@ -41,11 +42,20 @@
           <a class="icon-btn danger" href="/wissen/eintrag/{{ e.id }}/loeschen" title="Eintrag löschen" aria-label="Eintrag löschen">{{ trash() }}</a></div>
       </form>
     </details>
+    {% if not e.flagged_at %}
+    <details class="kb-edit kb-flag-form"><summary>{{ icon("alert", 15) }} Stimmt nicht mehr</summary>
+      <form method="post" action="/wissen/eintrag/{{ e.id }}/melden" class="kb-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here }}">
+        <label>Was stimmt nicht? <input name="bemerkung" maxlength="300" placeholder="optional, z. B. MOQ ist jetzt 24 Stück"></label>
+        <button type="submit" class="secondary">Melden</button>
+      </form>
+    </details>
+    {% endif %}
     {% set h = histories.get(e.id, []) %}
     {% if h | length > 1 or e.original and e.original != e.text %}
     <details class="kb-hist"><summary>{{ icon("history", 15) }} Verlauf</summary>
       <ol>
-        {% for c in h %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {{ c.action }}{% if c.action == "geändert" and c.before %}{% set b = c.before | fromjson %}<br><span class="hint">vorher: {{ b.text }}</span>{% endif %}</li>{% endfor %}
+        {% for c in h %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {{ c.action }}{% if c.action == "geändert" and c.before %}{% set b = c.before | fromjson %}<br><span class="hint">vorher: {{ b.text }}</span>{% elif c.action == "gemeldet" and c.after %}: {{ c.after }}{% endif %}</li>{% endfor %}
         {% if e.original and e.original != e.text %}<li class="hint">So eingetippt: „{{ e.original }}“</li>{% endif %}
       </ol>
     </details>
@@ -77,7 +87,7 @@
     {% if topic %}<input type="hidden" name="vorgabe" value="{{ topic.id }}">{% endif %}
     <div class="kb-capture-row">
       <textarea name="text" rows="1" maxlength="1000" required data-capture-text aria-label="Neuer Eintrag"
-        placeholder="{{ 'Einfach reinschreiben, z. B.: ' ~ (topic.name if topic else 'Nordic Lights') ~ ' Mindestbestellmenge 36 Stück' }}"></textarea>
+        placeholder="{{ 'Einfach reinschreiben, z. B.: ' ~ (topic.name if topic else 'Nordic Lights') ~ ' Mindestbestellmenge 36 Stück' }}"{% if prefill %} autofocus{% endif %}>{{ prefill or "" }}</textarea>
       <button type="submit">Speichern</button>
     </div>
     <div class="kb-capture-more" data-capture-more>
@@ -123,6 +133,7 @@
           <button type="submit">Anlegen</button>
         </form>
       </details>
+      <a class="kb-terms-link" href="/wissen/suchbegriffe">{{ icon("search", 15) }} Suchbegriffe und Synonyme</a>
       <p class="hint">Schalter: folgen. Was du nicht folgst, taucht nicht in deiner Übersicht und Suche auf. Hersteller aus euren Preislisten stehen automatisch hier.</p>
     </aside>
 
@@ -132,8 +143,15 @@
         <div>
           <div class="kind">{{ kinds[topic.kind] }}{% if topic.aliases %} · auch: {{ topic.aliases | join(", ") }}{% endif %}</div>
           {% if own %}<p class="hint m0">In deiner Preisliste: {% for m in own %}<a href="/hersteller/{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</a>{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+          {% if referenced_by %}<p class="hint m0">Genannt bei: {% for t, f in referenced_by %}<a href="/wissen/{{ t.id }}">{{ t.name }}</a> ({{ f.label }}){{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
         </div>
         <div class="row">
+          <form method="post" action="/wissen/{{ topic.id }}/zustaendig" class="inline kb-owner">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Zuständig <select name="benutzer" data-autosubmit>
+              <option value="">– niemand –</option>{% for u in users %}<option value="{{ u.id }}"{% if topic.owner_id == u.id %} selected{% endif %}>{{ u.username }}</option>{% endfor %}</select></label>
+            <noscript><button type="submit" class="secondary">Setzen</button></noscript>
+          </form>
           <form method="post" action="/wissen/{{ topic.id }}/folgen" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="/wissen/{{ topic.id }}">
             {% if not following %}<input type="hidden" name="aktiv" value="1">{% endif %}
@@ -151,6 +169,50 @@
       </div>
 
       <section class="kb-facts" id="angaben" aria-label="Angaben">
+        {% for key in field_keys %}{% set label, kind = field_defs[key] %}{% set items = fields.get(key, []) %}
+        {% if key == "pflicht" %}
+        <div class="kb-fact kb-fact-wide t-pflicht">
+          <span>{{ label }}</span>
+          {% if items %}<ul class="kb-acc">{% for f in items %}<li>
+            <b>{{ f.number or 1 }} × <a href="/wissen/{{ f.ref_topic_id }}">{{ by_id[f.ref_topic_id].name if f.ref_topic_id in by_id else "?" }}</a></b>{% if f.value %} <span class="hint">{{ f.value }}</span>{% endif %}
+            <small class="{{ 'kb-stale' if fact_stale(f) }}">{{ who(f.updated_by) }}, {{ f.updated_at | dt }}</small>
+            <details class="kb-edit"><summary aria-label="Ändern" title="Ändern">{{ icon("pencil", 14) }}</summary>
+              <form method="post" action="/wissen/{{ topic.id }}/feld/pflicht" class="kb-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ f.id }}">
+                <label>Zubehör <select name="wert"><option value="">– entfernen –</option>{% for t in topics if t.id != topic.id %}<option value="{{ t.id }}"{% if t.id == f.ref_topic_id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></label>
+                <label>Stück je Artikel <input name="menge" type="number" min="1" max="999" value="{{ f.number or 1 }}"></label>
+                <label>Bemerkung <input name="bemerkung" value="{{ f.value }}" maxlength="120" placeholder="optional, z. B. nur bei Dachmontage"></label>
+                <button type="submit">Speichern</button>
+              </form></details>
+          </li>{% endfor %}</ul>{% else %}<b class="empty">noch nicht eingetragen</b>{% endif %}
+          <details class="kb-edit kb-add"><summary>{{ icon("plus", 14) }} Zubehör</summary>
+            <form method="post" action="/wissen/{{ topic.id }}/feld/pflicht" class="kb-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>Zubehör (Artikelgruppe oder Hersteller) <select name="wert" required><option value="">bitte wählen</option>{% for t in topics if t.id != topic.id %}<option value="{{ t.id }}">{{ t.name }} ({{ kinds[t.kind] }})</option>{% endfor %}</select></label>
+              <label>Stück je Artikel <input name="menge" type="number" min="1" max="999" value="1"></label>
+              <label>Bemerkung <input name="bemerkung" maxlength="120" placeholder="optional"></label>
+              <button type="submit">Hinzufügen</button>
+            </form></details>
+        </div>
+        {% else %}{% set f = items[0] if items else none %}
+        <div class="kb-fact{{ ' alert' if key == 'moq' and f }}">
+          <span>{{ label }}</span>
+          {% if f %}<b>{{ describe(f, by_id) }}</b><small class="{{ 'kb-stale' if fact_stale(f) }}">{{ who(f.updated_by) }}, {{ f.updated_at | dt }}{{ " · bitte prüfen" if fact_stale(f) }}</small>
+          {% else %}<b class="empty">noch nicht eingetragen</b>{% endif %}
+          <details class="kb-edit"><summary aria-label="{{ label }} ändern" title="Ändern">{{ icon("pencil", 14) }}</summary>
+            <form method="post" action="/wissen/{{ topic.id }}/feld/{{ key }}" class="kb-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              {% if kind == "menge" %}<label>{{ label }} (Stück) <input name="wert" type="number" min="1" value="{{ f.number if f else '' }}" placeholder="z. B. 36"></label>
+              {% elif kind == "thema" %}<label>{{ label }} <select name="wert"><option value="">– keiner –</option>{% for t in topics if t.kind == "hersteller" and t.id != topic.id %}<option value="{{ t.id }}"{% if f and t.id == f.ref_topic_id %} selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></label>
+              {% elif kind == "auswahl" %}<label>{{ label }} <select name="wert"><option value="">– unbekannt –</option>{% for c in lager_choices %}<option value="{{ c }}"{% if f and f.value == c %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+              {% else %}<label>{{ label }} <input name="wert" value="{{ f.value if f else '' }}" maxlength="200"></label>{% endif %}
+              <span class="hint">leer = entfernen{{ "; unverändert speichern = bestätigen" if f }}</span>
+              <button type="submit">Speichern</button>
+            </form>
+          </details>
+        </div>
+        {% endif %}
+        {% endfor %}
         {% for f in facts %}
         <div class="kb-fact">
           <span>{{ f.label }}</span><b>{{ f.value }}</b>
@@ -166,7 +228,7 @@
         </div>
         {% endfor %}
         <details class="kb-fact kb-fact-new">
-          <summary>{{ icon("plus", 16) }} Angabe</summary>
+          <summary>{{ icon("plus", 16) }} weitere Angabe</summary>
           <form method="post" action="/wissen/{{ topic.id }}/angabe" class="kb-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label>Bezeichnung <input name="bezeichnung" maxlength="60" required list="kb-fact-names" placeholder="z. B. Mindestbestellmenge"></label>
@@ -174,8 +236,38 @@
             <button type="submit">Hinzufügen</button>
           </form>
         </details>
-        <datalist id="kb-fact-names"><option value="Mindestbestellmenge"><option value="Lieferzeit"><option value="Ansprechpartner"><option value="Bezug kleiner Mengen"><option value="Lagerartikel"><option value="Kalkulation"><option value="Mindestbestellwert"><option value="Frachtfrei ab"></datalist>
+        <datalist id="kb-fact-names"><option value="Mindestbestellwert"><option value="Frachtfrei ab"><option value="Kalkulation"><option value="Garantie"><option value="Kundennummer"></datalist>
       </section>
+
+      {% if flow %}
+      <section class="kb-panel">
+        <div class="kb-panel-head"><h2>Ablauf bei kleinen Mengen</h2><span class="hint">aus den Angaben oben</span></div>
+        <div class="kb-flow">
+          <div class="kb-node start">Anfrage {{ flow.name }}</div>
+          <div class="kb-down"></div>
+          <div class="kb-node q">Menge mindestens {{ flow.moq }} Stück?</div>
+          <div class="kb-down"></div>
+          <div class="kb-branches">
+            <div class="kb-branch yes" data-label="ja"><div class="kb-node end">Direkt bei {{ flow.name }} bestellen</div></div>
+            <div class="kb-branch no" data-label="nein"><div class="kb-chain">
+              {% if flow.lager in ("ja", "teilweise") %}
+              <div class="kb-node q">Lagerartikel bei uns?{% if flow.lager == "teilweise" %} <small>(teilweise)</small>{% endif %}</div>
+              <div class="kb-down"></div>
+              <div class="kb-branches">
+                <div class="kb-branch yes" data-label="ja"><div class="kb-node end stock">Aus Lager liefern</div></div>
+                <div class="kb-branch no" data-label="nein"><div class="kb-chain">
+                  {% if flow.small.topic %}<a class="kb-node end" href="/wissen/{{ flow.small.topic }}">{{ flow.small.text }}</a>{% else %}<div class="kb-node missing">{{ flow.small.text }}</div>{% endif %}
+                </div></div>
+              </div>
+              {% else %}
+              {% if flow.small.topic %}<a class="kb-node end" href="/wissen/{{ flow.small.topic }}">{{ flow.small.text }}</a>{% else %}<div class="kb-node missing">{{ flow.small.text }}</div>{% endif %}
+              {% endif %}
+            </div></div>
+          </div>
+        </div>
+        {% if flow.small.topic %}<p class="hint">Kalkulation und Konditionen dort: <a href="/wissen/{{ flow.small.topic }}">Steckbrief öffnen</a>.</p>{% endif %}
+      </section>
+      {% endif %}
 
       <section class="kb-panel">
         <div class="kb-panel-head"><h2>Einträge</h2><span class="hint">{{ entries | length }} {{ "Eintrag" if entries | length == 1 else "Einträge" }}, nach Art</span></div>
@@ -215,17 +307,20 @@
       {% if changes %}
       <details class="kb-panel kb-changes">
         <summary><h2>Verlauf</h2><span class="hint">wer hat wann was geändert</span></summary>
-        <ol>{% for c in changes %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {{ {"eintrag": "Eintrag", "angabe": "Angabe", "thema": "Name"}[c.object] }} {{ c.action }}{% if c.object == "angabe" and (c.after or c.before) %}: {{ c.after or c.before }}{% endif %}</li>{% endfor %}</ol>
+        <ol>{% for c in changes %}<li><b>{{ who(c.user_id) }}</b> · {{ c.at | dt }} · {% if c.action == "zuständig" %}Zuständig: {{ c.after or "niemand" }}{% else %}{{ {"eintrag": "Eintrag", "angabe": "Angabe", "thema": "Name"}.get(c.object, c.object) }} {{ c.action }}{% if c.object == "angabe" and (c.after or c.before) %}: {{ c.after or c.before }}{% endif %}{% endif %}</li>{% endfor %}</ol>
       </details>
       {% endif %}
 
     {% else %}
-      {% if stale %}
+      {% set a = attention %}
+      {% if a.mine or a.other %}
       <section class="kb-panel kb-attention">
-        <div class="kb-panel-head"><h2>Bitte prüfen</h2><span class="hint">seit über einem Jahr nicht bestätigt</span></div>
-        <div class="kb-list">{% for e in stale %}{{ entry_card(e) }}{% endfor %}</div>
+        <div class="kb-panel-head"><h2>Bitte prüfen</h2><span class="hint">gemeldet „stimmt nicht mehr“ oder Prüffrist abgelaufen (Lieferzeit 3, Bezug und Kalkulation 6, sonst 12 Monate)</span></div>
+        {% if a.mine %}<h3 class="kb-sub">Du bist zuständig</h3><div class="kb-list">{% for e in a.mine[:15] %}{{ entry_card(e) }}{% endfor %}</div>{% endif %}
+        {% if a.other %}{% if a.mine %}<h3 class="kb-sub">Weitere</h3>{% endif %}<div class="kb-list">{% for e in a.other[:15] %}{{ entry_card(e) }}{% endfor %}</div>{% endif %}
       </section>
       {% endif %}
+      {% if a.unowned %}<p class="hint kb-unowned">Ohne Zuständigen: {% for t in a.unowned[:12] %}<a href="/wissen/{{ t.id }}">{{ t.name }}</a>{{ ", " if not loop.last }}{% endfor %}{% if a.unowned | length > 12 %} und {{ a.unowned | length - 12 }} weitere{% endif %}. Im Steckbrief oben „Zuständig“ wählen.</p>{% endif %}
       <section class="kb-panel">
         <div class="kb-panel-head"><h2>Zuletzt geändert</h2><span class="hint">bei Herstellern und Gruppen, denen du folgst</span></div>
         {% if recent %}
@@ -247,5 +342,6 @@
     </main>
   </div>
 </div>
+<script src="/static/app.js"></script>
 <script src="/static/knowledge.js"></script>
 {% endblock %}

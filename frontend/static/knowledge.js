@@ -72,6 +72,7 @@
       if (!current().length) { e.preventDefault(); add.focus(); chips.classList.add("warn"); }
     });
     renderChips();
+    if (text.value.trim()) { autosize(); ask(); }  // vorbelegt (z. B. aus „Suchen ohne Treffer“)
   }
 
   // ---------- Suche: Treffer beim Tippen, Strg+K ----------

@@ -488,33 +488,65 @@ das Tool (ohne KI, mit festen Regeln):
   „+ zuordnen“ ergänzen. Wird nichts erkannt, gehört der Eintrag zum gerade geöffneten Steckbrief; auf der Übersicht
   muss man dann selbst zuordnen.
 - **Wird gespeichert als**: einheitliche Schreibweise – Herstellername wie im Steckbrief, Abkürzungen ausgeschrieben
-  (stk → Stück, moq → Mindestbestellmenge, mind. → mindestens, zb → z. B.), bekannte Artikelgruppen groß, Zahl und
-  Einheit getrennt (1,80m → 1,80 m), großer Satzanfang, Punkt am Ende. Zahlen bleiben unverändert. Das Original
+  (stk → Stück, moq → Mindestbestellmenge, mind. → mindestens, zb → z. B.), bekannte Artikelgruppen und häufige
+  Substantive (Lieferzeit, Wochen, Kalkulation, Aufschlag …) groß, Zahl und Einheit getrennt (1,80m → 1,80 m), großer Satzanfang, Punkt am Ende. Zahlen bleiben unverändert. Das Original
   bleibt im Verlauf („So eingetippt“).
 
 Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller sieht.
 
 **Steckbrief** eines Herstellers oder einer Gruppe:
 
-- **Angaben** oben: feste Kurzinfos wie Mindestbestellmenge, Lieferzeit, Ansprechpartner, Bezug kleiner Mengen
-  („+ Angabe“, Bleistift ändert, leerer Wert entfernt). Unter jeder Angabe steht, wer sie wann zuletzt geändert hat.
+- **Zuständig** (oben rechts): eine Person je Hersteller/Gruppe. Sie sieht Meldungen und überfällige Einträge dieses
+  Themas auf der Übersicht zuerst („Du bist zuständig“). Themen ohne Zuständigen stehen auf der Übersicht.
+- **Angaben** oben als **feste Felder**: Mindestbestellmenge (Stück), Darunter beziehen über (Hersteller, z. B.
+  Riedfeld), Lagerartikel bei uns (ja/teilweise/nein), Lieferzeit, Ansprechpartner (nur Hersteller) und
+  **Pflicht-Zubehör** (Artikelgruppe oder Hersteller, Stück je Artikel, Bemerkung; mehrere möglich). Bleistift
+  ändert, leer speichern entfernt, unverändert speichern bestätigt. Unter jedem Feld stehen Name und Zeitpunkt der
+  letzten Änderung; nach 6 Monaten steht dort „bitte prüfen“. Daneben „weitere Angabe“ für freie Kurzinfos
+  (z. B. Mindestbestellwert, Frachtfrei ab).
+- **Ablauf bei kleinen Mengen**: entsteht automatisch, sobald eine Mindestbestellmenge eingetragen ist. Menge
+  mindestens X Stück? ja → direkt bestellen; nein → (wenn Lagerartikel ja/teilweise) Lagerartikel bei uns? ja → aus
+  Lager; nein → bei [Darunter beziehen über] anfragen (Klick öffnet dessen Steckbrief mit Kalkulation). Fehlt der
+  Bezugsweg, sagt der Ablauf das.
 - **Einträge** nach Art gruppiert (Farbe je Art). Jeder Eintrag zeigt Ersteller und Zeitpunkt, nach Änderungen
   „geändert von … am …“, und die anderen zugeordneten Themen als Links. **Bearbeiten** dürfen alle (Text, Art,
   Zuordnung); privat schalten nur der Ersteller. **Verlauf** zeigt jede Änderung mit Name, Zeitpunkt und dem Text
   davor. Löschen mit Bestätigung; im Verlauf bleibt vermerkt, wer wann gelöscht hat.
-- **Verknüpfungen**: Bild mit allen Herstellern und Gruppen, die über gemeinsame Einträge verbunden sind (Linie nach
+- **Verknüpfungen**: Bild mit allen Herstellern und Gruppen, die über gemeinsame Einträge oder feste Felder
+  (Bezug über, Pflicht-Zubehör) verbunden sind; „Genannt bei“ im Kopf zeigt, wer auf dieses Thema verweist (Linie nach
   der wichtigsten Art: Pflicht-Zubehör gestrichelt orange, Bezugsweg, Kalkulation). Klick öffnet den Steckbrief.
   Auf dem Handy als Liste.
 - **Verlauf** unten: die letzten Änderungen an diesem Thema.
 
 **Kalkulationshinweise** sind Information und frei änderbar; sie rechnen nicht in der Preisliste mit.
 
-**Bitte prüfen:** Einträge, die seit über einem Jahr niemand bestätigt hat, sind orange markiert und stehen auf der
-Übersicht unter „Bitte prüfen“. „stimmt noch“ bestätigt sie (mit Name und Datum), Bearbeiten ebenfalls.
+**Bitte prüfen:** Prüffrist je Art – Lieferzeit/Kontakt 3 Monate, Bezugsweg und Kalkulation 6 Monate, Pflicht-Zubehör
+und Hinweise 12 Monate (was sich schnell ändert, kommt früher wieder). Danach ist der Eintrag orange markiert und
+steht auf der Übersicht unter „Bitte prüfen“. Jeder kann bei einem Eintrag **„Stimmt nicht mehr“** melden (optional
+mit Bemerkung): Der Eintrag zeigt die Meldung mit Name und Zeit und steht ganz oben bei „Bitte prüfen“, beim
+Zuständigen unter „Du bist zuständig“. „stimmt noch“ bestätigt (mit Name und Datum), Bearbeiten korrigiert; beides
+erledigt die Meldung.
+
+**Hinweise bei der Arbeit:** Was beim Anbieten zählt, erscheint dort, wo man arbeitet – als Kasten „Vertriebswissen“
+mit wenigen Zeilen (höchstens 6; nur Mindestmenge mit Bezugsweg, Pflicht-Zubehör, Lieferzeit und Einträge der Arten
+Pflicht-Zubehör, Bezugsweg, Kalkulation):
+
+- **Preisliste → Hersteller** und **Jahresabgleich** dieses Herstellers (Zuordnung über Name/Alias wie oben),
+- **Datenblatt-Editor**, wenn Titel, Serie oder Artikelbeschreibungen einen Hersteller oder eine Gruppe nennen.
+
+Klick führt zum Eintrag. Themen, denen man nicht folgt, erscheinen nicht. Überfällige Einträge tragen „bitte prüfen“.
 
 **Suche:** Feld oben rechts oder **Strg+K**. Findet Hersteller, Gruppen (auch über andere Schreibweisen), Angaben und
-Einträge (auch den ursprünglich eingetippten Text), nur bei Themen, denen man folgt. Pfeiltasten + Enter öffnen den
-Treffer; Enter ohne Auswahl öffnet die ausführliche Trefferliste.
+Einträge (auch den ursprünglich eingetippten Text), nur bei Themen, denen man folgt. **Jedes Suchwort zählt einzeln**
+(Reihenfolge egal, alle müssen vorkommen: „nordic moq“ findet „Nordic Lights … Mindestbestellmenge“); Groß-/
+Kleinschreibung, Umlaute, Leer- und Bindestriche sind egal. **Synonyme** werden mitgesucht. Pfeiltasten + Enter
+öffnen den Treffer; Enter ohne Auswahl öffnet die ausführliche Trefferliste („Auch gesucht nach: …“).
+
+**Suchbegriffe** (links „Suchbegriffe und Synonyme“): Gruppen gleichbedeutender Wörter, z. B. „Mindestbestellmenge,
+MOQ, Mindestmenge, Mindestabnahme“ (drei allgemeine Gruppen sind vorbelegt, alle änderbar). Jeder darf ändern, Name
+und Zeit stehen dabei; leer speichern löscht. Daneben **Suchen ohne Treffer**: Was in der ausführlichen Suche nichts
+gefunden hat, mit Anzahl und wer zuletzt gesucht hat (beim Tippen wird nichts protokolliert). Von dort: als Eintrag
+erfassen (+) oder als erledigt abhaken. Wird ein Wort als Synonym ergänzt, verschwindet es aus der Liste.
 
 **Übersicht** ohne gewähltes Thema: „Zuletzt geändert“ bei allem, dem man folgt, und „Bitte prüfen“.
 
@@ -615,7 +647,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
-| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes` | Vertriebswissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen), Angaben im Steckbrief, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses` | Vertriebswissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

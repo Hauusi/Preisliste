@@ -14,10 +14,13 @@
   <button type="submit" class="secondary">Suchen</button>
 </form>
 <section class="card">
+  {% if also and q %}<p class="hint">Auch gesucht nach: {{ also | join(", ") }}</p>{% endif %}
   {% if hits %}
   <ul class="kb-hits">{% for h in hits %}<li><a href="{{ h.url }}"><b>{{ h.title }}</b><small>{{ h.sub }}</small></a></li>{% endfor %}</ul>
   {% elif q %}
-  <p class="hint">Nichts zu „{{ q }}“ gefunden. Hersteller und Gruppen, denen du nicht folgst, werden nicht durchsucht.</p>
+  <p class="hint">Nichts zu „{{ q }}“ gefunden. Hersteller und Gruppen, denen du nicht folgst, werden nicht durchsucht.
+    Die Suche ist vermerkt; unter <a href="/wissen/suchbegriffe">Suchbegriffe</a> lässt sich ein Synonym ergänzen.</p>
+  <p><a class="button" href="/wissen?neu={{ q | urlencode }}">{{ icon("plus", 16) }} Als Eintrag erfassen</a></p>
   {% else %}
   <p class="hint">Suchbegriff eingeben.</p>
   {% endif %}

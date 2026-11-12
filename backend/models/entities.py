@@ -524,6 +524,8 @@ class KbTopic(Base):
     name: Mapped[str] = mapped_column(String(120))
     key: Mapped[str] = mapped_column(String(120))  # Name normalisiert (Kleinbuchstaben, ohne Sonderzeichen)
     aliases: Mapped[list] = mapped_column(JSON, default=list)
+    # Zuständig: bekommt Meldungen „stimmt nicht mehr“ und überfällige Prüfungen dieses Themas
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_owner"))
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_created_by"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_updated_by"))
@@ -540,6 +542,10 @@ class KbFact(Base):
     label: Mapped[str] = mapped_column(String(60))
     value: Mapped[str] = mapped_column(String(200))
     position: Mapped[int] = mapped_column(Integer, default=0)
+    # Feste Felder (knowledge.FIELDS): Mindestbestellmenge, Bezug darunter, Lagerartikel, Lieferzeit, Pflicht-Zubehör …
+    field: Mapped[str | None] = mapped_column(String(20))
+    number: Mapped[int | None] = mapped_column(Integer)  # Menge (Mindestbestellmenge, Stück Pflicht-Zubehör)
+    ref_topic_id: Mapped[int | None] = mapped_column(Integer)  # verweist auf ein anderes Thema (Bezug über, Zubehör)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_facts_updated_by"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -561,6 +567,10 @@ class KbEntry(Base):
     checked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_checked_by"))
     checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     topic_ids: Mapped[list] = mapped_column(JSON, default=list)  # zugehörige Themen (kb_topics.id)
+    # „stimmt nicht mehr“: von wem, wann, mit welcher Bemerkung (wird beim Bearbeiten oder Bestätigen gelöscht)
+    flagged_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_flagged_by"))
+    flagged_at: Mapped[datetime | None] = mapped_column(DateTime)
+    flag_note: Mapped[str | None] = mapped_column(String(300))
 
 
 class KbUnfollow(Base):
@@ -586,3 +596,27 @@ class KbChange(Base):
     action: Mapped[str] = mapped_column(String(16))  # angelegt | geändert | geprüft | gelöscht
     before: Mapped[str | None] = mapped_column(Text)
     after: Mapped[str | None] = mapped_column(Text)
+
+
+class KbSynonym(Base):
+    """Gleichbedeutende Suchwörter, z. B. MOQ = Mindestbestellmenge = Mindestmenge. Für alle, pflegbar."""
+
+    __tablename__ = "kb_synonyms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    words: Mapped[list] = mapped_column(JSON, default=list)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_synonyms_updated_by"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class KbSearchMiss(Base):
+    """Suche ohne Treffer (ausführliche Suche): zeigt, welche Wörter fehlen."""
+
+    __tablename__ = "kb_search_misses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True)
+    query: Mapped[str] = mapped_column(String(80))
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    last_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_user: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_search_misses_user"))
