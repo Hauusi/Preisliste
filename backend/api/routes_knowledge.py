@@ -90,13 +90,32 @@ def _panel(db: Session, user: User, ctx: dict, t: KbTopic) -> dict:
             "fact_stale": kb.fact_stale, "by_id": by_id, "p_keys": kb.FIELDS_BY_KIND[t.kind],
             "p_rel": kb.relations(db, user, t, by_id),
             "p_assigned": sorted((by_id[i] for i in kb.assortment_of(db, t) if i in by_id), key=lambda x: x.name.lower()),
-            "p_options": [x for x in ctx["topics"] if x.kind != t.kind and x.id not in kb.assortment_of(db, t)]}
+            "p_options": [x for x in ctx["topics"] if x.kind == {"hersteller": "gruppe", "gruppe": "hersteller"}.get(t.kind)
+                          and x.id not in kb.assortment_of(db, t)],
+            **_series_ctx(db, user, ctx, t, by_id)}
+
+
+def _series_ctx(db: Session, user: User, ctx: dict, t: KbTopic, by_id: dict) -> dict:
+    """Serien: bei Gruppe/Hersteller die Liste, bei einer Serie Gruppe, Hersteller und was für beide allgemein gilt."""
+    tops = ctx["topics"]
+    makers = [x for x in tops if x.kind == "hersteller"]
+    groups = [x for x in tops if x.kind == "gruppe"]
+    if t.kind == "serie":
+        g, m = by_id.get(t.parent_id), by_id.get(t.maker_id)
+        return {"s_group": g, "s_maker": m, "s_makers": makers, "s_groups": groups,
+                "s_pair": kb.pair_info(db, user, m, g, by_id) if g and m else None,
+                "rule_conditions": kb.rule_conditions}
+    series = kb.series_of(tops, group=t if t.kind == "gruppe" else None, maker=t if t.kind == "hersteller" else None)
+    return {"p_series": series, "s_makers": makers, "s_groups": groups,
+            "s_counts": {x.id: len(kb.entries_for(db, user, x.id)) for x in series}}
 
 
 def _pair(db: Session, user: User, ctx: dict, f: KbTopic, g: KbTopic) -> dict:
     by_id = {x.id: x for x in ctx["topics"]}
     info = kb.pair_info(db, user, f, g, by_id)
-    return {"pair": info, "pf": f, "pg": g, "by_id": by_id, "describe": kb.describe,
+    series = kb.series_of(ctx["topics"], group=g, maker=f)
+    return {"pair": info, "pf": f, "pg": g, "by_id": by_id, "describe": kb.describe, "p_series": series,
+            "s_counts": {x.id: len(kb.entries_for(db, user, x.id)) for x in series},
             "rel_f": kb.relations(db, user, f, by_id), "rel_g": kb.relations(db, user, g, by_id),
             "assigned": g.id in kb.assortment_of(db, f), "asg_f": kb.assortment_of(db, f), "asg_g": kb.assortment_of(db, g),
             "rule_conditions": kb.rule_conditions}
@@ -108,7 +127,9 @@ def _selection(db: Session, t: int | None, f: int | None, g: int | None) -> tupl
         x = db.get(KbTopic, i) if i else None
         return x if x and (kind is None or x.kind == kind) else None
     one = get(t, None)
-    fx, gx = get(f, "hersteller"), get(g, "gruppe")
+    fx, gx = get(f, "hersteller"), get(g, None)
+    if gx and gx.kind not in ("gruppe", "serie"):
+        gx = None
     if one:
         fx, gx = (one, gx) if one.kind == "hersteller" else (fx, one)
     return fx, gx
@@ -160,7 +181,9 @@ def overview(request: Request, fehler: str | None = None, neu: str | None = None
     fx, gx = _selection(db, t, f, g)
     att = kb.attention(db, user)
     flagged = {i for e in att["mine"] + att["other"] for i in e.topic_ids or []}
-    if fx and gx:
+    if gx and gx.kind == "serie":
+        extra = _panel(db, user, ctx, gx)
+    elif fx and gx:
         extra = _pair(db, user, ctx, fx, gx)
     elif fx or gx:
         extra = _panel(db, user, ctx, fx or gx)
@@ -194,7 +217,29 @@ def pair_panel(request: Request, f: int, g: int, db: Session = Depends(get_db), 
     fx, gx = _selection(db, None, f, g)
     if not (fx and gx):
         raise HTTPException(404, "Nicht gefunden")
+    if gx.kind == "serie":
+        return render(request, "knowledge_panel.html", {**ctx, **_panel(db, user, ctx, gx), "sel": gx})
     return render(request, "knowledge_panel.html", {**ctx, **_pair(db, user, ctx, fx, gx), "sel": fx, "sel_f": fx, "sel_g": gx})
+
+
+@router.post("/wissen/serie", dependencies=[Depends(check_csrf)])
+async def save_series(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Serie anlegen (bei Artikelgruppe/Hersteller) oder ihre Gruppe und ihren Hersteller ändern."""
+    form = await request.form()
+    back = str(form.get("zurueck") or "")
+    g, m, sid = str(form.get("gruppe") or ""), str(form.get("hersteller") or ""), str(form.get("id") or "")
+    if not (g.isdigit() and m.isdigit()):
+        return _ret(back, None, "Bitte Artikelgruppe und Hersteller wählen.")
+    group, maker = _topic(db, int(g)), _topic(db, int(m))
+    series = _topic(db, int(sid)) if sid.isdigit() else None
+    if series is not None and series.kind != "serie":
+        raise HTTPException(404, "Nicht gefunden")
+    try:
+        x = kb.save_series(db, user, str(form.get("name") or (series.name if series else "")), group, maker,
+                           [a for a in str(form.get("aliase") or "").split(",")], series)
+    except ValueError as exc:
+        return _ret(back, group.id, str(exc))
+    return _ret(back if back else f"start:{x.id}", x.id)
 
 
 @router.get("/wissen/ueberblick")

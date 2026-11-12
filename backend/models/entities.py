@@ -530,6 +530,8 @@ class KbTopic(Base):
     criteria: Mapped[list | None] = mapped_column(JSON)
     # Firmengruppe: Muttergesellschaft (z. B. LED Autolamps gehört zu EccoESG)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("kb_topics.id", ondelete="SET NULL", name="fk_kb_topics_parent"))
+    # Serie (kind „serie“): parent_id = Artikelgruppe, maker_id = Hersteller (z. B. Spartan = Leuchtbalken von X)
+    maker_id: Mapped[int | None] = mapped_column(ForeignKey("kb_topics.id", ondelete="SET NULL", name="fk_kb_topics_maker"))
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_created_by"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_updated_by"))

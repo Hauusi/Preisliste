@@ -133,6 +133,7 @@
         var m = /[?&]fehler=([^&#]*)/.exec(r.url);
         if (!r.ok) { throw new Error("Nicht gespeichert (Fehler " + r.status + ")"); }
         if (m) { throw new Error(decodeURIComponent(m[1].replace(/\+/g, " "))); }
+        if (/\/wissen\/serie$/.test(form.action)) { location.href = url(); return; }  // neue Serie: Listen neu aufbauen
         if (/sortiment/.test(form.action) && window.kbMap) { window.kbMap.reload(state.f || state.g); }
         return load({ fromMap: true, keepScroll: true }).then(function () {
           var hit = /#(e\d+)$/.exec(r.url), el = hit && document.getElementById(hit[1]);
