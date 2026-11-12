@@ -468,6 +468,16 @@ Startseite → **Vertriebswissen**. Gemeinsames Wissen, das sonst nur in Köpfen
 Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
+**Karte (Startseite):** Alle Hersteller (Kreise) und Artikelgruppen (Quadrate) mit ihren Verbindungen. Linien bedeuten
+etwas: **Artikel** (Hersteller hat einen Artikel im Vergleich der Gruppe; Farbe = beste Bewertung: grün erste Wahl,
+hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten), **Bezug über** (blau, aus „Darunter beziehen über“),
+**Pflicht-Zubehör** (orange gestrichelt), **gemeinsame Einträge** (grau, ein Eintrag nennt beide). Je mehr Einträge und
+Artikel, desto größer der Kreis; Themen ohne Verbindung sind blass. Klick auf einen Kreis hebt seine Verbindungen
+hervor und zeigt rechts eine Liste mit „Steckbrief öffnen“; Doppelklick öffnet direkt. Am Hintergrund ziehen =
+verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
+blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
+„Zuletzt geändert“.
+
 **Themen:** links die **Hersteller** und **Artikelgruppen**. Die Herstellerliste ist **gemeinsam für alle**: Jeder
 Hersteller aus den Preislisten aller Benutzer steht automatisch einmal darin (gleicher Name oder Alias = derselbe
 Hersteller, Schreibweise wie „Nordic-Lights“/„nordic lights“ egal). Im Steckbrief steht dann „In deiner Preisliste:
@@ -508,6 +518,14 @@ Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller s
   mindestens X Stück? ja → direkt bestellen; nein → (wenn Lagerartikel ja/teilweise) Lagerartikel bei uns? ja → aus
   Lager; nein → bei [Darunter beziehen über] anfragen (Klick öffnet dessen Steckbrief mit Kalkulation). Fehlt der
   Bezugsweg, sagt der Ablauf das.
+- **Artikelvergleich** (nur bei Artikelgruppen, z. B. „Blue-Spot-Scheinwerfer“): Artikel verschiedener Hersteller
+  von Hand eintragen („+ Artikel“: Hersteller, Artikelnummer, Bezeichnung, Punkte 1–5 je Kriterium, „Warum?“).
+  Vorbelegte Kriterien: Helligkeit, Qualität, Preis, Lieferbarkeit; unter „Kriterien“ umbenennen oder ändern
+  (höchstens 6; Umbenennen behält die Punkte nach Position). Rang nach Punkteschnitt (nur bewertete Kriterien
+  zählen), daraus die Stufe: ab 4,25 **erste Wahl**, ab 3,5 **gut**, ab 2,5 **nur wenn nötig**, darunter **abraten**;
+  ohne Punkte „noch nicht bewertet“ (am Ende). Bleistift ändert, dort auch löschen; Name und Zeit stehen dabei, jede
+  Änderung im Verlauf. Beim **Hersteller** steht „In Artikelgruppen“ mit seinem Platz („Platz 1 von 3 · erste Wahl“).
+  Der Hinweiskasten bei der Arbeit nennt die erste Wahl der Gruppe bzw. wo ein Hersteller erste Wahl ist.
 - **Einträge** nach Art gruppiert (Farbe je Art). Jeder Eintrag zeigt Ersteller und Zeitpunkt, nach Änderungen
   „geändert von … am …“, und die anderen zugeordneten Themen als Links. **Bearbeiten** dürfen alle (Text, Art,
   Zuordnung); privat schalten nur der Ersteller. **Verlauf** zeigt jede Änderung mit Name, Zeitpunkt und dem Text
@@ -647,7 +665,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
-| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses` | Vertriebswissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

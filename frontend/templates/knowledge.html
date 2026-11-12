@@ -12,6 +12,25 @@
 </span>
 {%- endmacro %}
 
+{# Punkte 1–5 als Balken (Kästchen) #}
+{% macro score(v) -%}
+<span class="kb-score" title="{{ v ~ ' von 5' if v else 'nicht bewertet' }}" aria-label="{{ v ~ ' von 5' if v else 'nicht bewertet' }}">{% for i in range(1, 6) %}<i class="{{ 'on' if v and i <= v }}"></i>{% endfor %}</span>
+{%- endmacro %}
+
+{% macro product_form(pr=None) -%}
+<form method="post" action="/wissen/{{ topic.id }}/artikel" class="kb-form kb-product-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if pr %}<input type="hidden" name="id" value="{{ pr.id }}">{% endif %}
+  <div class="kb-form-grid">
+    <label>Hersteller <select name="hersteller" required><option value="">bitte wählen</option>{% for m in makers %}<option value="{{ m.id }}"{% if pr and pr.maker_id == m.id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select></label>
+    <label>Artikelnummer <input name="artnr" value="{{ pr.artnr if pr else '' }}" maxlength="60"></label>
+    <label class="span2">Bezeichnung <input name="name" value="{{ pr.name if pr else '' }}" maxlength="160" placeholder="z. B. LED Blue-Spot 12-24V"></label>
+    {% for c in criteria %}<label>{{ c }} <select name="k{{ loop.index0 }}"><option value="">–</option>{% for v in range(1, 6) %}<option value="{{ v }}"{% if pr and pr.scores.get(c) == v %} selected{% endif %}>{{ v }}{{ " (schlecht)" if v == 1 else " (sehr gut)" if v == 5 else "" }}</option>{% endfor %}</select></label>{% endfor %}
+    <label class="span2">Warum? <input name="notiz" value="{{ (pr.note or '') if pr else '' }}" maxlength="500" placeholder="z. B. heller und robuster, aber 3 Wochen Lieferzeit"></label>
+  </div>
+  <button type="submit">{{ "Speichern" if pr else "Artikel hinzufügen" }}</button>
+</form>
+{%- endmacro %}
+
 {% macro entry_card(e, here=None, chips=true) -%}
 {% set stale = is_stale(e) %}
 <article class="kb-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
@@ -111,7 +130,7 @@
         {% for t in list %}
           {% set on = t.id not in hidden %}
           <li class="{{ 'active' if topic and topic.id == t.id }}{{ ' off' if not on }}">
-            <a href="/wissen/{{ t.id }}"><b>{{ t.name }}</b><small>{{ counts.get(t.id, 0) }} {{ "Eintrag" if counts.get(t.id, 0) == 1 else "Einträge" }}</small></a>
+            <a href="/wissen/{{ t.id }}"><b>{{ t.name }}</b><small>{{ counts.get(t.id, 0) }} {{ "Eintrag" if counts.get(t.id, 0) == 1 else "Einträge" }}{% if pcounts.get(t.id) %} · {{ pcounts[t.id] }} Artikel{% endif %}</small></a>
             <form method="post" action="/wissen/{{ t.id }}/folgen" class="inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <input type="hidden" name="zurueck" value="{{ '/wissen/%d' % topic.id if topic else '/wissen' }}">
@@ -269,6 +288,57 @@
       </section>
       {% endif %}
 
+      {% if topic.kind == "gruppe" %}
+      <section class="kb-panel" id="vergleich">
+        <div class="kb-panel-head"><h2>Artikelvergleich</h2>
+          <span class="hint">Punkte 1–5 je Kriterium, Rang nach Schnitt · ab 4,25 erste Wahl, ab 3,5 gut, ab 2,5 nur wenn nötig, darunter abraten</span></div>
+        {% if compare %}
+        <div class="kb-compare-wrap"><table class="kb-compare">
+          <thead><tr><th>Rang</th><th>Hersteller / Artikel</th>{% for c in criteria %}<th>{{ c }}</th>{% endfor %}<th>Schnitt</th><th>Warum</th><th></th></tr></thead>
+          <tbody>{% for r in compare %}{% set pr = r.p %}
+            <tr id="p{{ pr.id }}" class="stage-{{ r.stage }}">
+              <td class="kb-rank">{{ r.rank or "–" }}</td>
+              <td><a href="/wissen/{{ pr.maker_id }}"><b>{{ by_id[pr.maker_id].name if pr.maker_id in by_id else "–" }}</b></a>
+                <div>{{ pr.artnr }}{% if pr.artnr and pr.name %} · {% endif %}{{ pr.name }}</div>
+                <span class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</span></td>
+              {% for c in criteria %}<td>{{ score(pr.scores.get(c)) }}</td>{% endfor %}
+              <td class="num"><b>{{ ("%.1f" % r.avg).replace(".", ",") if r.avg is not none else "–" }}</b></td>
+              <td class="kb-why">{{ pr.note or "" }}<small>{{ who(pr.updated_by) }}, {{ pr.updated_at | dt }}</small></td>
+              <td class="row-actions">
+                <details class="kb-edit kb-row-edit"><summary class="icon-btn" title="Bearbeiten" aria-label="Bearbeiten">{{ icon("pencil", 16) }}</summary>
+                  <div class="kb-pop">{{ product_form(pr) }}
+                  <form method="post" action="/wissen/artikel/{{ pr.id }}/loeschen" class="kb-del">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="link danger-text">{{ trash() }} Artikel aus dem Vergleich löschen</button></form></div>
+                </details>
+              </td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}
+        <p class="hint">Noch keine Artikel. Füge die Artikel verschiedener Hersteller hinzu und bewerte sie – der beste steht oben.</p>
+        {% endif %}
+        <div class="kb-compare-tools">
+          <details class="kb-edit kb-add-product"{% if not compare %} open{% endif %}><summary class="button">{{ icon("plus", 16) }} Artikel</summary>
+            {% if makers %}{{ product_form() }}{% else %}<p class="hint">Zuerst links einen Hersteller anlegen.</p>{% endif %}</details>
+          <details class="kb-edit"><summary class="button secondary">Kriterien</summary>
+            <form method="post" action="/wissen/{{ topic.id }}/kriterien" class="kb-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>Kriterien (mit Komma, höchstens 6) <input name="kriterien" value="{{ criteria | join(', ') }}" maxlength="300"></label>
+              <span class="hint">Umbenennen behält die Punkte (nach Position).</span>
+              <button type="submit">Speichern</button>
+            </form></details>
+        </div>
+      </section>
+      {% elif maker_rows %}
+      <section class="kb-panel" id="vergleich">
+        <div class="kb-panel-head"><h2>In Artikelgruppen</h2><span class="hint">Platz im Artikelvergleich der Gruppe</span></div>
+        <ul class="kb-maker-rows">{% for r in maker_rows %}
+          <li class="stage-{{ r.stage }}"><a href="/wissen/{{ r.group.id }}#p{{ r.p.id }}"><b>{{ r.group.name }}</b></a>
+            <span>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</span>
+            <span class="kb-stage stage-{{ r.stage }}">{{ ("Platz %d von %d · " % (r.rank, r.of)) if r.rank else "" }}{{ r.stage_label }}</span></li>{% endfor %}</ul>
+      </section>
+      {% endif %}
+
       <section class="kb-panel">
         <div class="kb-panel-head"><h2>Einträge</h2><span class="hint">{{ entries | length }} {{ "Eintrag" if entries | length == 1 else "Einträge" }}, nach Art</span></div>
         {% if entries %}
@@ -312,6 +382,28 @@
       {% endif %}
 
     {% else %}
+      <section class="kb-panel kb-map-panel" aria-label="Karte">
+        <div class="kb-map-bar">
+          <h2>Karte</h2>
+          <span class="kb-map-filters">
+            <label><input type="checkbox" data-map-type="artikel" checked> <i class="l-artikel"></i>Artikel</label>
+            <label><input type="checkbox" data-map-type="bezug" checked> <i class="l-bezug"></i>Bezug über</label>
+            <label><input type="checkbox" data-map-type="pflicht" checked> <i class="l-pflicht"></i>Pflicht-Zubehör</label>
+            <label><input type="checkbox" data-map-type="eintrag" checked> <i class="l-eintrag"></i>gemeinsame Einträge</label>
+            <label><input type="checkbox" data-map-off> nicht gefolgte</label>
+          </span>
+          <span class="grow"></span>
+          <button type="button" class="icon-btn" data-map-zoom="1.25" title="Vergrößern" aria-label="Vergrößern">{{ icon("plus", 18) }}</button>
+          <button type="button" class="icon-btn" data-map-zoom="0.8" title="Verkleinern" aria-label="Verkleinern"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></button>
+          <button type="button" class="secondary kb-map-fit" data-map-fit>Alles zeigen</button>
+        </div>
+        <div class="kb-map" data-kb-map>
+          <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen mit ihren Verbindungen"></svg>
+          <div class="kb-map-info" data-map-info hidden></div>
+          <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Verbindungen. Sie entstehen durch Artikelvergleiche (Hersteller in einer Artikelgruppe), „Darunter beziehen über“, Pflicht-Zubehör und Einträge, die mehrere Themen nennen.</p>
+        </div>
+        <p class="hint kb-map-help">Kreis anklicken: Verbindungen hervorheben · Doppelklick oder „Öffnen“: Steckbrief · ziehen verschiebt, Mausrad zoomt. Kreis = Hersteller, Quadrat = Artikelgruppe. Artikel-Linie: grün = erste Wahl, hellgrün = gut, grau = nur wenn nötig, rot gestrichelt = abraten.</p>
+      </section>
       {% set a = attention %}
       {% if a.mine or a.other %}
       <section class="kb-panel kb-attention">
@@ -344,4 +436,5 @@
 </div>
 <script src="/static/app.js"></script>
 <script src="/static/knowledge.js"></script>
+{% if not topic %}<script src="/static/knowledge_map.js"></script>{% endif %}
 {% endblock %}

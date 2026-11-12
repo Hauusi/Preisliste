@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
 from backend.database.engine import get_db
-from backend.models.entities import KbChange, KbEntry, KbFact, KbSearchMiss, KbTopic, User, utcnow
+from backend.models.entities import KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbTopic, User, utcnow
 from backend.services import knowledge as kb
 from backend.services.audit import audit
 
@@ -51,7 +51,12 @@ def _context(db: Session, user: User, error: str | None) -> dict:
     for e in visible:
         for t in e.topic_ids or []:
             counts[t] = counts.get(t, 0) + 1
-    return {"portal": True, "topics": all_topics, "hidden": hidden, "names": names, "counts": counts,
+    pcounts: dict[int, int] = {}
+    for g_id, m_id in db.execute(select(KbProduct.group_id, KbProduct.maker_id)):
+        for t in (g_id, m_id):
+            if t:
+                pcounts[t] = pcounts.get(t, 0) + 1
+    return {"portal": True, "topics": all_topics, "hidden": hidden, "names": names, "counts": counts, "pcounts": pcounts,
             "types": kb.TYPES, "kinds": kb.KINDS, "error": error, "is_stale": kb.is_stale, "due_date": kb.due_date,
             "topic_json": json.dumps([{"id": t.id, "name": t.name, "kind": kb.KINDS[t.kind]} for t in all_topics],
                                      ensure_ascii=False)}
@@ -106,6 +111,12 @@ def miss_done(miss_id: int, db: Session = Depends(get_db), _user: User = Depends
     return RedirectResponse("/wissen/suchbegriffe#fehl", status_code=303)
 
 
+@router.get("/api/wissen/karte")
+def map_api(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    kb.sync_manufacturers(db)
+    return kb.map_data(db, user)
+
+
 @router.get("/api/wissen/suche")
 def search_api(q: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
     return {"treffer": [{k: h[k] for k in ("url", "title", "sub")} for h in kb.search(db, user, q, limit=12)]}
@@ -152,7 +163,13 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
     incoming = list(db.scalars(select(KbFact).where(KbFact.ref_topic_id == t.id)))
     links = [f for fs in fields.values() for f in fs] + [
         KbFact(field=f.field, ref_topic_id=f.topic_id, topic_id=t.id) for f in incoming]
-    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id, links) if i in by_id]
+    if t.kind == "gruppe":
+        compare, maker_rows = kb.group_products(db, t), []
+        related = [r["p"].maker_id for r in compare if r["p"].maker_id]
+    else:
+        compare, maker_rows = [], kb.maker_products(db, t, by_id)
+        related = [r["group"].id for r in maker_rows]
+    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id, links, related) if i in by_id]
     histories = {e.id: kb.history(db, "eintrag", e.id) for e in entries}
     changes = list(db.scalars(select(KbChange).where(KbChange.topic_id == t.id).order_by(KbChange.at.desc()).limit(15)))
     return render(request, "knowledge.html", {
@@ -163,6 +180,8 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
         "referenced_by": [(by_id[f.topic_id], f) for f in incoming if f.topic_id in by_id],
         "graph": kb.graph(t, near) if near else None, "histories": histories, "changes": changes,
         "own": kb.own_manufacturers(db, t, user), "following": t.id not in ctx["hidden"], "is_stale": kb.is_stale,
+        "compare": compare, "maker_rows": maker_rows, "criteria": kb.criteria_of(t),
+        "makers": [x for x in ctx["topics"] if x.kind == "hersteller"],
     })
 
 
@@ -203,6 +222,38 @@ async def save_field(request: Request, topic_id: int, field: str, db: Session = 
     except ValueError as exc:
         return _back(t.id, str(exc))
     return _back(t.id, anchor="#angaben")
+
+
+@router.post("/wissen/{topic_id}/artikel", dependencies=[Depends(check_csrf)])
+async def save_product(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    form = await request.form()
+    pid = str(form.get("id") or "")
+    try:
+        pr = kb.save_product(db, user, t, int(pid) if pid.isdigit() else None, dict(form))
+    except ValueError as exc:
+        return _back(t.id, str(exc), "#vergleich")
+    return _back(t.id, anchor=f"#p{pr.id}")
+
+
+@router.post("/wissen/artikel/{product_id}/loeschen", dependencies=[Depends(check_csrf)])
+def delete_product(product_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    pr = db.get(KbProduct, product_id)
+    if pr is None:
+        raise HTTPException(404, "Artikel nicht gefunden")
+    gid = pr.group_id
+    kb.delete_product(db, user, pr)
+    return _back(gid, anchor="#vergleich")
+
+
+@router.post("/wissen/{topic_id}/kriterien", dependencies=[Depends(check_csrf)])
+async def save_criteria(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    try:
+        kb.set_criteria(db, user, t, str((await request.form()).get("kriterien") or ""))
+    except ValueError as exc:
+        return _back(t.id, str(exc), "#vergleich")
+    return _back(t.id, anchor="#vergleich")
 
 
 @router.post("/wissen/{topic_id}/zustaendig", dependencies=[Depends(check_csrf)])

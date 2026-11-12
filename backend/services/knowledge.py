@@ -16,8 +16,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from backend.models.entities import (KbChange, KbEntry, KbFact, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow, Manufacturer,
-                                     User, utcnow)
+from backend.models.entities import (KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow,
+                                     Manufacturer, User, utcnow)
 
 KINDS = {"hersteller": "Hersteller", "gruppe": "Artikelgruppe"}
 TYPES = {  # Reihenfolge = Reihenfolge im Steckbrief
@@ -44,7 +44,14 @@ FIELDS = {
 FIELDS_BY_KIND = {"hersteller": ["moq", "bezug_klein", "lager", "lieferzeit", "kontakt", "pflicht"],
                   "gruppe": ["moq", "bezug_klein", "lager", "lieferzeit", "pflicht"]}
 LAGER_CHOICES = ["ja", "teilweise", "nein"]
-HINT_TYPES = ("pflicht", "bezug", "kalk")  # nur das, was beim Anbieten zählt (Hinweise sparsam, sonst weggeklickt)
+HINT_TYPES = ("pflicht", "bezug", "kalk")
+LINK_LABELS = {"bezug": "Bezugsweg", "kalk": "Kalkulation", "pflicht": "Pflicht-Zubehör", "liefer": "Lieferzeit",
+               "hinweis": "Hinweis", "artikel": "Artikel"}
+
+# Artikelvergleich: Punkte 1–5 je Kriterium, Schnitt ergibt Rang und Stufe
+DEFAULT_CRITERIA = ["Helligkeit", "Qualität", "Preis", "Lieferbarkeit"]
+MAX_CRITERIA = 6
+STAGES = [(4.25, "erste", "erste Wahl"), (3.5, "gut", "gut"), (2.5, "notfalls", "nur wenn nötig"), (0, "abraten", "abraten")]  # nur das, was beim Anbieten zählt (Hinweise sparsam, sonst weggeklickt)
 
 # Stichwörter je Art (Reihenfolge: spätere gewinnen, „braucht“ schlägt „Aufschlag“)
 _RULES = [
@@ -478,6 +485,8 @@ def hints(db: Session, user: User, topic_list: list[KbTopic], limit: int = 6) ->
             out.append({"type": "pflicht", "topic": t, "text": f"Pflicht-Zubehör: {describe(p, by_id)}", "url": f"/wissen/{t.id}"})
         if f.get("lieferzeit"):
             out.append({"type": "liefer", "topic": t, "text": f"Lieferzeit: {f['lieferzeit'][0].value}", "url": f"/wissen/{t.id}"})
+        for r in best_in_groups(db, t, by_id):
+            out.append({"type": "artikel", "topic": t, "text": r, "url": f"/wissen/{t.id}#vergleich"})
     ids = {t.id for t in wanted}
     order = {k: i for i, k in enumerate(HINT_TYPES)}
     entries = [e for e in db.scalars(visible_entries(db, user)) if e.type in HINT_TYPES and ids & set(e.topic_ids or [])]
@@ -506,10 +515,11 @@ def history(db: Session, obj: str, obj_id: int) -> list[KbChange]:
                            .order_by(KbChange.at.desc(), KbChange.id.desc())))
 
 
-def neighbours(entries: list[KbEntry], topic_id: int, facts: list[KbFact] | None = None) -> list[tuple[int, str, int]]:
+def neighbours(entries: list[KbEntry], topic_id: int, facts: list[KbFact] | None = None,
+               products: list[int] | None = None) -> list[tuple[int, str, int]]:
     """Themen, die über Einträge oder feste Felder (Bezug über, Pflicht-Zubehör) verbunden sind:
     (Thema, wichtigste Art, Anzahl Verbindungen)."""
-    weight = {"pflicht": 3, "bezug": 2, "kalk": 1, "liefer": 0, "hinweis": 0}
+    weight = {"pflicht": 3, "artikel": 2, "bezug": 2, "kalk": 1, "liefer": 0, "hinweis": 0}
     out: dict[int, list] = {}
 
     def add(t: int, kind: str) -> None:
@@ -525,6 +535,8 @@ def neighbours(entries: list[KbEntry], topic_id: int, facts: list[KbFact] | None
     for f in facts or []:
         if f.ref_topic_id and f.ref_topic_id != topic_id:
             add(f.ref_topic_id, "pflicht" if f.field == "pflicht" else "bezug")
+    for other in products or []:  # Artikelvergleich: Hersteller ↔ Artikelgruppe
+        add(other, "artikel")
     return [(t, k, n) for t, (k, n) in out.items()]
 
 
@@ -538,7 +550,7 @@ def graph(center: KbTopic, near: list[tuple[KbTopic, str, int]]) -> dict:
     nodes = []
     for i, (t, kind, n) in enumerate(near):
         a = -math.pi / 2 + i * 2 * math.pi / max(len(near), 1)
-        nodes.append({"id": t.id, "name": t.name, "sub": f"{TYPES[kind].split(' /')[0]} · {n}", "kind": kind,
+        nodes.append({"id": t.id, "name": t.name, "sub": f"{LINK_LABELS[kind]} · {n}", "kind": kind,
                       "x": round(cx + math.cos(a) * (W / 2 - 115), 1), "y": round(cy + math.sin(a) * (H / 2 - 32), 1),
                       "w": min(220, max(120, len(t.name) * 8 + 30))})
     return {"w": W, "h": H, "cx": cx, "cy": cy, "center": {"name": center.name, "sub": KINDS[center.kind],
@@ -629,6 +641,12 @@ def search(db: Session, user: User, q: str, limit: int = 30) -> list[dict]:
         if _match(hay, alts):
             hits.append({"url": f"/wissen/{ids[0]}#e{e.id}", "title": e.text,
                          "sub": TYPES[e.type] + " · " + ", ".join(tops[i].name for i in ids), "rank": 2})
+    for pr in db.scalars(select(KbProduct).where(KbProduct.group_id.in_(list(tops)))):
+        maker = by_all.get(pr.maker_id)
+        hay = key_of(" ".join([pr.artnr, pr.name, pr.note or "", maker.name if maker else "", tops[pr.group_id].name]))
+        if _match(hay, alts):
+            hits.append({"url": f"/wissen/{pr.group_id}#p{pr.id}", "title": " ".join(x for x in (maker.name if maker else "", pr.artnr, pr.name) if x),
+                         "sub": "Artikel · " + tops[pr.group_id].name, "rank": 1})
     hits.sort(key=lambda h: h["rank"])
     return hits[:limit]
 
@@ -657,3 +675,174 @@ def record_miss(db: Session, user: User, q: str) -> None:
 
 def misses(db: Session) -> list[KbSearchMiss]:
     return list(db.scalars(select(KbSearchMiss).order_by(KbSearchMiss.count.desc(), KbSearchMiss.last_at.desc()).limit(50)))
+
+
+
+# ---------- Artikelvergleich je Artikelgruppe ----------
+
+def criteria_of(topic: KbTopic) -> list[str]:
+    return list(topic.criteria) if topic.criteria else list(DEFAULT_CRITERIA)
+
+
+def set_criteria(db: Session, user: User, group: KbTopic, raw: str) -> None:
+    """Kriterien umbenennen/ändern; Punkte wandern nach Position mit (umbenennen verliert nichts)."""
+    new = clean_aliases(raw)[:MAX_CRITERIA]
+    if not new:
+        raise ValueError("Mindestens ein Kriterium angeben.")
+    old = criteria_of(group)
+    if new == old:
+        return
+    for pr in db.scalars(select(KbProduct).where(KbProduct.group_id == group.id)):
+        sc = pr.scores or {}
+        pr.scores = {n: sc[o] for o, n in zip(old, new) if o in sc}
+    group.criteria = None if new == DEFAULT_CRITERIA else new
+    group.updated_by, group.updated_at = user.id, utcnow()
+    log(db, user, "thema", group.id, group.id, "Kriterien", ", ".join(old), ", ".join(new))
+
+
+def stage_of(avg: float | None) -> tuple[str, str]:
+    if avg is None:
+        return "offen", "noch nicht bewertet"
+    for limit, key, label in STAGES:
+        if avg >= limit:
+            return key, label
+    return STAGES[-1][1], STAGES[-1][2]
+
+
+def ranked(products: list[KbProduct], criteria: list[str]) -> list[dict]:
+    """Rangfolge nach Punkteschnitt (nur bewertete Kriterien zählen); unbewertete am Ende."""
+    rows = []
+    for pr in products:
+        vals = [pr.scores.get(c) for c in criteria if isinstance((pr.scores or {}).get(c), int)]
+        avg = round(sum(vals) / len(vals), 2) if vals else None
+        key, label = stage_of(avg)
+        rows.append({"p": pr, "avg": avg, "stage": key, "stage_label": label, "rated": len(vals)})
+    rows.sort(key=lambda r: (r["avg"] is None, -(r["avg"] or 0), r["p"].id))
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i if r["avg"] is not None else None
+    return rows
+
+
+def group_products(db: Session, group: KbTopic) -> list[dict]:
+    return ranked(list(db.scalars(select(KbProduct).where(KbProduct.group_id == group.id))), criteria_of(group))
+
+
+def maker_products(db: Session, maker: KbTopic, by_id: dict[int, KbTopic]) -> list[dict]:
+    """Artikel dieses Herstellers in allen Gruppen, mit Platz in der jeweiligen Gruppe."""
+    out = []
+    groups = {pr.group_id for pr in db.scalars(select(KbProduct).where(KbProduct.maker_id == maker.id))}
+    for gid in groups:
+        g = by_id.get(gid)
+        if not g:
+            continue
+        rows = group_products(db, g)
+        for r in rows:
+            if r["p"].maker_id == maker.id:
+                out.append({**r, "group": g, "of": len([x for x in rows if x["rank"]])})
+    out.sort(key=lambda r: (r["group"].name, r["rank"] or 999))
+    return out
+
+
+def best_in_groups(db: Session, topic: KbTopic, by_id: dict[int, KbTopic]) -> list[str]:
+    """Für Hinweise: Gruppe → beste Wahl; Hersteller → wo er erste Wahl ist."""
+    def label(r) -> str:
+        maker = by_id.get(r["p"].maker_id)
+        return " ".join(x for x in (maker.name if maker else "", r["p"].artnr, r["p"].name) if x)
+
+    if topic.kind == "gruppe":
+        rows = [r for r in group_products(db, topic) if r["rank"]]
+        avg = f"{rows[0]['avg']:.1f}".replace(".", ",") if rows else ""
+        return [f"{topic.name}: {rows[0]['stage_label']} {label(rows[0])} ({avg})"] if rows else []
+    return [f"{r['stage_label'].capitalize()} bei {r['group'].name}: {label(r)}" for r in maker_products(db, topic, by_id)
+            if r["rank"] == 1]
+
+
+def save_product(db: Session, user: User, group: KbTopic, product_id: int | None, form: dict) -> KbProduct:
+    if group.kind != "gruppe":
+        raise ValueError("Artikel vergleichen geht nur in Artikelgruppen.")
+    pr = db.get(KbProduct, product_id) if product_id else None
+    if pr and pr.group_id != group.id:
+        pr = None
+    raw_maker = str(form.get("hersteller") or "")
+    maker = db.get(KbTopic, int(raw_maker)) if raw_maker.isdigit() else None
+    if not maker or maker.kind != "hersteller":
+        raise ValueError("Bitte den Hersteller wählen.")
+    artnr = " ".join(str(form.get("artnr") or "").split())[:60]
+    name = " ".join(str(form.get("name") or "").split())[:160]
+    if not (artnr or name):
+        raise ValueError("Artikelnummer oder Bezeichnung angeben.")
+    scores = {}
+    for i, c in enumerate(criteria_of(group)):
+        v = str(form.get(f"k{i}") or "")
+        if v.isdigit() and 1 <= int(v) <= 5:
+            scores[c] = int(v)
+    note = " ".join(str(form.get("notiz") or "").split())[:500] or None
+    snap = lambda x: json.dumps({"hersteller": x.maker_id, "artnr": x.artnr, "name": x.name, "punkte": x.scores,
+                                 "notiz": x.note}, ensure_ascii=False)
+    if pr:
+        before = snap(pr)
+        pr.maker_id, pr.artnr, pr.name, pr.scores, pr.note = maker.id, artnr, name, scores, note
+        if snap(pr) != before:
+            pr.updated_by, pr.updated_at = user.id, utcnow()
+            log(db, user, "artikel", pr.id, group.id, "geändert", before, snap(pr))
+        return pr
+    now = utcnow()
+    pr = KbProduct(group_id=group.id, maker_id=maker.id, artnr=artnr, name=name, scores=scores, note=note,
+                   created_by=user.id, updated_by=user.id, created_at=now, updated_at=now)
+    db.add(pr)
+    db.flush()
+    log(db, user, "artikel", pr.id, group.id, "angelegt", None, snap(pr))
+    return pr
+
+
+def delete_product(db: Session, user: User, pr: KbProduct) -> None:
+    log(db, user, "artikel", pr.id, pr.group_id, "gelöscht", f"{pr.artnr} {pr.name}".strip(), None)
+    db.delete(pr)
+
+
+# ---------- Karte: alle Themen und ihre Verbindungen ----------
+
+def map_data(db: Session, user: User) -> dict:
+    """Knoten = Hersteller und Artikelgruppen, Kanten mit Bedeutung: Artikel (Hersteller liefert in Gruppe, Stärke nach
+    bester Bewertung), Bezug über, Pflicht-Zubehör, gemeinsame Einträge. Nicht gefolgte Themen sind markiert."""
+    hidden = unfollowed(db, user)
+    tops = {t.id: t for t in topics(db)}
+    entries = [e for e in db.scalars(visible_entries(db, user))]
+    counts: dict[int, int] = {}
+    pcounts: dict[int, int] = {}
+    edges: dict[tuple, dict] = {}
+
+    def edge(a: int, b: int, kind: str, **extra) -> None:
+        if a == b or a not in tops or b not in tops:
+            return
+        k = (min(a, b), max(a, b), kind)
+        cur = edges.setdefault(k, {"a": k[0], "b": k[1], "type": kind, "n": 0})
+        cur["n"] += 1
+        for key, val in extra.items():
+            if key == "score" and val is not None:
+                cur["score"] = max(cur.get("score") or 0, val)
+            elif key not in cur:
+                cur[key] = val
+
+    for e in entries:
+        ids = [i for i in e.topic_ids or [] if i in tops]
+        for i in ids:
+            counts[i] = counts.get(i, 0) + 1
+        for x in range(len(ids)):
+            for y in range(x + 1, len(ids)):
+                edge(ids[x], ids[y], "eintrag")
+    for f in db.scalars(select(KbFact).where(KbFact.ref_topic_id.is_not(None))):
+        edge(f.topic_id, f.ref_topic_id, "pflicht" if f.field == "pflicht" else "bezug")
+    for g in [t for t in tops.values() if t.kind == "gruppe"]:
+        for r in group_products(db, g):
+            if r["p"].maker_id:
+                pcounts[g.id] = pcounts.get(g.id, 0) + 1
+                pcounts[r["p"].maker_id] = pcounts.get(r["p"].maker_id, 0) + 1
+                edge(r["p"].maker_id, g.id, "artikel", score=r["avg"])
+    for e in edges.values():
+        if e["type"] == "artikel":
+            e["stage"] = stage_of(e.get("score"))[0]
+    nodes = [{"id": t.id, "name": t.name, "kind": t.kind, "n": counts.get(t.id, 0) + pcounts.get(t.id, 0),
+              "entries": counts.get(t.id, 0), "products": pcounts.get(t.id, 0), "off": t.id in hidden,
+              "owner": t.owner_id == user.id} for t in tops.values()]
+    return {"nodes": nodes, "edges": list(edges.values())}
