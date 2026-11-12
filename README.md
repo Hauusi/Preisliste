@@ -69,7 +69,8 @@ Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder
 Alle dürfen ändern, jede Änderung mit Name und Zeitpunkt; private Einträge möglich. Feste Felder (Mindestmenge, Bezug
 darunter, Lager, Lieferzeit, Pflicht-Zubehör mit Menge) ergeben automatisch den Ablauf bei kleinen Mengen; Hinweise
 erscheinen in Preisliste und Datenblatt-Editor. Prüffristen je Art, Zuständige, „Stimmt nicht mehr“ melden. Suche mit
-Strg+K nach Einzelwörtern mit Synonymen, Liste der Suchen ohne Treffer. Details:
+Strg+K nach Einzelwörtern mit Synonymen, Liste der Suchen ohne Treffer. Startseite ist eine Karte aller Hersteller und
+Artikelgruppen mit Verbindungen; Artikelvergleich je Gruppe (Punkte je Kriterium, Rang, erste Wahl). Details:
 `docs/HANDBUCH.md`, Abschnitt 12.
 
 ## Benutzer und Sichtbarkeit

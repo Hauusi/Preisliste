@@ -526,6 +526,8 @@ class KbTopic(Base):
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     # Zuständig: bekommt Meldungen „stimmt nicht mehr“ und überfällige Prüfungen dieses Themas
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_owner"))
+    # Artikelgruppe: Kriterien für den Artikelvergleich (leer = Standard aus knowledge.DEFAULT_CRITERIA)
+    criteria: Mapped[list | None] = mapped_column(JSON)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_created_by"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_topics_updated_by"))
@@ -620,3 +622,21 @@ class KbSearchMiss(Base):
     count: Mapped[int] = mapped_column(Integer, default=1)
     last_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_user: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_search_misses_user"))
+
+
+class KbProduct(Base):
+    """Artikel im Vergleich einer Artikelgruppe: Hersteller, Artikel, Punkte je Kriterium (1–5), Begründung."""
+
+    __tablename__ = "kb_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("kb_topics.id", ondelete="CASCADE", name="fk_kb_products_group"), index=True)
+    maker_id: Mapped[int | None] = mapped_column(ForeignKey("kb_topics.id", ondelete="SET NULL", name="fk_kb_products_maker"), index=True)
+    artnr: Mapped[str] = mapped_column(String(60), default="")
+    name: Mapped[str] = mapped_column(String(160), default="")
+    scores: Mapped[dict] = mapped_column(JSON, default=dict)  # {Kriterium: 1..5}
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_products_created_by"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_products_updated_by"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

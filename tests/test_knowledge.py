@@ -292,3 +292,73 @@ def test_search_words_synonyms_and_misses(admin_client, user_client):
     r = u.post("/wissen/suchbegriffe", data={"csrf_token": u.csrf, "woerter": "nurEins"}, follow_redirects=False)
     assert "fehler=" in r.headers["location"]
     assert "Nordic Lights unter 36" in a.get("/wissen?neu=test").text and ">test</textarea>" in a.get("/wissen?neu=test").text
+
+
+def _product(c, gid, maker, artnr, scores, note=""):
+    data = {"csrf_token": c.csrf, "hersteller": str(maker), "artnr": artnr, "name": "", "notiz": note}
+    data.update({f"k{i}": str(v) for i, v in enumerate(scores) if v})
+    return c.post(f"/wissen/{gid}/artikel", data=data, follow_redirects=False)
+
+
+def test_product_comparison_ranking_and_hints(admin_client, user_client):
+    """Artikelgruppe mit Artikeln mehrerer Hersteller: Punkte je Kriterium, Rang und Stufe nach Schnitt; der Hersteller
+    sieht seinen Platz; Hinweis „erste Wahl“; Kriterien umbenennen behält die Punkte; Suche findet Artikel."""
+    a, u = admin_client, user_client
+    gid = _topic(a, "Blue-Spot-Scheinwerfer", art="gruppe")
+    durite, other = _topic(a, "Durite"), _topic(a, "Nordic Lights")
+    assert _product(u, gid, durite, "0-420-01", [5, 5, 4, 4], "heller, robuster").status_code == 303   # 4,5 → erste Wahl
+    _product(u, gid, other, "NL-77", [3, 4, 3, None])                                                 # 3,33 → nur wenn nötig
+    _product(u, gid, other, "NL-99", [None, None, None, None])                                         # unbewertet
+    assert "fehler=" in _product(u, gid, gid, "X", [5]).headers["location"]  # Gruppe ist kein Hersteller
+    r = u.post(f"/wissen/{durite}/artikel", data={"csrf_token": u.csrf, "hersteller": str(durite), "artnr": "X"},
+               follow_redirects=False)
+    assert "fehler=" in r.headers["location"]  # Vergleich nur in Artikelgruppen
+    page = a.get(f"/wissen/{gid}").text
+    assert page.index("0-420-01") < page.index("NL-77") < page.index("NL-99")
+    assert ">4,5</b>" in page and "erste Wahl" in page and "nur wenn nötig" in page and "noch nicht bewertet" in page
+    assert "heller, robuster" in page and "anna," in page
+    maker = a.get(f"/wissen/{durite}").text
+    assert "In Artikelgruppen" in maker and "Platz 1 von 2 · erste Wahl" in maker and 'class="kb-graph"' in maker
+    # Hinweise: Gruppe nennt die erste Wahl, Hersteller wo er erste Wahl ist
+    with session_scope() as db:
+        user = db.query(User).filter_by(username="anna").one()
+        g, d = db.get(KbTopic, gid), db.get(KbTopic, durite)
+        texts = [h["text"] for h in kb.hints(db, user, [g, d])]
+    assert "Blue-Spot-Scheinwerfer: erste Wahl Durite 0-420-01 (4,5)" in texts
+    assert "Erste wahl bei Blue-Spot-Scheinwerfer: Durite 0-420-01" in texts
+    # Kriterien umbenennen: Punkte bleiben (nach Position)
+    u.post(f"/wissen/{gid}/kriterien", data={"csrf_token": u.csrf, "kriterien": "Leuchtkraft, Qualität, Preis, Lieferbarkeit"})
+    with session_scope() as db:
+        from backend.models.entities import KbProduct
+        p = db.query(KbProduct).filter_by(artnr="0-420-01").one()
+        assert p.scores["Leuchtkraft"] == 5 and "Helligkeit" not in p.scores
+        pid = p.id
+    assert "Leuchtkraft" in a.get(f"/wissen/{gid}").text
+    assert any("0-420-01" in h["title"] for h in u.get("/api/wissen/suche?q=0-420-01").json()["treffer"])
+    assert any("0-420-01" in h["title"] for h in u.get("/api/wissen/suche?q=durite blue").json()["treffer"])
+    a.post(f"/wissen/artikel/{pid}/loeschen", data={"csrf_token": a.csrf})
+    page = a.get(f"/wissen/{gid}").text
+    i = page.find("0-420-01")
+    assert i < 0, page[i - 400:i + 60]
+    assert "artikel gelöscht" in page
+
+
+def test_map_data(admin_client, user_client):
+    a, u = admin_client, user_client
+    gid = _topic(a, "Blue-Spot-Scheinwerfer", art="gruppe")
+    durite, nordic, ried = _topic(a, "Durite"), _topic(a, "Nordic Lights"), _topic(a, "Riedfeld")
+    _product(a, gid, durite, "0-420-01", [5, 5, 4, 4])
+    _field(a, nordic, "bezug_klein", wert=str(ried))
+    _entry(a, "Nordic Lights und Durite liefern beide Blue-Spot-Scheinwerfer")
+    u.post(f"/wissen/{nordic}/folgen", data={"csrf_token": u.csrf})
+    d = u.get("/api/wissen/karte").json()
+    nodes = {n["id"]: n for n in d["nodes"]}
+    assert nodes[nordic]["off"] and not nodes[durite]["off"] and nodes[gid]["kind"] == "gruppe"
+    kinds = {(e["a"], e["b"], e["type"]): e for e in d["edges"]}
+    art = kinds[(min(durite, gid), max(durite, gid), "artikel")]
+    assert art["stage"] == "erste"
+    assert (min(nordic, ried), max(nordic, ried), "bezug") in kinds
+    assert (min(nordic, durite), max(nordic, durite), "eintrag") in kinds
+    page = u.get("/wissen").text
+    assert "data-kb-map" in page and "/static/knowledge_map.js" in page
+    assert "data-kb-map" not in u.get(f"/wissen/{gid}").text  # Karte nur auf der Startseite
