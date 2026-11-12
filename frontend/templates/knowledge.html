@@ -163,7 +163,7 @@
         <div>
           <div class="kind">{{ kinds[topic.kind] }}{% if topic.aliases %} · auch: {{ topic.aliases | join(", ") }}{% endif %}</div>
           {% if own %}<p class="hint m0">In deiner Preisliste: {% for m in own %}<a href="/hersteller/{{ m.id }}">{{ m.name }}{% if m.code %} ({{ m.code }}){% endif %}</a>{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
-          {% if referenced_by %}<p class="hint m0">Genannt bei: {% for t, f in referenced_by %}<a href="/wissen/{{ t.id }}">{{ t.name }}</a> ({{ f.label }}){{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+          {% if referenced_by %}<ul class="kb-incoming">{% for t, text in referenced_by %}<li><a href="/wissen/{{ t.id }}">{{ text }}</a></li>{% endfor %}</ul>{% endif %}
         </div>
         <div class="row">
           <form method="post" action="/wissen/{{ topic.id }}/zustaendig" class="inline kb-owner">
@@ -394,6 +394,7 @@
             <label><input type="checkbox" data-map-off> nicht gefolgte</label>
           </span>
           <span class="grow"></span>
+          <button type="button" class="secondary kb-map-connect" data-map-connect aria-pressed="false" title="Zwei Themen verbinden: erst das eine, dann das andere antippen">{{ icon("link", 16) }} Verbinden</button>
           <button type="button" class="icon-btn" data-map-zoom="1.25" title="Vergrößern" aria-label="Vergrößern">{{ icon("plus", 18) }}</button>
           <button type="button" class="icon-btn" data-map-zoom="0.8" title="Verkleinern" aria-label="Verkleinern"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></button>
           <button type="button" class="secondary kb-map-fit" data-map-fit>Alles zeigen</button>

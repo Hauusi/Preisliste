@@ -1092,3 +1092,32 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .m-info { animation: none; } }
 .kb-suggest-fields { padding: 6px 10px; background: var(--info-soft); border-radius: var(--radius-sm); }
 .kb-field-check { margin: 0 12px 0 0; font-size: .88rem; color: var(--fg); }
+
+/* Karte: Pfeile, Beschriftung, Verbinden */
+.mk-bezug path { fill: var(--info); }
+.mk-pflicht path { fill: var(--signal); }
+.m-elabel { font-family: var(--font); font-size: calc(var(--fs, 12.5px) * .9); font-weight: 600; paint-order: stroke; stroke: var(--surface-2);
+  stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.m-elabel.e-bezug { fill: var(--info); }
+.m-elabel.e-pflicht { fill: var(--signal-ink); }
+.kb-map-svg.focus .m-elabel:not(.hi) { opacity: .25; }
+.m-info-target { stroke: var(--t, var(--accent)); stroke-width: 2; stroke-dasharray: 6 4; opacity: .9; }
+.m-info-go { fill: var(--accent); font-weight: 700; }
+.kb-map-connect[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.kb-map.connecting .kb-map-svg { cursor: crosshair; }
+.m-node.from circle, .m-node.from rect { stroke: var(--signal); stroke-width: 5; }
+.kb-connect-hint { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 999px;
+  background: var(--fg); color: var(--bg); font-size: .86rem; white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; }
+.kb-connect { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 20px)); z-index: 5;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 14px 16px; display: grid; gap: 8px; }
+.kb-connect-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.kb-connect-opt { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); font-weight: 400; color: var(--fg); cursor: pointer; }
+.kb-connect-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.kb-connect-opt input[type=radio] { width: auto; margin: 0; }
+.kb-connect-opt input[type=number] { width: 5.5em; padding: 4px 6px; }
+.kb-connect-opt input[type=text] { flex: 1 1 100%; }
+.kb-connect-err { margin: 0; color: var(--err); font-weight: 600; font-size: .9rem; }
+.kb-connect-actions { display: flex; gap: 8px; }
+.kb-incoming { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; font-size: .9rem; }
+.kb-incoming li { padding-left: 10px; border-left: 3px solid var(--info); }

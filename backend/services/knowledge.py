@@ -831,8 +831,14 @@ def map_data(db: Session, user: User) -> dict:
         for x in range(len(ids)):
             for y in range(x + 1, len(ids)):
                 edge(ids[x], ids[y], "eintrag")
+    moqs = {f.topic_id: f.number for f in db.scalars(select(KbFact).where(KbFact.field == "moq")) if f.number}
     for f in db.scalars(select(KbFact).where(KbFact.ref_topic_id.is_not(None))):
-        edge(f.topic_id, f.ref_topic_id, "pflicht" if f.field == "pflicht" else "bezug")
+        if f.field == "pflicht":
+            edge(f.topic_id, f.ref_topic_id, "pflicht", source=f.topic_id, label=f"{f.number or 1} ×")
+        else:
+            moq = moqs.get(f.topic_id)
+            edge(f.topic_id, f.ref_topic_id, "bezug", source=f.topic_id,
+                 label=f"unter {moq} Stk" if moq else "kleine Mengen")
     for g in [t for t in tops.values() if t.kind == "gruppe"]:
         for r in group_products(db, g):
             if r["p"].maker_id:
@@ -845,7 +851,7 @@ def map_data(db: Session, user: User) -> dict:
     infos = map_infos(db, tops, entries)
     nodes = [{"id": t.id, "name": t.name, "kind": t.kind, "n": counts.get(t.id, 0) + pcounts.get(t.id, 0),
               "entries": counts.get(t.id, 0), "products": pcounts.get(t.id, 0), "off": t.id in hidden,
-              "owner": t.owner_id == user.id, "info": infos.get(t.id, [])} for t in tops.values()]
+              "owner": t.owner_id == user.id, "info": infos.get(t.id, []), "moq": moqs.get(t.id)} for t in tops.values()]
     return {"nodes": nodes, "edges": list(edges.values())}
 
 
@@ -856,12 +862,36 @@ def map_infos(db: Session, tops: dict[int, KbTopic], entries: list[KbEntry]) -> 
     """Kärtchen, die auf der Karte beim Anklicken eines Themas aufgehen: feste Angaben, erste Wahl im Artikelvergleich,
     Einträge (Pflicht-Zubehör, Bezug, Kalkulation zuerst). Höchstens MAP_INFO_MAX je Thema."""
     out: dict[int, list[dict]] = {}
-    for f in db.scalars(select(KbFact).order_by(KbFact.position, KbFact.id)):
+    facts = list(db.scalars(select(KbFact).order_by(KbFact.position, KbFact.id)))
+    moqs = {f.topic_id: f.number for f in facts if f.field == "moq" and f.number}
+    vias = {f.topic_id for f in facts if f.field == "bezug_klein" and f.ref_topic_id in tops}
+    for f in facts:
         if f.topic_id not in tops:
             continue
-        kind = "pflicht" if f.field == "pflicht" else "liefer" if f.field in ("lieferzeit", "kontakt") else "bezug" if f.field else "angabe"
-        out.setdefault(f.topic_id, []).append({"type": kind, "text": f"{f.label}: {describe(f, tops) if f.field else f.value}",
-                                               "stale": fact_stale(f)})
+        item = None
+        if f.field == "moq" and f.topic_id in vias:
+            continue  # steht zusammen mit dem Bezugsweg auf einem Kärtchen
+        if f.field == "bezug_klein" and f.ref_topic_id in tops:
+            moq = moqs.get(f.topic_id)
+            item = {"type": "bezug", "target": f.ref_topic_id,
+                    "text": (f"Mindestbestellmenge {moq} Stück – darunter bei {tops[f.ref_topic_id].name} anfragen" if moq
+                             else f"Kleine Mengen bei {tops[f.ref_topic_id].name} anfragen")}
+            if f.ref_topic_id in tops:  # Gegenrichtung beim Bezugsweg
+                out.setdefault(f.ref_topic_id, []).append({
+                    "type": "bezug", "target": f.topic_id, "stale": fact_stale(f),
+                    "text": (f"Für {tops[f.topic_id].name}: Anfragen unter {moq} Stück kommen hierher" if moq
+                             else f"Für {tops[f.topic_id].name}: kleine Mengen kommen hierher")})
+        elif f.field == "pflicht" and f.ref_topic_id in tops:
+            item = {"type": "pflicht", "target": f.ref_topic_id,
+                    "text": f"Braucht {f.number or 1} × {tops[f.ref_topic_id].name}" + (f" ({f.value})" if f.value else "")}
+            out.setdefault(f.ref_topic_id, []).append({
+                "type": "pflicht", "target": f.topic_id, "stale": fact_stale(f),
+                "text": f"Pflicht-Zubehör für {tops[f.topic_id].name} ({f.number or 1} ×)"})
+        else:
+            kind = "liefer" if f.field in ("lieferzeit", "kontakt") else "bezug" if f.field else "angabe"
+            item = {"type": kind, "text": f"{f.label}: {describe(f, tops) if f.field else f.value}"}
+        item["stale"] = fact_stale(f)
+        out.setdefault(f.topic_id, []).append(item)
     for t in tops.values():
         for line in best_in_groups(db, t, tops):
             out.setdefault(t.id, []).append({"type": "artikel", "text": line, "stale": False})

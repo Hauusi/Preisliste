@@ -236,7 +236,7 @@ def test_fields_flow_graph_and_hints_at_work(admin_client, user_client):
     assert "bei Riedfeld anfragen" in page and "Lagerartikel bei uns?" not in page  # Lager „nein“: direkt zum Bezugsweg
     assert '2 × <a href="/wissen/%d">Montageadapter</a>' % gid in page and "bei Dachmontage" in page
     assert 'class="kb-graph"' in page and "Pflicht-Zubehör · 1" in page
-    assert "Genannt bei:" in a.get(f"/wissen/{rid}").text  # Riedfeld weiß, dass Nordic dorthin verweist
+    assert "Für Nordic Lights: Anfragen unter 36 Stück kommen hierher" in a.get(f"/wissen/{rid}").text  # Gegenrichtung
     # Verlauf mit Namen
     assert "anna</b>" in page and "Angabe angelegt: Mindestbestellmenge: 36 Stück" in page
     # Hinweise in der Preisliste: Hersteller der eigenen Liste mit gleichem Namen/Alias
@@ -392,3 +392,32 @@ def test_map_infos_and_field_suggestions(admin_client, user_client):
     assert any(t.startswith("Erste Wahl bei Blue-Spot-Scheinwerfer") for t in texts)
     assert any(i["text"].startswith("Blue-Spot-Scheinwerfer: erste Wahl Nordic Lights NL-1") for i in info[gid])
     assert len(info[nid]) <= kb.MAP_INFO_MAX
+
+
+
+def test_map_condition_arrow_and_reverse(admin_client, user_client):
+    """Nordic Lights: Mindestbestellmenge 36, darunter über Riedfeld. Karte: Pfeil Nordic → Riedfeld „unter 36 Stk“,
+    Kärtchen bei Nordic mit Sprungziel Riedfeld, bei Riedfeld die Gegenrichtung. So legt es auch „Verbinden“ an."""
+    a, u = admin_client, user_client
+    nid, rid = _topic(a, "Nordic Lights"), _topic(a, "Riedfeld")
+    gid, acc = _topic(a, "Arbeitsscheinwerfer", art="gruppe"), _topic(a, "Montageadapter", art="gruppe")
+    # wie das Fenster „Verbinden“ auf der Karte: Menge, dann Bezugsweg; Pflicht-Zubehör; Hinweis zu beiden
+    r = u.post(f"/wissen/{nid}/feld/moq", data={"wert": "36"}, headers={"X-CSRF-Token": u.csrf})
+    assert r.status_code == 200 and "fehler=" not in str(r.url)
+    u.post(f"/wissen/{nid}/feld/bezug_klein", data={"wert": str(rid)}, headers={"X-CSRF-Token": u.csrf})
+    u.post(f"/wissen/{gid}/feld/pflicht", data={"wert": str(acc), "menge": "2"}, headers={"X-CSRF-Token": u.csrf})
+    u.post("/wissen/eintrag", data={"text": "gleiche Halter", "themen": [str(nid), str(gid)]}, headers={"X-CSRF-Token": u.csrf})
+    d = u.get("/api/wissen/karte").json()
+    edges = {e["type"]: e for e in d["edges"]}
+    assert edges["bezug"]["source"] == nid and edges["bezug"]["label"] == "unter 36 Stk"
+    assert edges["pflicht"]["source"] == gid and edges["pflicht"]["label"] == "2 ×"
+    assert "eintrag" in edges
+    info = {n["id"]: n["info"] for n in d["nodes"]}
+    card = next(i for i in info[nid] if i.get("target") == rid)
+    assert card["text"] == "Mindestbestellmenge 36 Stück – darunter bei Riedfeld anfragen"
+    assert not any(i["text"].startswith("Mindestbestellmenge:") for i in info[nid])  # zusammengefasst
+    back = next(i for i in info[rid] if i.get("target") == nid)
+    assert back["text"] == "Für Nordic Lights: Anfragen unter 36 Stück kommen hierher"
+    assert any(i["text"] == "Pflicht-Zubehör für Arbeitsscheinwerfer (2 ×)" for i in info[acc])
+    assert {n["id"]: n["moq"] for n in d["nodes"]}[nid] == 36
+    assert "data-map-connect" in u.get("/wissen").text
