@@ -525,7 +525,9 @@ Danach:
 
 - **Karte:** alle Firmen einer Gruppe liegen in einer **farbigen Blase** mit Namen („EccoESG-Gruppe“), jede Gruppe in
   eigener Farbe. Töchter werden zur Mutter gezogen. Zieht man eine Firma weg, **verformt sich die Blase mit** und
-  umschließt weiter alle Mitglieder. Häkchen „Firmengruppen“ blendet die Blasen aus. Info-Kärtchen: bei der Mutter
+  umschließt weiter alle Mitglieder. **Fremde Firmen liegen nie in der Blase:** sie macht einen Bogen um sie herum
+  (Verbindungsstück auf der freien, kürzeren Seite). Ist rundherum kein Platz, zerfällt sie in mehrere Teile in derselben
+  Farbe. Schon beim Aufbau der Karte werden fremde Firmen aus Gruppen herausgeschoben. Häkchen „Firmengruppen“ blendet die Blasen aus. Info-Kärtchen: bei der Mutter
   „Firmengruppe EccoESG: LED Autolamps, Vision Alert“, bei der Tochter „Gehört zur Firmengruppe EccoESG“.
 - **Steckbrief:** oben die Mitglieder der Gruppe als Chips (Mutter markiert, Klick öffnet).
 - **Suche:** „ecco“ findet auch alle Töchter.

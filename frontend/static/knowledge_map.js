@@ -75,6 +75,13 @@
           var dx = root.x - n.x, dy = root.y - n.y, d = Math.sqrt(dx * dx + dy * dy) || 1, k = (d - 120) * 0.05;
           n.vx += dx / d * k; n.vy += dy / d * k; root.vx -= dx / d * k * 0.5; root.vy -= dy / d * k * 0.5;
         });
+        nodes.forEach(function (o) {  // fremde Firmen aus der Gruppe heraushalten
+          if (g.members.indexOf(o.id) >= 0) { return; }
+          g.members.forEach(function (id) {
+            var n = byId[id], dx = o.x - n.x, dy = o.y - n.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+            if (d < 170) { var k = (170 - d) * 0.06; o.vx += dx / d * k; o.vy += dy / d * k; }
+          });
+        });
       });
       nodes.forEach(function (n) {
         if (n.pinned) { return; }
@@ -215,46 +222,159 @@
 
   // ---------- Firmengruppen: weiche Blase um alle Firmen der Gruppe, folgt beim Verschieben ----------
   function showGroups() { var c = document.querySelector("[data-map-groups]"); return !c || c.checked; }
-  function hull(points) {  // konvexe Hülle (Monotone Chain)
-    points.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
-    function cross(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
-    var lower = [], upper = [];
-    points.forEach(function (p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) { lower.pop(); } lower.push(p); });
-    for (var i = points.length - 1; i >= 0; i--) {
-      var p = points[i];
-      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) { upper.pop(); }
-      upper.push(p);
+  // Blase wie „Bubble Sets“: Feld positiv um die Mitglieder (Kreis + Name) und entlang verbindender Linien,
+  // negativ um fremde Firmen. Linien weichen fremden Firmen in einem Bogen aus. Umriss per Marching Squares.
+  function nodeBox(n, fs) {  // Kreis plus Name darunter als Rechteck
+    var r = n.r || 12, w = Math.max(r, Math.min(n.name.length, 26) * fs * 0.3);
+    return [n.x - w, n.y - r, n.x + w, n.y + r + fs * 1.5];
+  }
+  function distBox(b, x, y) {
+    var dx = Math.max(b[0] - x, 0, x - b[2]), dy = Math.max(b[1] - y, 0, y - b[3]);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function distSeg(a, b, x, y) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+    var t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l2));
+    var px = a[0] + t * dx - x, py = a[1] + t * dy - y;
+    return Math.sqrt(px * px + py * py);
+  }
+  function hits(a, b, obstacles, clear) {  // fremde Firmen, die der Linie a→b zu nahe kommen
+    return obstacles.filter(function (o) {
+      var cx = (o[0] + o[2]) / 2, cy = (o[1] + o[3]) / 2;
+      return distSeg(a, b, cx, cy) - Math.max(o[2] - o[0], o[3] - o[1]) / 2 < clear;
+    });
+  }
+  function cost(path, obstacles, clear) {  // erst möglichst wenig Berührungen, dann möglichst kurz
+    var n = 0, len = 0;
+    for (var i = 0; i < path.length - 1; i++) {
+      n += hits(path[i], path[i + 1], obstacles, clear).length;
+      len += Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]);
     }
-    upper.pop(); lower.pop();
-    return lower.concat(upper);
+    return n * 1e6 + len;
+  }
+  function route(a, b, obstacles, clear, depth) {  // Linie a→b, die fremden Firmen im Bogen ausweicht
+    var hit = null, best = Infinity;
+    hits(a, b, obstacles, clear).forEach(function (o) {
+      var m = Math.hypot((o[0] + o[2]) / 2 - (a[0] + b[0]) / 2, (o[1] + o[3]) / 2 - (a[1] + b[1]) / 2);
+      if (m < best) { best = m; hit = o; }
+    });
+    if (!hit || depth > 3) { return [a, b]; }
+    var cx = (hit[0] + hit[2]) / 2, cy = (hit[1] + hit[3]) / 2;
+    var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+    var nx = -dy / l, ny = dx / l;  // senkrecht zur Linie, beide Seiten probieren
+    var reach = Math.hypot(hit[2] - hit[0], hit[3] - hit[1]) / 2 + clear * 1.3;
+    var t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cy - a[1]) * dy) / (l * l)));
+    var bestPath = null, bestCost = Infinity;
+    [1, -1].forEach(function (side) {
+      var w = [cx + nx * reach * side, cy + ny * reach * side];
+      if (t <= 0 || t >= 1) { w = [cx + nx * reach * side + dx / l * reach * (t <= 0 ? -0.5 : 0.5), cy + ny * reach * side + dy / l * reach * (t <= 0 ? -0.5 : 0.5)]; }
+      var left = route(a, w, obstacles, clear, depth + 1), right = route(w, b, obstacles, clear, depth + 1);
+      var path = left.concat(right.slice(1)), c = cost(path, obstacles, clear);
+      if (c < bestCost) { bestCost = c; bestPath = path; }
+    });
+    return bestPath;
+  }
+  function contours(f, cols, rows, x0, y0, cell, iso) {  // Marching Squares → geschlossene Linienzüge
+    var segs = [];
+    function v(i, j) { return f[j * cols + i]; }
+    function lerp(i1, j1, i2, j2) {
+      var a = v(i1, j1), b = v(i2, j2), t = (iso - a) / ((b - a) || 1e-9);
+      return [x0 + (i1 + (i2 - i1) * t) * cell, y0 + (j1 + (j2 - j1) * t) * cell];
+    }
+    for (var j = 0; j < rows - 1; j++) {
+      for (var i = 0; i < cols - 1; i++) {
+        var c = (v(i, j) > iso ? 8 : 0) | (v(i + 1, j) > iso ? 4 : 0) | (v(i + 1, j + 1) > iso ? 2 : 0) | (v(i, j + 1) > iso ? 1 : 0);
+        if (c === 0 || c === 15) { continue; }
+        var top = function () { return lerp(i, j, i + 1, j); }, right = function () { return lerp(i + 1, j, i + 1, j + 1); };
+        var bottom = function () { return lerp(i, j + 1, i + 1, j + 1); }, left = function () { return lerp(i, j, i, j + 1); };
+        switch (c) {
+          case 1: case 14: segs.push([left(), bottom()]); break;
+          case 2: case 13: segs.push([bottom(), right()]); break;
+          case 3: case 12: segs.push([left(), right()]); break;
+          case 4: case 11: segs.push([top(), right()]); break;
+          case 6: case 9: segs.push([top(), bottom()]); break;
+          case 7: case 8: segs.push([left(), top()]); break;
+          case 5: segs.push([left(), top()]); segs.push([bottom(), right()]); break;
+          case 10: segs.push([top(), right()]); segs.push([left(), bottom()]); break;
+        }
+      }
+    }
+    // Teilstücke zu Ringen verbinden
+    function k(p) { return Math.round(p[0] * 10) + "," + Math.round(p[1] * 10); }
+    var ends = {}, used = new Array(segs.length), loops = [];
+    segs.forEach(function (s, idx) { [0, 1].forEach(function (e) { var kk = k(s[e]); (ends[kk] = ends[kk] || []).push(idx); }); });
+    for (var s0 = 0; s0 < segs.length; s0++) {
+      if (used[s0]) { continue; }
+      used[s0] = true;
+      var loop = [segs[s0][0], segs[s0][1]], cur = segs[s0][1], guard = 0;
+      while (guard++ < segs.length) {
+        var next = (ends[k(cur)] || []).filter(function (idx) { return !used[idx]; })[0];
+        if (next === undefined) { break; }
+        used[next] = true;
+        var s = segs[next], p = k(s[0]) === k(cur) ? s[1] : s[0];
+        loop.push(p); cur = p;
+      }
+      if (loop.length > 4) { loops.push(loop); }
+    }
+    return loops;
   }
   function drawGroup(g) {
     if (!g.path) { return; }
-    var pts = [], fs = fontSize();
-    g.members.forEach(function (id) {
-      var n = byId[id], r = (n.r || 12) + fs * 2.2;
-      for (var k = 0; k < 16; k++) {
-        var a = k / 16 * Math.PI * 2;
-        pts.push([n.x + Math.cos(a) * r * 1.25, n.y + Math.sin(a) * r + (Math.sin(a) > 0 ? fs * 1.2 : 0)]);  // Platz für den Namen
+    var fs = fontSize(), pad = fs * 2.2, mine = {};
+    g.members.forEach(function (id) { mine[id] = true; });
+    var members = g.members.map(function (id) { return byId[id]; });
+    var mBoxes = members.map(function (n) { return nodeBox(n, fs); });
+    var others = nodes.filter(function (n) { return !mine[n.id]; }).map(function (n) { return nodeBox(n, fs); });
+    // Verbindungen: kürzester Baum (Prim) zwischen den Mitgliedern, jede Linie weicht fremden Firmen aus
+    var lines = [], inTree = [0], rest = members.map(function (n, i) { return i; }).slice(1);
+    while (rest.length) {
+      var bi = -1, bj = -1, bd = Infinity;
+      inTree.forEach(function (i) { rest.forEach(function (j) {
+        var d = Math.hypot(members[i].x - members[j].x, members[i].y - members[j].y);
+        if (d < bd) { bd = d; bi = i; bj = j; }
+      }); });
+      var path = route([members[bi].x, members[bi].y], [members[bj].x, members[bj].y], others, pad * 0.9, 0);
+      for (var s = 0; s < path.length - 1; s++) { lines.push([path[s], path[s + 1]]); }
+      inTree.push(bj); rest.splice(rest.indexOf(bj), 1);
+    }
+    // Rechenraster über dem Bereich der Gruppe
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    mBoxes.forEach(function (b) { x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); });
+    lines.forEach(function (l) { l.forEach(function (p) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); });
+    x0 -= pad * 1.5; y0 -= pad * 1.5; x1 += pad * 1.5; y1 += pad * 1.5;
+    var cell = Math.max(fs * 0.5, Math.sqrt((x1 - x0) * (y1 - y0) / 14000));
+    var cols = Math.ceil((x1 - x0) / cell) + 1, rows = Math.ceil((y1 - y0) / cell) + 1, f = new Float32Array(cols * rows);
+    var near = others.filter(function (b) { return b[2] > x0 - pad && b[0] < x1 + pad && b[3] > y0 - pad && b[1] < y1 + pad; });
+    for (var j = 0; j < rows; j++) {
+      for (var i = 0; i < cols; i++) {
+        if (i === 0 || j === 0 || i === cols - 1 || j === rows - 1) { f[j * cols + i] = -1; continue; }  // Rand immer außen → Ringe geschlossen
+        var x = x0 + i * cell, y = y0 + j * cell, v = 0, d, q;
+        for (q = 0; q < mBoxes.length; q++) { d = distBox(mBoxes[q], x, y); if (d < pad) { v += (1 - d / pad) * (1 - d / pad); } }
+        for (q = 0; q < lines.length; q++) { d = distSeg(lines[q][0], lines[q][1], x, y); if (d < pad * 0.7) { v += 0.7 * (1 - d / (pad * 0.7)) * (1 - d / (pad * 0.7)); } }
+        for (q = 0; q < near.length; q++) { d = distBox(near[q], x, y); if (d < pad) { v -= 2.5 * (1 - d / pad) * (1 - d / pad); } }
+        f[j * cols + i] = v;
       }
+    }
+    var loops = contours(f, cols, rows, x0, y0, cell, 0.3), d = "", top = null;
+    loops.forEach(function (loop) {
+      var pts = loop.filter(function (p, idx) { return idx % 2 === 0; });  // ausdünnen, dann weich verbinden
+      if (pts.length < 3) { return; }
+      function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+      var st = mid(pts[pts.length - 1], pts[0]);
+      d += "M" + st[0].toFixed(1) + "," + st[1].toFixed(1);
+      pts.forEach(function (p, idx) {
+        var m = mid(p, pts[(idx + 1) % pts.length]);
+        d += " Q" + p[0].toFixed(1) + "," + p[1].toFixed(1) + " " + m[0].toFixed(1) + "," + m[1].toFixed(1);
+        if (!top || p[1] < top[1]) { top = p; }
+      });
+      d += " Z";
     });
-    var h = hull(pts), d = "";
-    if (h.length < 3) { return; }
-    // weiche Kurve durch die Mitten der Hüllkanten
-    function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
-    var start = mid(h[h.length - 1], h[0]);
-    d = "M" + start[0].toFixed(1) + "," + start[1].toFixed(1);
-    h.forEach(function (p, i) {
-      var m = mid(p, h[(i + 1) % h.length]);
-      d += " Q" + p[0].toFixed(1) + "," + p[1].toFixed(1) + " " + m[0].toFixed(1) + "," + m[1].toFixed(1);
-    });
-    g.path.setAttribute("d", d + " Z");
-    var top = h.reduce(function (a, b) { return b[1] < a[1] ? b : a; });
+    g.path.setAttribute("d", d);
+    if (!top) { g.label.setAttribute("x", "-9999"); return; }
     g.label.setAttribute("x", top[0].toFixed(1));
-    g.label.setAttribute("y", (top[1] + fs * 1.4).toFixed(1));
+    g.label.setAttribute("y", (top[1] - fs * 0.35).toFixed(1));
     g.label.setAttribute("text-anchor", "middle");
   }
-
   function select(n, keep) {
     selected = n;
     reveal(drawInfos(n), n);
