@@ -136,26 +136,17 @@
 
   {% if not topic %}
   <div class="kb-work">
-    <aside class="kb-list" aria-label="Hersteller und Artikelgruppen">
+    <aside class="kb-list" aria-label="Hersteller" data-side="hersteller">
       <div class="kb-list-filter">
-        <input type="search" placeholder="Liste filtern" aria-label="Liste filtern" data-list-filter autocomplete="off">
+        <input type="search" placeholder="Hersteller filtern" aria-label="Hersteller filtern" data-list-filter autocomplete="off">
       </div>
       <div class="kb-list-scroll">
         <h2>Hersteller <small>{{ side_rows | length }}</small></h2>
-        <ul class="kb-rows" data-list>
+        <p class="kb-rel-hint" data-rel-hint hidden></p>
+        <ul class="kb-rows" data-list data-kind="hersteller">
         {% for t, depth, color in side_rows %}
-          <li class="{{ 'child' if depth }}{{ ' grp c%d' % color if color is not none }}{{ ' off' if t.id in hidden }}{{ ' active' if sel and sel.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">
-            <a href="/wissen?t={{ t.id }}" data-pick="{{ t.id }}"><span>{{ t.name }}</span>
-              {% if t.id in flagged %}<i class="kb-dot" title="bitte prüfen"></i>{% endif %}
-              <small>{{ counts.get(t.id, 0) or "" }}</small></a>
-          </li>
-        {% endfor %}
-        </ul>
-        <h2>Artikelgruppen <small>{{ topics | selectattr("kind", "equalto", "gruppe") | list | length }}</small></h2>
-        <ul class="kb-rows" data-list>
-        {% for t in topics if t.kind == "gruppe" %}
-          <li class="{{ 'off' if t.id in hidden }}{{ ' active' if sel and sel.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">
-            <a href="/wissen?t={{ t.id }}" data-pick="{{ t.id }}"><span>{{ t.name }}</span>
+          <li class="{{ 'child' if depth }}{{ ' grp c%d' % color if color is not none }}{{ ' off' if t.id in hidden }}{{ ' active' if sel_f and sel_f.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">
+            <a href="/wissen?f={{ t.id }}{{ '&g=%d' % sel_g.id if sel_g }}" data-pick="{{ t.id }}" data-kind="hersteller"><span>{{ t.name }}</span>
               {% if t.id in flagged %}<i class="kb-dot" title="bitte prüfen"></i>{% endif %}
               <small>{{ counts.get(t.id, 0) or "" }}</small></a>
           </li>
@@ -178,33 +169,59 @@
       </div>
     </aside>
 
-    <section class="kb-panel kb-map-panel" aria-label="Karte">
-      <div class="kb-map-bar">
-        <button type="button" class="secondary kb-map-connect" data-map-connect aria-pressed="false" title="Zwei Themen verbinden: erst das eine, dann das andere antippen">{{ icon("link", 16) }} Verbinden</button>
-        <details class="kb-map-layers">
-          <summary class="button secondary">Anzeigen</summary>
-          <div class="kb-map-filters">
-            <label><input type="checkbox" data-map-type="artikel" checked> <i class="l-artikel"></i>Artikel</label>
-            <label><input type="checkbox" data-map-type="bezug" checked> <i class="l-bezug"></i>Bezug über</label>
-            <label><input type="checkbox" data-map-type="pflicht" checked> <i class="l-pflicht"></i>Pflicht-Zubehör</label>
-            <label><input type="checkbox" data-map-type="eintrag"> <i class="l-eintrag"></i>gemeinsame Einträge</label>
-            <label><input type="checkbox" data-map-groups checked> <i class="l-konzern"></i>Firmengruppen</label>
-            <label><input type="checkbox" data-map-off> nicht gefolgte</label>
-            <p class="hint">Kreis = Hersteller, Quadrat = Artikelgruppe. Artikel-Linie: grün erste Wahl, hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten.</p>
-          </div>
-        </details>
-        <span class="grow"></span>
-        <button type="button" class="icon-btn" data-map-zoom="1.25" title="Vergrößern" aria-label="Vergrößern">{{ icon("plus", 18) }}</button>
-        <button type="button" class="icon-btn" data-map-zoom="0.8" title="Verkleinern" aria-label="Verkleinern"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></button>
-        <button type="button" class="secondary kb-map-fit" data-map-fit>Alles zeigen</button>
+    <section class="kb-center">
+      <div class="kb-tabs" role="tablist" aria-label="Ansicht">
+        <button type="button" role="tab" aria-selected="true" data-tab="infos">Infos</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="karte">Karte</button>
       </div>
-      <div class="kb-map" data-kb-map title="Klick: Infos rechts · Doppelklick: Steckbrief · ziehen verschiebt · Mausrad zoomt">
-        <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen mit ihren Verbindungen"></svg>
-        <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Verbindungen. Sie entstehen durch Bezugsregeln, Firmengruppen, Pflicht-Zubehör und Artikelvergleiche.</p>
+      <div class="kb-detail" data-kb-detail data-pane="infos">{% include "knowledge_panel.html" %}</div>
+      <div class="kb-panel kb-map-panel" data-pane="karte" hidden aria-label="Karte">
+        <div class="kb-map-bar">
+          <button type="button" class="secondary kb-map-connect" data-map-connect aria-pressed="false" title="Zwei Themen verbinden: erst das eine, dann das andere antippen">{{ icon("link", 16) }} Verbinden</button>
+          <details class="kb-map-layers">
+            <summary class="button secondary">Anzeigen</summary>
+            <div class="kb-map-filters">
+              <label><input type="checkbox" data-map-type="artikel" checked> <i class="l-artikel"></i>Artikel</label>
+              <label><input type="checkbox" data-map-type="bezug" checked> <i class="l-bezug"></i>Bezug über</label>
+              <label><input type="checkbox" data-map-type="pflicht" checked> <i class="l-pflicht"></i>Pflicht-Zubehör</label>
+              <label><input type="checkbox" data-map-type="eintrag"> <i class="l-eintrag"></i>gemeinsame Einträge</label>
+              <label><input type="checkbox" data-map-groups checked> <i class="l-konzern"></i>Firmengruppen</label>
+              <label><input type="checkbox" data-map-off> nicht gefolgte</label>
+              <p class="hint">Kreis = Hersteller, Quadrat = Artikelgruppe. Artikel-Linie: grün erste Wahl, hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten.</p>
+            </div>
+          </details>
+          <span class="grow"></span>
+          <button type="button" class="icon-btn" data-map-zoom="1.25" title="Vergrößern" aria-label="Vergrößern">{{ icon("plus", 18) }}</button>
+          <button type="button" class="icon-btn" data-map-zoom="0.8" title="Verkleinern" aria-label="Verkleinern"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></button>
+          <button type="button" class="secondary kb-map-fit" data-map-fit>Alles zeigen</button>
+        </div>
+        <div class="kb-map" data-kb-map title="Klick: Infos · Doppelklick: Steckbrief · ziehen verschiebt · Mausrad zoomt">
+          <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen mit ihren Verbindungen"></svg>
+          <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Verbindungen. Sie entstehen durch Bezugsregeln, Firmengruppen, Pflicht-Zubehör und Artikelvergleiche.</p>
+        </div>
       </div>
     </section>
 
-    <aside class="kb-detail" data-kb-detail>{% include "knowledge_panel.html" %}</aside>
+    <aside class="kb-list" aria-label="Artikelgruppen" data-side="gruppe">
+      <div class="kb-list-filter">
+        <input type="search" placeholder="Artikelgruppen filtern" aria-label="Artikelgruppen filtern" data-list-filter autocomplete="off">
+      </div>
+      <div class="kb-list-scroll">
+        <h2>Artikelgruppen <small>{{ topics | selectattr("kind", "equalto", "gruppe") | list | length }}</small></h2>
+        <p class="kb-rel-hint" data-rel-hint hidden></p>
+        <ul class="kb-rows" data-list data-kind="gruppe">
+        {% for t in topics if t.kind == "gruppe" %}
+          <li class="{{ 'off' if t.id in hidden }}{{ ' active' if sel_g and sel_g.id == t.id }}" data-name="{{ (t.name ~ ' ' ~ (t.aliases or []) | join(' ')) | lower }}">
+            <a href="/wissen?g={{ t.id }}{{ '&f=%d' % sel_f.id if sel_f }}" data-pick="{{ t.id }}" data-kind="gruppe"><span>{{ t.name }}</span>
+              {% if t.id in flagged %}<i class="kb-dot" title="bitte prüfen"></i>{% endif %}
+              <small>{{ counts.get(t.id, 0) or "" }}</small></a>
+          </li>
+        {% endfor %}
+        </ul>
+        {% if not topics | selectattr("kind", "equalto", "gruppe") | list %}<p class="hint kb-list-none">Noch keine. Unten links „Hersteller oder Artikelgruppe“ anlegen.</p>{% endif %}
+        <p class="kb-list-none hint" data-list-none hidden>Nichts gefunden.</p>
+      </div>
+    </aside>
   </div>
   {% else %}
   <div class="kb-grid">

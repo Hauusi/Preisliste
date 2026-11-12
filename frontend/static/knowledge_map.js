@@ -365,6 +365,7 @@
     groups.forEach(drawGroup);  // Abstand der Blase hängt vom Zoom ab
   }
   function fit() {
+    if (!box.clientWidth || !box.clientHeight) { return; }  // Karte verborgen: beim Anzeigen einpassen
     if (!nodes.length) { applyView(); return; }
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     nodes.forEach(function (n) { x0 = Math.min(x0, n.x - 40); y0 = Math.min(y0, n.y - 30); x1 = Math.max(x1, n.x + 40); y1 = Math.max(y1, n.y + 40); });
@@ -589,9 +590,10 @@
   document.querySelectorAll("[data-map-type], [data-map-off]").forEach(function (c) { c.addEventListener("change", build); });
   var groupBox = document.querySelector("[data-map-groups]");
   if (groupBox) { groupBox.addEventListener("change", function () { if (groupLayer) { groupLayer.style.display = showGroups() ? "" : "none"; } }); }
-  window.addEventListener("resize", fit);
+  window.addEventListener("resize", function () { if (box.clientWidth) { fit(); } });
   window.kbMap = {
-    select: function (id) { var n = byId[id]; select(n || null, true); if (n) { show(n); } },
+    select: function (id) { var n = byId[id]; select(n || null, true); if (n && box.clientWidth) { show(n); } },
+    show: function () { fit(); },  // Karte war verborgen (Reiter „Karte“): jetzt Größe kennen und einpassen
     reload: function (id) { if (data) { reload(id); } }
   };
 
