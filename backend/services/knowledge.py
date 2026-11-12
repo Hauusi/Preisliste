@@ -1,4 +1,4 @@
-"""Herstellerwissen: gemeinsames Wissen zu Herstellern und Artikelgruppen.
+"""Vertriebswissen: gemeinsames Wissen zu Herstellern und Artikelgruppen.
 
 Einträge schreibt man frei hinein; Art und Zuordnung erkennt das Tool mit festen Regeln (keine KI), die Schreibweise
 wird vereinheitlicht (Herstellernamen, Abkürzungen, Satzanfang, Punkt). Alles außer privaten Einträgen ist für alle

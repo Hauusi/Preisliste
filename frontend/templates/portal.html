@@ -4,7 +4,7 @@
 {% block content %}
 <section class="portal-hero">
   <h1>Hallo {{ user.username }}</h1>
-  <p>Preislisten abgleichen, Datenblätter erstellen, Herstellerwissen nachschlagen.</p>
+  <p>Preislisten abgleichen, Datenblätter erstellen, Vertriebswissen nachschlagen.</p>
 </section>
 
 <div class="tiles">
@@ -27,7 +27,7 @@
   </a>
   <a class="tile tile-active" href="/wissen">
     <span class="tile-icon">{{ icon("book", 28) }}</span>
-    <h2>Herstellerwissen</h2>
+    <h2>Vertriebswissen</h2>
     <p>Mindestmengen, Bezugswege, Kalkulationshinweise und Pflicht-Zubehör zu Herstellern und Artikelgruppen.</p>
     <div class="tile-meta"><span class="badge">{{ stats.knowledge }} {{ "Eintrag" if stats.knowledge == 1 else "Einträge" }}</span></div>
     <span class="tile-go">Öffnen</span>

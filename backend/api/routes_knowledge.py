@@ -1,4 +1,4 @@
-"""Modul „Herstellerwissen“: gemeinsames Wissen zu Herstellern und Artikelgruppen."""
+"""Modul „Vertriebswissen“: gemeinsames Wissen zu Herstellern und Artikelgruppen."""
 
 from __future__ import annotations
 

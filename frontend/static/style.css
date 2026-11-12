@@ -741,7 +741,7 @@ body.portal.wide .content { max-width: 1760px; }
   .dsl-table .row-actions { white-space: normal; }
 }
 
-/* ---------- Herstellerwissen ---------- */
+/* ---------- Vertriebswissen ---------- */
 .kb { --t: var(--muted); }
 .t-bezug { --t: var(--info); } .t-kalk { --t: var(--accent); } .t-pflicht { --t: var(--signal-ink); }
 .t-liefer { --t: var(--unclear); } .t-hinweis, .t-auto { --t: var(--muted); }

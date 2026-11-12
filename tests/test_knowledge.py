@@ -1,4 +1,4 @@
-"""Herstellerwissen: freie Eingabe mit Erkennung (ohne KI), einheitliche Schreibweise, gemeinsame Themen,
+"""Vertriebswissen: freie Eingabe mit Erkennung (ohne KI), einheitliche Schreibweise, gemeinsame Themen,
 Folgen, private Einträge, Bearbeiten mit Name und Zeitpunkt, Angaben, Suche, Verknüpfungen."""
 
 import re
@@ -161,7 +161,7 @@ def test_suggest_endpoint_and_portal_tile(user_client):
     assert c.post("/wissen/vorschlag", json={"text": "x"}).status_code == 403  # ohne Token
     _entry(c, "nordic moq 36 stk")
     home = c.get("/").text
-    assert 'href="/wissen"' in home and "1 Eintrag" in home
+    assert 'href="/wissen"' in home and "1 Eintrag" in home and "<h2>Vertriebswissen</h2>" in home
     assert "Mindestbestellmenge 36 Stück" in c.get("/wissen/suche?q=moq").text  # Suche findet auch das Eingetippte
 
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, trash %}
-{% block title %}{{ topic.name if topic else "Herstellerwissen" }}{% endblock %}
+{% block title %}{{ topic.name if topic else "Vertriebswissen" }}{% endblock %}
 
 {% macro who(uid) -%}{{ names.get(uid, "–") }}{%- endmacro %}
 
@@ -59,12 +59,12 @@
 <div class="kb" data-kb data-csrf="{{ csrf_token }}" data-topics='{{ topic_json }}'>
   <div class="kb-top">
     <div>
-      <div class="eyebrow"><a href="/">Alle Tools</a>{% if topic %} · <a href="/wissen">Herstellerwissen</a>{% endif %}</div>
-      <h1>{{ "Herstellerwissen" if not topic else topic.name }}</h1>
+      <div class="eyebrow"><a href="/">Alle Tools</a>{% if topic %} · <a href="/wissen">Vertriebswissen</a>{% endif %}</div>
+      <h1>{{ "Vertriebswissen" if not topic else topic.name }}</h1>
     </div>
     <form method="get" action="/wissen/suche" class="kb-search" role="search">
       <span class="kb-search-icon">{{ icon("search", 17) }}</span>
-      <input type="search" name="q" placeholder="Suchen: Hersteller, Stichwort, z. B. MOQ" aria-label="Herstellerwissen durchsuchen" data-kb-search autocomplete="off">
+      <input type="search" name="q" placeholder="Suchen: Hersteller, Stichwort, z. B. MOQ" aria-label="Vertriebswissen durchsuchen" data-kb-search autocomplete="off">
       <kbd>Strg K</kbd>
       <div class="kb-results" data-kb-results hidden role="listbox"></div>
     </form>

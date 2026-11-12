@@ -510,10 +510,10 @@ class DatasheetExample(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
-# ---------- Herstellerwissen: gemeinsames Wissen zu Herstellern und Artikelgruppen ----------
+# ---------- Vertriebswissen: gemeinsames Wissen zu Herstellern und Artikelgruppen ----------
 
 class KbTopic(Base):
-    """Hersteller oder Artikelgruppe im Herstellerwissen. Gemeinsam für alle Benutzer (anders als die Hersteller der
+    """Hersteller oder Artikelgruppe im Vertriebswissen. Gemeinsam für alle Benutzer (anders als die Hersteller der
     Preisliste, die jeder selbst pflegt; diese werden über Name/Alias zugeordnet)."""
 
     __tablename__ = "kb_topics"
