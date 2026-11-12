@@ -430,7 +430,9 @@ def test_map_condition_arrow_and_reverse(admin_client, user_client):
     assert node["rule"] == {"moq": 36, "stock": True, "note": "", "via": rid}
     assert any(i["text"] == "Pflicht-Zubehör für Arbeitsscheinwerfer (2 ×)" for i in info[acc])
     assert {n["id"]: n["moq"] for n in d["nodes"]}[nid] == 36
-    assert "data-map-connect" in u.get("/wissen").text
+    # Mindmap-Blasen: Hersteller zeigt die Bezugsregel als Blase
+    bubbles = u.get(f"/api/wissen/blasen?f={nid}").json()["bubbles"]
+    assert any(b["type"] == "bezug" and "Riedfeld" in b["label"] for b in bubbles)
 
 
 def test_company_groups_parent_child_map_and_search(admin_client, user_client):
@@ -476,12 +478,12 @@ def test_start_page_list_map_and_info_panel(user_client):
     u.post(f"/wissen/{nordic}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "4-6 Wochen"})
 
     page = u.get("/wissen").text
-    assert 'class="kb-work"' in page and "Überblick" in page and "data-kb-map" in page
+    assert 'class="kb-work"' in page and "Überblick" in page and "data-kb-map" in page and "data-map-say" in page
     assert re.search(r'<li class="child grp c\d"[^>]*>\s*<a href="/wissen\?f=%d" data-pick="%d" data-kind="hersteller"><span>LED Autolamps' % (led, led), page)
 
     # Infofenster per Link (ohne Script) und als Baustein
     page = u.get(f"/wissen?t={nordic}").text
-    assert 'data-panel="%d"' % nordic in page and "Ab 36 Stück oder Lagerware" in page and "4-6 Wochen" in page
+    assert 'data-sel-f="%d"' % nordic in page  # Link öffnet die Auswahl (Blasen lädt das Script)
     frag = u.get(f"/wissen/{nordic}/kurz").text
     assert "<html" not in frag and "Unter 36 Stück und keine Lagerware" in frag and "Riedfeld" in frag
     assert "Fehlt: Ansprechpartner, Pflicht-Zubehör" in frag
@@ -537,7 +539,7 @@ def test_maker_times_group_panel(user_client):
     assert frag.index("Gilt für alles von Redtronic") < frag.index("Lieferzeit 3 Wochen")  # allgemein Redtronic: eigener Abschnitt
     assert "Pflicht-Zubehör" not in frag  # Montageadapter betrifft nicht Leuchtbalken
     page = u.get(f"/wissen?f={red}&g={balken}").text
-    assert 'data-f="%d" data-g="%d"' % (red, balken) in page
+    assert 'data-sel-f="%d" data-sel-g="%d"' % (red, balken) in page
     assert u.get(f"/wissen/kombi?f={balken}&g={red}").status_code == 404  # Art vertauscht
 
     # Eintrag aus der Kombi-Ansicht: gehört zu beiden, zurück in die Kombi-Ansicht
@@ -696,3 +698,39 @@ def test_map_card_maker_group_pair(user_client):
         sp = db.query(KbTopic).filter_by(kind="serie").one().id
     assert "1,50 m" in u.get(f"/wissen/karteninfo?g={sp}").text
     assert u.get("/wissen/karteninfo").status_code == 404
+
+
+
+def test_bubbles_maker_group_pair(user_client):
+    """Mindmap-Blasen: nur Hersteller = Standard-Infos ohne Artikelgruppen; nur Gruppe = alles zur Gruppe (alle
+    Hersteller, mit Namen); Hersteller + Gruppe = nur die Infos dieser Gruppe beim Hersteller."""
+    u = user_client
+    red, hella, balken = _topic(u, "Redtronic"), _topic(u, "Hella"), _topic(u, "Leuchtbalken", "gruppe")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red})
+    u.post(f"/wissen/{red}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "3 Wochen"})
+    _entry(u, "Redtronic Rabatt ab 10 Stück", themen=[red])
+    _entry(u, "Redtronic Leuchtbalken mit Montagesatz", themen=[red, balken])
+    _entry(u, "Hella Leuchtbalken nur 12 V", themen=[hella, balken])
+    _entry(u, "Leuchtbalken über 1,80 m mehr kalkulieren", themen=[balken])
+    _entry(u, "Spartan nur bis 1,50 m")
+
+    def labels(q):
+        return [b["label"] for b in u.get("/api/wissen/blasen?" + q).json()["bubbles"]]
+    m = labels(f"f={red}")
+    assert "Lieferzeit: 3 Wochen" in m and any("Rabatt" in x for x in m)
+    assert not any("Montagesatz" in x or "1,50 m" in x for x in m)
+    g = labels(f"g={balken}")
+    assert any(x.startswith("Hella: ") and "12 V" in x for x in g) and any(x.startswith("Redtronic: ") and "Montagesatz" in x for x in g)
+    assert any("1,80 m" in x and ":" not in x.split("1,80")[0] for x in g) and "Serie Spartan (Redtronic)" in g
+    assert any("1,50 m" in x for x in g) and not any("Rabatt" in x for x in g)
+    k = u.get(f"/api/wissen/blasen?f={red}&g={balken}").json()
+    kl = [b["label"] for b in k["bubbles"]]
+    assert any("Montagesatz" in x for x in kl) and "Serie Spartan" in kl and any("1,50 m" in x for x in kl)
+    assert not any("12 V" in x or "1,80 m" in x or "Rabatt" in x for x in kl)
+    assert k["assigned"] is True and balken in u.get(f"/api/wissen/blasen?f={red}").json()["lit"]
+    e = next(b for b in k["bubbles"] if b["kind"] == "eintrag")
+    assert e["entry"] and e["who"] == "anna" and sorted(e["topics"]) == sorted([red, balken])
+    assert u.get("/api/wissen/blasen").status_code == 404
+    # Steckbrief: Artikelgruppen zuordnen und Serien anlegen
+    page = u.get(f"/wissen/{red}").text
+    assert 'id="sortiment"' in page and "Spartan" in page and "Serie anlegen" in page

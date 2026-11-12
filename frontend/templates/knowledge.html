@@ -99,7 +99,7 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="kb" data-kb data-csrf="{{ csrf_token }}" data-topics='{{ topic_json }}'>
+<div class="kb" data-kb data-csrf="{{ csrf_token }}" data-topics='{{ topic_json }}' data-sel-f="{{ sel_f.id if sel_f }}" data-sel-g="{{ sel_g.id if sel_g }}">
   <div class="kb-top">
     <div>
       <div class="eyebrow"><a href="/">Alle Tools</a>{% if topic %} · <a href="/wissen">Vertriebswissen</a>{% endif %}</div>
@@ -170,37 +170,25 @@
     </aside>
 
     <section class="kb-center">
-      <div class="kb-tabs" role="tablist" aria-label="Ansicht">
-        <button type="button" role="tab" aria-selected="true" data-tab="karte">Karte</button>
-        <button type="button" role="tab" aria-selected="false" data-tab="infos">Infos</button>
-      </div>
-      <div class="kb-detail" data-kb-detail data-pane="infos" hidden>{% include "knowledge_panel.html" %}</div>
-      <div class="kb-panel kb-map-panel" data-pane="karte" aria-label="Karte">
+      <div class="kb-panel kb-map-panel" aria-label="Karte">
         <div class="kb-map-bar">
-          <button type="button" class="secondary kb-map-connect" data-map-connect aria-pressed="false" title="Zwei Themen verbinden: erst das eine, dann das andere antippen">{{ icon("link", 16) }} Verbinden</button>
-          <details class="kb-map-layers">
-            <summary class="button secondary">Anzeigen</summary>
-            <div class="kb-map-filters">
-              <label><input type="checkbox" data-map-type="artikel" checked> <i class="l-artikel"></i>Artikel</label>
-              <label><input type="checkbox" data-map-type="bezug" checked> <i class="l-bezug"></i>Bezug über</label>
-              <label><input type="checkbox" data-map-type="pflicht" checked> <i class="l-pflicht"></i>Pflicht-Zubehör</label>
-              <label><input type="checkbox" data-map-type="eintrag"> <i class="l-eintrag"></i>gemeinsame Einträge</label>
-              <label><input type="checkbox" data-map-groups checked> <i class="l-konzern"></i>Firmengruppen</label>
-              <label><input type="checkbox" data-map-off> nicht gefolgte</label>
-              <p class="hint">Kreis = Hersteller, Quadrat = Artikelgruppe. Artikel-Linie: grün erste Wahl, hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten.</p>
-            </div>
-          </details>
+          <p class="kb-map-say" data-map-say>Hersteller oder Artikelgruppe anklicken – die Infos erscheinen als Blasen.</p>
           <span class="grow"></span>
+          {% set todo_n = (attention.mine | length) + (attention.other | length) %}
+          <details class="kb-overview">
+            <summary class="button secondary{{ ' warn' if todo_n }}">Überblick{% if todo_n %} <b class="kb-badge">{{ todo_n }} prüfen</b>{% endif %}</summary>
+            <div class="kb-overview-pop">{% with sel=None %}{% include "knowledge_panel.html" %}{% endwith %}</div>
+          </details>
           <button type="button" class="icon-btn" data-map-zoom="1.25" title="Vergrößern" aria-label="Vergrößern">{{ icon("plus", 18) }}</button>
           <button type="button" class="icon-btn" data-map-zoom="0.8" title="Verkleinern" aria-label="Verkleinern"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg></button>
           <button type="button" class="secondary kb-map-fit" data-map-fit>Alles zeigen</button>
         </div>
-        <div class="kb-map" data-kb-map title="Klick: Infos · Doppelklick: Steckbrief · ziehen verschiebt · Mausrad zoomt">
-          <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen mit ihren Verbindungen"></svg>
-          <svg class="kb-mapcard-wire" data-mapcard-wire aria-hidden="true"><line/><circle r="4"/></svg>
-          <div class="kb-mapcard" data-mapcard hidden aria-live="polite"></div>
-          <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Verbindungen. Sie entstehen durch Bezugsregeln, Firmengruppen, Pflicht-Zubehör und Artikelvergleiche.</p>
+        <div class="kb-map" data-kb-map>
+          <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen; gewählte Infos als Blasen"></svg>
+          <div class="kb-pop" data-pop hidden role="dialog" aria-modal="false"></div>
+          <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Hersteller oder Artikelgruppen.</p>
         </div>
+        <div class="kb-bub-list" data-bub-list hidden></div>
       </div>
     </section>
 
@@ -301,6 +289,55 @@
           </details>
         </div>
       </div>
+
+      {% if topic.kind in ("hersteller", "gruppe") %}{% set mk = topic.kind == "hersteller" %}
+      <section class="kb-panel kb-sortiment" id="sortiment">
+        <div class="kb-panel-head"><h2>{{ "Artikelgruppen" if mk else "Hersteller" }}</h2>
+          <span class="hint">{{ "Welche Artikelgruppen " ~ topic.name ~ " führt – leuchten auf der Startseite auf" if mk else "Welche Hersteller " ~ topic.name ~ " führen" }}</span></div>
+        <div class="kb-d-chips">{% for x in p_assigned %}
+          <span class="kb-asg-chip"><a href="/wissen/{{ x.id }}">{{ x.name }}</a>
+            <form method="post" action="/wissen/sortiment" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ topic.id }}">
+              <input type="hidden" name="hersteller" value="{{ topic.id if mk else x.id }}"><input type="hidden" name="gruppe" value="{{ x.id if mk else topic.id }}">
+              <input type="hidden" name="aktion" value="entfernen">
+              <button type="submit" title="Zuordnung lösen" aria-label="{{ x.name }} entfernen">{{ icon("x", 13) }}</button></form></span>{% else %}<span class="hint">Noch keine.</span>{% endfor %}</div>
+        {% if p_options %}
+        <form method="post" action="/wissen/sortiment" class="kb-d-asg-add">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ topic.id }}">
+          <input type="hidden" name="{{ 'hersteller' if mk else 'gruppe' }}" value="{{ topic.id }}">
+          <select name="{{ 'gruppe' if mk else 'hersteller' }}" required aria-label="hinzufügen"><option value="">{{ "Artikelgruppe hinzufügen …" if mk else "Hersteller hinzufügen …" }}</option>
+            {% for x in p_options | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select>
+          <button type="submit" class="secondary">{{ icon("plus", 15) }} Hinzufügen</button>
+        </form>{% endif %}
+        <h3 class="kb-sub">Serien</h3>
+        {% if p_series %}<ul class="kb-d-series">{% for x in p_series %}<li><a href="/wissen/{{ x.id }}"><b>{{ x.name }}</b>
+          <span>{{ by_id[x.parent_id].name if mk and x.parent_id in by_id else (by_id[x.maker_id].name if x.maker_id in by_id else "") }}</span>
+          <small>{{ s_counts.get(x.id, 0) }} {{ "Eintrag" if s_counts.get(x.id, 0) == 1 else "Einträge" }}</small></a></li>{% endfor %}</ul>
+        {% else %}<p class="hint">Noch keine Serie.</p>{% endif %}
+        <details class="kb-d-new"><summary>{{ icon("plus", 14) }} Serie anlegen</summary>
+          <form method="post" action="/wissen/serie" class="kb-d-newform">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ topic.id }}">
+            <label>Name <input name="name" maxlength="120" required placeholder="z. B. Spartan"></label>
+            {% if mk %}<input type="hidden" name="hersteller" value="{{ topic.id }}">
+            <label>Artikelgruppe <select name="gruppe" required><option value="">bitte wählen</option>{% for x in s_groups | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>
+            {% else %}<input type="hidden" name="gruppe" value="{{ topic.id }}">
+            <label>Hersteller <select name="hersteller" required><option value="">bitte wählen</option>{% for x in s_makers | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>{% endif %}
+            <label>Andere Schreibweisen <input name="aliase" maxlength="300" placeholder="optional"></label>
+            <button type="submit">Anlegen</button>
+          </form></details>
+      </section>
+      {% elif topic.kind == "serie" %}
+      <section class="kb-panel" id="serie">
+        <div class="kb-panel-head"><h2>Serie</h2><span class="hint">gehört zu einer Artikelgruppe und einem Hersteller</span></div>
+        <form method="post" action="/wissen/serie" class="kb-d-newform">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ topic.id }}">
+          <input type="hidden" name="id" value="{{ topic.id }}"><input type="hidden" name="name" value="{{ topic.name }}">
+          <label>Artikelgruppe <select name="gruppe" required>{% for x in s_groups | sort(attribute="name") %}<option value="{{ x.id }}"{% if s_group and x.id == s_group.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+          <label>Hersteller <select name="hersteller" required>{% for x in s_makers | sort(attribute="name") %}<option value="{{ x.id }}"{% if s_maker and x.id == s_maker.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+          <button type="submit">Speichern</button>
+        </form>
+      </section>
+      {% endif %}
 
       {% if topic.kind == "hersteller" %}
       <section class="kb-panel kb-company" id="firmengruppe">

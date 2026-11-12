@@ -211,6 +211,23 @@ async def assortment(request: Request, db: Session = Depends(get_db), user: User
     return _ret(back, maker.id)
 
 
+@router.get("/api/wissen/blasen")
+def map_bubbles(f: int | None = None, g: int | None = None, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Blasen auf der Karte für die Auswahl (Hersteller und/oder Artikelgruppe bzw. Serie)."""
+    by_id = {x.id: x for x in kb.topics(db)}
+    fx, gx = _selection(db, None, f, g)
+    if not (fx or gx):
+        raise HTTPException(404, "Nicht gefunden")
+    if gx and gx.kind == "serie":
+        fx = None
+    return {"bubbles": kb.bubbles(db, user, fx, gx, by_id),
+            "assigned": bool(fx and gx and gx.kind == "gruppe" and gx.id in kb.assortment_of(db, fx)),
+            "f": fx.id if fx else None, "g": gx.id if gx else None,
+            "anchor": (gx.parent_id if gx and gx.kind == "serie" else None),
+            # beim gewählten Hersteller leuchten seine Artikelgruppen und Serien in der Liste auf
+            "lit": (kb.assortment_of(db, fx) + [x.id for x in kb.series_of(by_id.values(), maker=fx)]) if fx else []}
+
+
 @router.get("/wissen/karteninfo")
 def map_card(request: Request, f: int | None = None, g: int | None = None, db: Session = Depends(get_db),
              user: User = Depends(current_user)):
@@ -390,6 +407,10 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
         "compare": compare, "maker_rows": maker_rows, "criteria": kb.criteria_of(t),
         "company": company, "company_root": root, "children": [x for x in ctx["topics"] if x.parent_id == t.id],
         "makers": [x for x in ctx["topics"] if x.kind == "hersteller"],
+        "p_assigned": sorted((by_id[i] for i in kb.assortment_of(db, t) if i in by_id), key=lambda x: x.name.lower()),
+        "p_options": [x for x in ctx["topics"] if x.kind == {"hersteller": "gruppe", "gruppe": "hersteller"}.get(t.kind)
+                      and x.id not in kb.assortment_of(db, t)],
+        **_series_ctx(db, user, ctx, t, by_id),
     })
 
 

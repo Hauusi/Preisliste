@@ -468,9 +468,35 @@ Startseite → **Vertriebswissen**. Gemeinsames Wissen, das sonst nur in Köpfen
 Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
-**Startseite – drei Spalten, volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen**, in der Mitte
-die **Karte** (Umschalter „Karte | Infos“). Die Mitte wechselt nie von selbst auf „Infos“ – die ruft man über den
-Reiter oder den Knopf oben links auf der Karte auf.
+**Startseite – Mindmap über die volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen** (mit Serien),
+in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Blasen** rund um den gewählten Punkt:
+
+- **Hersteller anklicken** (z. B. Redtronic): Blasen mit seinen **Standard-Infos** (Bezugsregel, Lieferzeit,
+  Ansprechpartner, Mindestmenge, Pflicht-Zubehör, allgemeine Einträge) – ohne Artikelgruppen-Bezug. Rechts leuchten die
+  bei Redtronic hinterlegten Artikelgruppen und Serien auf.
+- **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): Pfeil Redtronic → Leuchtbalken; die Blasen zeigen **nur
+  die Infos dieser Gruppe bei Redtronic** (Artikel im Vergleich, Serien, Serien-Einträge, Einträge zu beiden,
+  Pflicht-Zubehör zwischen beiden). Ist die Gruppe nicht zugeordnet, gibt es die gestrichelte Blase „+ Redtronic führt
+  Leuchtbalken“; „+ Serie“ legt eine Serie an.
+- **Nur Artikelgruppe anklicken:** Blasen mit **allen Infos der Gruppe**, egal welcher Hersteller (jeweils mit
+  Herstellername davor), samt Angaben, Artikelvergleich und Serien.
+- **Serie anklicken** (rechts eingerückt): ihre eigenen Angaben und Einträge.
+- **Klick auf eine Blase:** kleines Fenster mit ganzem Text, Art, wer/wann; bei Einträgen **Bearbeiten** (Text, Art),
+  **Löschen** (übliche Sicherheitsabfrage) und bei abgelaufener Prüffrist **„Stimmt noch“**; bei Angaben „Ändern“ (im
+  Steckbrief).
+- **„+ Info“** (blaue Blase): direkt eintragen – der Eintrag gehört zum Gewählten (bei Hersteller + Gruppe zu beiden).
+  Strg+Enter speichert. Das große Feld oben bleibt zum schnellen Eintragen mit automatischer Erkennung.
+- **„Steckbrief bearbeiten ›“**: alles Weitere (Bezugsregel, Firmengruppe, Artikelgruppen zuordnen, Serien, Angaben,
+  Artikelvergleich, Verlauf). Doppelklick auf einen Punkt öffnet ihn ebenfalls.
+- **Farben der Blasen:** blau Bezug, dunkelblau Kalkulation, orange Pflicht-Zubehör, lila Lieferzeit/Serie, grün
+  Artikel, grau Hinweis/Angabe; gestrichelt = bitte prüfen.
+- Solange Blasen offen sind, ist der Rest der Karte ausgeblendet. **Abwählen:** Klick auf einen gewählten Eintrag wählt
+  nur diesen ab; Klick auf eine leere Fläche (Karte oder Liste) wählt alles ab.
+- **„Überblick“** (oben an der Karte, mit Zahl „… prüfen“): Bitte prüfen (zuerst „Du bist zuständig“), Zuletzt
+  geändert, Ohne Zuständigen.
+- **Handy:** Listen oben, darunter die Karte; die Blasen stehen dort als Liste unter der Karte.
+- Ohne Auswahl zeigt die Karte alle Hersteller und Gruppen mit Bezugsregel-Pfeilen, Pflicht-Zubehör, Artikel-Linien
+  und Firmengruppen-Blasen. Ziehen verschiebt, Mausrad/+/− zoomt, „Alles zeigen“ passt ein.
 
 - **Löschen:** Mülleimer rechts neben dem Hersteller, der Artikelgruppe oder Serie (erscheint beim Darüberfahren,
   am Handy immer). Es folgt die übliche Sicherheitsabfrage mit allem, was mitgeht: Einträge, die nur dazu gehören,
@@ -481,58 +507,15 @@ Reiter oder den Knopf oben links auf der Karte auf.
 - **Listen:** Firmengruppen stehen links zusammen (Mutter, darunter eingerückt die Töchter, farbiger Strich wie die
   Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
   eigenes Filterfeld; Enter wählt den ersten Treffer.
-- **Artikelgruppen beim Hersteller zuordnen** (welche Gruppen er führt, z. B. Redtronic → Leuchtbalken,
-  Rundumleuchten): im Infofenster des Herstellers unter „Artikelgruppen“ wählen und „Hinzufügen“, oder mit Hersteller
-  und Gruppe gewählt auf „… hinzufügen“. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
-  geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
-  Artikel-Linie.
-- **Start:** Die Seite öffnet immer ohne Auswahl (auch nach Neuladen); in der Mitte die Karte, im Reiter „Infos“ der
-  Überblick.
-- **Infofeld auf der Karte:** Was gewählt ist, zeigt ein Infofeld direkt auf der Karte – auf der freien Seite, mit
-  gestrichelter Linie zum gewählten Punkt bzw. zum Pfeil; die Karte schiebt die gewählten Punkte neben das Feld.
-  „Alle Infos · bearbeiten“ öffnet den Reiter „Infos“ (dort eintragen, prüfen, bearbeiten).
-- **Hersteller anklicken** (z. B. Redtronic): rechts leuchten die bei Redtronic hinterlegten Artikelgruppen (und
-  Serien) auf. Das Infofeld zeigt die **Standard-Infos ohne Artikelgruppen-Bezug**: Bezugsregel, Angaben (Lieferzeit,
-  Ansprechpartner …), allgemeine Einträge nach Art.
-- **Nur Artikelgruppe anklicken:** das Infofeld zeigt **alles zur Gruppe, egal welcher Hersteller**, sortiert:
-  Angaben, Artikelvergleich, „Für alle Leuchtbalken“ (Einträge ohne Hersteller), dann je Hersteller alphabetisch seine
-  Einträge zur Gruppe und seine Serien (Serien-Einträge mit Kennzeichen „Serie …“).
-- **Erst Hersteller, dann Artikelgruppe anklicken:** Pfeil Redtronic → Leuchtbalken auf der Karte; das Infofeld zeigt
-  die **Kombination**: Redtronic-Artikel in der Gruppe (Platz im Vergleich), Serien, Einträge zu beiden,
-  Pflicht-Zubehör, „Für alle Leuchtbalken“ und „Allgemein Redtronic“ (Bezugsregel, Angaben, allgemeine Einträge).
-  Im Reiter „Infos“ dasselbe ausführlich mit Verbindungsgrafik (führt / nicht zugeordnet), zum Eintragen und Bearbeiten.
 - **Serien** (z. B. „Spartan“ = Leuchtbalken von Redtronic): gehören immer zu **einer Artikelgruppe und einem
-  Hersteller**. Anlegen mit „+ Serie anlegen“ im Infofenster der Artikelgruppe, des Herstellers oder bei
-  „Redtronic × Leuchtbalken“ (Name, ggf. andere Schreibweisen). Die Gruppe wird dabei dem Hersteller zugeordnet.
-  Serien stehen rechts eingerückt unter ihrer Artikelgruppe („Serie Spartan“) und leuchten mit auf, wenn ihr Hersteller
-  gewählt ist. Klick auf die Serie zeigt **ihre eigenen Infos**: Angaben (Lieferzeit, Pflicht-Zubehör, freie Angaben
-  im Steckbrief), Einträge (direkt neu eintragen) und darunter „Gilt für alle Leuchtbalken“ und „Gilt für alles von
-  Redtronic“. Einträge, in denen der Serienname vorkommt („Spartan nur bis 1,50 m“), werden automatisch der Serie
-  zugeordnet. Gruppe oder Hersteller ändern: „Gruppe oder Hersteller ändern“ im Infofenster der Serie; Name und andere
-  Schreibweisen im Steckbrief. Serien erscheinen nicht auf der Karte.
-- **Abwählen:** Klick auf einen gewählten Hersteller oder eine gewählte Gruppe (in der Liste oder auf der Karte) wählt
-  nur diesen ab, der andere bleibt. **Klick auf eine leere Fläche** (Kartenhintergrund oder leerer Bereich einer
-  Liste) wählt beide ab. × im Infofenster hebt ebenfalls alles auf (Überblick).
-- **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
-- **Einzelner Hersteller/Gruppe:** Firmengruppe, **Bezug** (Bezugsregel als zwei Zeilen „Ab 36 Stück oder Lagerware →
-  bei Nordic Lights“ / „Unter 36 Stück und keine Lagerware → bei Riedfeld“, beim Händler die Gegenrichtung),
-  **Angaben** (darunter „Fehlt: …“), **Artikel**, **Einträge nach Art**. Überall direkt **neu eintragen** (Strg+Enter),
-  **„stimmt noch“** und **„stimmt nicht mehr“** ohne Seitenwechsel. Ändern, Löschen, Bezugsregel, Firmengruppe und
-  Angaben über **„Steckbrief bearbeiten“**.
-- **Karte** (Reiter): Hersteller (Kreise), Artikelgruppen (Quadrate), **Bezugsregel** (blauer Pfeil zum Händler),
-  **Pflicht-Zubehör** (orange gestrichelt), **Artikel** (grün erste Wahl … rot gestrichelt abraten),
-  **Firmengruppen** (Blasen). „Anzeigen“ blendet Linienarten ein/aus. Klick wählt wie in den Listen, Doppelklick öffnet
-  den Steckbrief.
-- **Links weitergeben:** `/wissen?t=…` (ein Thema) bzw. `/wissen?f=…&g=…` (Hersteller × Gruppe) öffnen die Ansicht
-  einmalig direkt; danach steht in der Adresse wieder `/wissen`.
-- **Handy/schmal:** Listen oben, darunter Infos/Karte.
-
-Am Kartenhintergrund ziehen = verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt
-die Ansicht an.
+  Hersteller**. Anlegen mit der Blase „+ Serie“ (Hersteller und Gruppe gewählt) oder im Steckbrief unter
+  „Artikelgruppen“/„Hersteller“ → „Serie anlegen“. Die Gruppe wird dabei dem Hersteller zugeordnet. Serien stehen
+  rechts eingerückt unter ihrer Artikelgruppe und leuchten mit auf, wenn ihr Hersteller gewählt ist. Einträge, in
+  denen der Serienname vorkommt („Spartan nur bis 1,50 m“), werden automatisch der Serie zugeordnet. Gruppe oder
+  Hersteller ändern: Steckbrief der Serie. Serien erscheinen nicht als eigener Punkt auf der Karte.
 
 **Bezugsregel (Beispiel Nordic Lights / Riedfeld):** Eine Bedingung, wann beim Hersteller und wann woanders bestellt
-wird. Festlegen im Steckbrief im Kasten „Bezugsregel“ (im Infofenster „Festlegen“) oder auf der Karte über „Verbinden“ –
-beides ist derselbe Satz zum Ausfüllen:
+wird. Festlegen im Steckbrief im Kasten „Bezugsregel“ – ein Satz zum Ausfüllen:
 
 > Bei **Nordic Lights** bestellen ab **[36]** Stück **[✓] oder wenn Lagerware**. Sonst bestellen bei **[Riedfeld ▾]**.
 > Bemerkung (optional), z. B. „dort andere Kalkulation“.
@@ -542,29 +525,21 @@ Mindestmenge, Lagerware oder beides (mindestens eins). Danach:
 - **Steckbrief Nordic Lights:** Kasten „Bezugsregel“ mit Frage „Ab 36 Stück oder Lagerware?“ und zwei Ästen –
   grün „ja → Bei Nordic Lights bestellen“, blau „nein · unter 36 Stück und keine Lagerware → Bei Riedfeld bestellen →“
   (Klick öffnet Riedfeld). „Regel ändern“ öffnet den Satz, dort auch „Regel entfernen“ (die Mindestmenge bleibt).
-- **Karte:** blauer Pfeil Nordic Lights → Riedfeld mit „unter 36 Stk / keine Lagerware“; Infofenster von Nordic
-  Lights unter „Bezug“ die beiden Zeilen, Klick auf Riedfeld öffnet dessen Infos.
-- **Umgekehrt bei Riedfeld:** im Infofenster unter „Bezug“ und oben im Steckbrief „Für Nordic Lights: unter 36 Stück
-  und keine Lagerware → hier bestellen“.
+- **Karte:** blauer Pfeil Nordic Lights → Riedfeld mit „unter 36 Stk / keine Lagerware“; Nordic Lights anklicken zeigt
+  die Regel als blaue Blase („Unter 36 Stück und keine Lagerware → Riedfeld“).
+- **Umgekehrt bei Riedfeld:** oben im Steckbrief „Für Nordic Lights: unter 36 Stück und keine Lagerware → hier
+  bestellen“.
 - **Hinweise bei der Arbeit** (Preisliste, Jahresabgleich, Datenblatt): „Ab 36 Stück oder Lagerware → bei Nordic
   Lights bestellen, sonst (unter 36 Stück und keine Lagerware) → bei Riedfeld“.
 
-**Verbinden auf der Karte:** Knopf **„Verbinden“**, dann das erste Thema antippen, dann das zweite. Ein Fenster fragt,
-welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
-
-- **Bezugsregel** (nur bei Herstellern): derselbe Satz wie oben, das zweite Thema ist der Händler.
-- **„A braucht [1] × B (Pflicht-Zubehör)“** – Pflicht-Zubehör mit Stückzahl.
-- **„Firmengruppe: B ist Tochterfirma von A“** (nur zwischen Herstellern) – siehe Firmengruppen.
-- **„Hinweis zu beiden“** – ein Eintrag, der beiden zugeordnet ist.
-
-„Verbinden“ speichert (mit Name und Zeit wie im Steckbrief), die Karte zeigt sofort die neue Linie. Bezug und
-Pflicht-Zubehör erscheinen als **Pfeil mit Beschriftung** („unter 36 Stk / keine Lagerware“, „2 ×“). Ändern oder
-löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Angaben (Bleistift, leer speichern entfernt).
+Pflicht-Zubehör (Steckbrief → Angaben) erscheint auf der Karte als orange gestrichelter **Pfeil mit Beschriftung**
+(„2 ×“). Ändern oder löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Angaben (Bleistift, leer
+speichern entfernt).
 
 **Firmengruppen (Beispiel EccoESG mit LED Autolamps und Vision Alert):** Hersteller können eine
 **Muttergesellschaft** haben. Festlegen im Steckbrief im Kasten **„Firmengruppe“** (nur Hersteller): „Gehört zu
 (Muttergesellschaft)“ wählen – speichert sofort – oder bei der Mutter „Tochterfirma hinzufügen“; „Lösen“ nimmt eine
-Tochter wieder heraus. Alternativ auf der Karte über „Verbinden“. Eine Firma hat höchstens eine Mutter, Kreise
+Tochter wieder heraus. Eine Firma hat höchstens eine Mutter, Kreise
 (A gehört zu B gehört zu A) werden abgelehnt; mehrstufig (Enkel) geht, die Gruppe zählt dann zur obersten Mutter.
 Danach:
 
@@ -572,8 +547,8 @@ Danach:
   eigener Farbe. Töchter werden zur Mutter gezogen. Zieht man eine Firma weg, **verformt sich die Blase mit** und
   umschließt weiter alle Mitglieder. **Fremde Firmen liegen nie in der Blase:** sie macht einen Bogen um sie herum
   (Verbindungsstück auf der freien, kürzeren Seite). Ist rundherum kein Platz, zerfällt sie in mehrere Teile in derselben
-  Farbe. Schon beim Aufbau der Karte werden fremde Firmen aus Gruppen herausgeschoben. „Anzeigen → Firmengruppen“ blendet die Blasen aus. Im Infofenster
-  stehen alle Firmen der Gruppe unter „Firmengruppe“; in der Liste links stehen sie zusammen.
+  Farbe. Schon beim Aufbau der Karte werden fremde Firmen aus Gruppen herausgeschoben. In der Liste links
+  stehen die Firmen einer Gruppe zusammen.
 - **Steckbrief:** oben die Mitglieder der Gruppe als Chips (Mutter markiert, Klick öffnet).
 - **Suche:** „ecco“ findet auch alle Töchter.
 
@@ -583,7 +558,7 @@ Hersteller, Schreibweise wie „Nordic-Lights“/„nordic lights“ egal). Im S
 Nordic Lights (NL)“ mit Link. Weitere Hersteller und Artikelgruppen links über „+ Hersteller oder Artikelgruppe“
 anlegen, mit **anderen Schreibweisen** (z. B. Lichtbalken, Warnbalken), damit sie im Text erkannt werden.
 
-**Folgen:** Schalter „Folge ich“ im Infofenster und im Steckbrief (dort links auch neben jedem Thema). Standard: allem folgen. Was man ausschaltet, verschwindet aus der eigenen
+**Folgen:** Schalter „Folge ich“ im Steckbrief (dort links auch neben jedem Thema). Standard: allem folgen. Was man ausschaltet, verschwindet aus der eigenen
 Übersicht und Suche; für die anderen bleibt alles da. Beispiel: Michi verkauft nur Fahrzeugtechnik und schaltet alle
 anderen Hersteller aus.
 
