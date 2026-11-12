@@ -66,7 +66,7 @@
   function pick(id, only, fromMap, keep) {
     var kind = kinds[id] || "hersteller", key = kind === "hersteller" ? "f" : "g";
     if (only) { state.f = state.g = null; state[key] = id; }
-    else { state[key] = state[key] === id && !fromMap && !keep ? null : id; }
+    else { state[key] = state[key] === id && !keep ? null : id; }  // schon gewählt: nur dieses abwählen
     // Ansicht bleibt, wie sie ist (Karte oder Infos) – „Infos“ ruft man selbst auf
     load({ fromMap: fromMap });
   }
@@ -82,7 +82,17 @@
     if (a.hasAttribute("data-combine")) { pick(+a.getAttribute("data-combine"), false, false, true); return; }
     pick(+a.getAttribute("data-pick"), !a.closest("[data-list]"));
   });
-  document.addEventListener("kb:pick", function (ev) { if (ev.detail.id) { pick(ev.detail.id, false, true); } });
+  function clearAll() {
+    if (!state.f && !state.g) { return; }
+    state.f = state.g = null; load({ fromMap: true }); if (window.kbMap) { window.kbMap.select(null); }
+  }
+  document.addEventListener("kb:pick", function (ev) {
+    if (ev.detail.id) { pick(ev.detail.id, false, true, ev.detail.keep); } else { clearAll(); }
+  });
+  // Klick auf leere Fläche in den Listen: alles abwählen
+  document.querySelectorAll("[data-side] .kb-list-scroll").forEach(function (el) {
+    el.addEventListener("click", function (ev) { if (!ev.target.closest("a, button, input, li")) { clearAll(); } });
+  });
 
   // Umschalter Infos | Karte
   var tabs = document.querySelectorAll("[data-tab]");

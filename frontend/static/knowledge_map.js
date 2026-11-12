@@ -428,15 +428,17 @@
   });
   // Klick/Doppelklick selbst auswerten: der Zeiger ist am SVG festgehalten, Klicks erreichen die Kreise nicht
   var lastTap = { node: null, t: 0 };
+  function pickEvent(id, keep) { document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: id, from: "map", keep: !!keep } })); }
   function endDrag() {
     if (drag && !moved) {
-      if (drag.pan) { if (connect.on) { setConnect(true); } }
+      // Klick auf leere Fläche: alles abwählen; Klick auf einen Kreis: wählen bzw. (schon gewählt) nur ihn abwählen
+      if (drag.pan) { if (connect.on) { setConnect(true); } else { pickEvent(null); } }
       else if (connect.on) { connectTap(drag.node); }
       else {
         var now = Date.now();
         if (lastTap.node === drag.node && now - lastTap.t < 400) { location.href = "/wissen/" + drag.node.id; return; }
         lastTap = { node: drag.node, t: now };
-        if (selected !== drag.node) { select(drag.node); }
+        pickEvent(drag.node.id);
       }
     }
     drag = null;
@@ -550,7 +552,7 @@
       ok.disabled = true;
       req.then(function () {
         setConnect(false); dialog.hidden = true; reload(a.id);
-        document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: a.id, from: "map" } }));  // Infofenster aktualisieren
+        pickEvent(a.id, true);  // Infofenster aktualisieren, Auswahl behalten
       })
         .catch(function (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; });
     };
