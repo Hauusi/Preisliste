@@ -475,23 +475,21 @@ die **Infos** (Umschalter „Infos | Karte“).
   Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
   eigenes Filterfeld; Enter wählt den ersten Treffer.
 - **Artikelgruppen beim Hersteller zuordnen** (welche Gruppen er führt, z. B. Redtronic → Leuchtbalken,
-  Rundumleuchten): im Infofenster des Herstellers unter „Artikelgruppen“ wählen und „Hinzufügen“, oder bei gewähltem
-  Hersteller in der rechten Liste auf **„+“** neben der Gruppe. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
+  Rundumleuchten): im Infofenster des Herstellers unter „Artikelgruppen“ wählen und „Hinzufügen“, oder mit Hersteller
+  und Gruppe gewählt auf „… hinzufügen“. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
   geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
   Artikel-Linie.
 - **Nur Hersteller wählen** (z. B. Redtronic): in der Mitte **alle Redtronic-Infos** (zugeordnete Artikelgruppen,
-  Bezug, Angaben, Artikel, Einträge). Rechts stehen oben die **zugeordneten Artikelgruppen** (blau), darunter Gruppen,
-  zu denen es nur Infos gibt (hellblau: Artikel im Vergleich, Einträge zu beiden, Pflicht-Zubehör), dann der Rest
-  (grau). Alle sind wählbar.
-- **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge); links
-  oben die Hersteller, die sie führen.
-- **Hersteller und dann Artikelgruppe wählen** (Klick in der rechten Liste oder auf die Gruppe im Infofenster): die
-  Mitte zeigt **„Redtronic × Leuchtbalken“** – ob zugeordnet (sonst Knopf „Leuchtbalken zu Redtronic hinzufügen“),
-  Redtronic-Artikel in der Gruppe mit Platz im Vergleich (aufklappbar die anderen Hersteller), Pflicht-Zubehör
-  zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu beiden), **„Gilt für
-  alle Leuchtbalken“** (Einträge der Gruppe ohne Hersteller) und **„Gilt für alles von Redtronic“** (Bezugsregel,
-  Angaben wie Lieferzeit, allgemeine Redtronic-Einträge). Knöpfe „Alles zu Redtronic“ / „Alles zu Leuchtbalken“
-  wechseln zu einem der beiden.
+  Bezug, Angaben, Artikel, Einträge). Die Listen markieren nur die eigene Auswahl – nichts bleibt dauerhaft eingefärbt.
+- **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge).
+- **Erst Hersteller, dann Artikelgruppe wählen** (Klick in der rechten Liste oder auf die Gruppe im Infofenster): oben
+  in der Mitte erscheint die **Verbindung als Grafik** – „Redtronic ── führt ── Leuchtbalken“ mit Anzahl Artikel und
+  Einträge; ist die Gruppe nicht zugeordnet, ist die Linie gestrichelt („nicht zugeordnet“) mit Knopf „Leuchtbalken
+  zu Redtronic hinzufügen“. Auf der Karte sind dann nur diese beiden und ihre Linie hervorgehoben. Darunter **alle
+  Infos zu beiden**: Redtronic-Artikel in der Gruppe mit Platz im Vergleich (aufklappbar die anderen Hersteller),
+  Pflicht-Zubehör zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu
+  beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von Redtronic“** (Bezugsregel, Angaben, allgemeine
+  Einträge). Klick auf einen der beiden Kästen oder „Alles zu …“ wechselt zu einem allein.
 - Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
 - Nochmal auf den gewählten Eintrag klicken = abwählen; × in der Mitte hebt alles auf (Überblick).
 - **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
