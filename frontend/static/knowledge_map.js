@@ -6,7 +6,7 @@
   if (!box) { return; }
   var svg = box.querySelector("svg"), empty = box.querySelector("[data-map-empty]");
   var NS = "http://www.w3.org/2000/svg";
-  var data = null, nodes = [], edges = [], byId = {}, selected = null, pair = null, pairLayer = null, groups = [], groupLayer = null;
+  var data = null, nodes = [], edges = [], byId = {}, selected = null, pair = null, pairLayer = null, bubbleLayer = null, bub = null, groups = [], groupLayer = null;
   var view = { x: -400, y: -260, w: 800, h: 520 };
   var LABEL = { artikel: "Artikel", bezug: "Bezug über", pflicht: "Pflicht-Zubehör", eintrag: "gemeinsame Einträge" };
   var STAGE = { erste: "erste Wahl", gut: "gut", notfalls: "nur wenn nötig", abraten: "abraten", offen: "noch nicht bewertet" };
@@ -18,7 +18,7 @@
     return n;
   }
   function types() {
-    var on = {};
+    var on = { artikel: true, bezug: true, pflicht: true, eintrag: false };  // ohne Häkchen: Standard
     document.querySelectorAll("[data-map-type]").forEach(function (c) { on[c.getAttribute("data-map-type")] = c.checked; });
     return on;
   }
@@ -148,8 +148,9 @@
       });
       g.addEventListener("pointerdown", function (ev) { startDrag(ev, n); });
     });
+    bubbleLayer = el("g", { "class": "m-bubbles" }, svg);
     place();
-    if (selected && byId[selected.id]) { select(byId[selected.id], true); } else { select(null, true); }
+    if (selected && byId[selected.id]) { select(byId[selected.id], true, pair ? pair[1] : null); } else { select(null, true); }
   }
 
   function place() {
@@ -165,7 +166,106 @@
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
     groups.forEach(drawGroup);
     drawPair();
-    document.dispatchEvent(new CustomEvent("kb:view"));
+    drawBubbles();
+  }
+  // ---------- Blasen: je Info eine Blase um den gewählten Punkt (Mindmap) ----------
+  var COLORS = ["bezug", "kalk", "pflicht", "liefer", "hinweis", "angabe", "artikel", "serie", "add", "link", "zuordnen"];
+  function wrapText(t, max, lines) {
+    var words = String(t).split(/\s+/), out = [""];
+    words.forEach(function (w) {
+      var cur = out[out.length - 1];
+      if ((cur + " " + w).trim().length > max && cur) { out.push(w); } else { out[out.length - 1] = (cur + " " + w).trim(); }
+    });
+    if (out.length > lines) { out = out.slice(0, lines); out[lines - 1] = out[lines - 1].replace(/.{0,1}$/, "…"); }
+    return out;
+  }
+  function drawBubbles() {
+    if (!bubbleLayer) { return; }
+    bubbleLayer.textContent = "";
+    if (!bub || !byId[bub.anchor]) { return; }
+    var a = byId[bub.anchor], fs = 13 * view.w / Math.max(box.clientWidth, 1), items = bub.items, n = items.length;  // Bildschirmschrift ~13 px
+    if (!n) { return; }
+    var sizes = items.map(function (it) {
+      var lines = wrapText(it.label, it.kind === "add" || it.kind === "link" ? 30 : 26, 3);
+      var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.8;
+      return { lines: lines, w: w, h: lines.length * fs * 1.3 + fs * 1.0 };
+    });
+    // Lücke in Richtung des Herstellers (Pfeil), sonst ringsum; bei vielen Blasen zweiter/dritter Ring
+    var gap = 0, dir = -Math.PI / 2;
+    if (bub.from && byId[bub.from]) { var f = byId[bub.from]; dir = Math.atan2(f.y - a.y, f.x - a.x); gap = Math.PI / 2.2; }
+    var avg = sizes.reduce(function (s, z) { return s + z.w; }, 0) / n;
+    var placed = 0, ring = 0, pos = [];
+    while (placed < n && ring < 6) {
+      var R = (a.r || 12) + fs * 5 + avg * 0.55 + ring * (fs * 4.2 + 30);
+      var cap = Math.max(4, Math.floor((2 * Math.PI - gap) * R * 1.2 / (avg * 0.95 + fs)));
+      var take = Math.min(cap, n - placed);
+      for (var i = 0; i < take; i++) {
+        var ang = dir + gap / 2 + (2 * Math.PI - gap) * (take === 1 ? 0.5 : (i + 0.5) / take) + ring * 0.25;
+        pos.push({ x: a.x + Math.cos(ang) * R * 1.35, y: a.y + Math.sin(ang) * R * 0.95 });
+      }
+      placed += take; ring++;
+    }
+    // Überlappungen auflösen: Blasen gegeneinander und von den gewählten Punkten wegschieben
+    var fixed = [a].concat(bub.from && byId[bub.from] ? [byId[bub.from]] : []);
+    var pad = fs * 0.7;
+    for (var it = 0; it < 120; it++) {
+      var movedAny = false;
+      for (var i1 = 0; i1 < pos.length; i1++) {
+        var p1 = pos[i1], z1 = sizes[i1];
+        for (var i2 = i1 + 1; i2 < pos.length; i2++) {
+          var p2 = pos[i2], z2 = sizes[i2];
+          var ox = (z1.w + z2.w) / 2 + pad - Math.abs(p1.x - p2.x), oy = (z1.h + z2.h) / 2 + pad - Math.abs(p1.y - p2.y);
+          if (ox > 0 && oy > 0) {
+            movedAny = true;
+            if (ox < oy * 1.6) { var sx = (p1.x < p2.x ? -1 : 1) * ox / 2; p1.x += sx; p2.x -= sx; }
+            else { var sy = (p1.y < p2.y ? -1 : 1) * oy / 2; p1.y += sy; p2.y -= sy; }
+          }
+        }
+        fixed.forEach(function (q) {  // Punkt samt Namen frei lassen
+          var qr = (q.r || 12) + fs * 1.5, ox2 = z1.w / 2 + qr + pad - Math.abs(p1.x - q.x), oy2 = z1.h / 2 + qr + fs * 1.5 - Math.abs(p1.y - q.y);
+          if (ox2 > 0 && oy2 > 0) {
+            movedAny = true;
+            var dx = p1.x - q.x, dy = p1.y - q.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+            p1.x += dx / d * Math.min(ox2, oy2); p1.y += dy / d * Math.min(ox2, oy2);
+          }
+        });
+      }
+      if (!movedAny) { break; }
+    }
+    var lines = el("g", { "class": "m-bub-links" }, bubbleLayer);
+    items.forEach(function (it, i) {
+      var p = pos[i], z = sizes[i]; if (!p) { return; }
+      el("line", { x1: a.x, y1: a.y, x2: p.x, y2: p.y, "class": "m-bub-link b-" + it.type }, lines);
+      var g = el("g", { "class": "m-bub b-" + it.type + (it.stale ? " stale" : "") + (it.kind === "add" || it.kind === "zuordnen" ? " act" : ""),
+                        transform: "translate(" + (p.x - z.w / 2).toFixed(1) + "," + (p.y - z.h / 2).toFixed(1) + ")", role: "button", tabindex: "0" }, bubbleLayer);
+      el("rect", { width: z.w.toFixed(1), height: z.h.toFixed(1), rx: Math.min(z.h / 2, fs * 1.2).toFixed(1) }, g);
+      z.lines.forEach(function (l, k) {
+        var t = el("text", { x: (z.w / 2).toFixed(1), y: (fs * (1.25 + k * 1.3)).toFixed(1), "text-anchor": "middle" }, g);
+        t.style.fontSize = fs.toFixed(2) + "px";  // passend zur Blasengröße (CSSOM, kein style-Attribut wegen CSP)
+        t.textContent = l;
+      });
+      var title = el("title", {}, g); title.textContent = it.text || it.label;
+      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { bubble: i }; moved = false; });
+      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); bubbleEvent(i, g); } });
+      it.g = g;
+    });
+  }
+  function bubbleEvent(i, g) {
+    var r = g.getBoundingClientRect(), o = box.getBoundingClientRect();
+    document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: bub.items[i],
+      x: r.left - o.left + r.width / 2, y: r.top - o.top + r.height, top: r.top - o.top } }));
+  }
+  // Ansicht so legen, dass Punkt und alle Blasen zu sehen sind
+  function frameBubbles() {
+    if (!bub || !bubbleLayer || !box.clientWidth) { return; }
+    var bb; try { bb = bubbleLayer.getBBox(); } catch (e) { return; }
+    var pts = [byId[bub.anchor]].concat(bub.from && byId[bub.from] ? [byId[bub.from]] : []);
+    var x0 = Math.min(bb.x, Math.min.apply(null, pts.map(function (p) { return p.x - 60; }))), x1 = Math.max(bb.x + bb.width, Math.max.apply(null, pts.map(function (p) { return p.x + 60; })));
+    var y0 = Math.min(bb.y, Math.min.apply(null, pts.map(function (p) { return p.y - 40; }))), y1 = Math.max(bb.y + bb.height, Math.max.apply(null, pts.map(function (p) { return p.y + 50; })));
+    var ratio = box.clientWidth / box.clientHeight, w = (x1 - x0) * 1.1, h = (y1 - y0) * 1.15;
+    if (w / h < ratio) { w = h * ratio; } else { h = w / ratio; }
+    view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w: Math.max(w, 300), h: Math.max(h, 300 / ratio) };
+    applyView(); applyView();  // zweimal: Schriftgröße hängt vom Zoom ab, Blasen werden danach neu vermessen
   }
   function drawPair() {
     if (!pairLayer) { return; }
@@ -381,7 +481,7 @@
     var k = view.w / Math.max(box.clientWidth, 1);
     svg.style.setProperty("--fs", Math.max(9, Math.min(13 * k, 34)).toFixed(1) + "px");
     groups.forEach(drawGroup);  // Abstand der Blase hängt vom Zoom ab
-    document.dispatchEvent(new CustomEvent("kb:view"));
+    drawBubbles();
   }
   function fit() {
     if (!box.clientWidth || !box.clientHeight) { return; }  // Karte verborgen: beim Anzeigen einpassen
@@ -416,7 +516,7 @@
     svg.setPointerCapture(ev.pointerId);
   });
   svg.addEventListener("pointermove", function (ev) {
-    if (!drag) { return; }
+    if (!drag || drag.bubble !== undefined) { return; }
     if (drag.pan) {
       var r = svg.getBoundingClientRect(), dx = (ev.clientX - drag.cx) / r.width * view.w, dy = (ev.clientY - drag.cy) / r.height * view.h;
       if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
@@ -432,6 +532,10 @@
   var lastTap = { node: null, t: 0 };
   function pickEvent(id, keep) { document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: id, from: "map", keep: !!keep } })); }
   function endDrag() {
+    if (drag && !moved && drag.bubble !== undefined) {
+      var i = drag.bubble; drag = null; if (bub && bub.items[i]) { bubbleEvent(i, bub.items[i].g); } return;
+    }
+    if (drag && drag.bubble !== undefined) { drag = null; moved = false; return; }
     if (drag && !moved) {
       // Klick auf leere Fläche: alles abwählen; Klick auf einen Kreis: wählen bzw. (schon gewählt) nur ihn abwählen
       if (drag.pan) { if (connect.on) { setConnect(true); } else { pickEvent(null); } }
@@ -624,6 +728,14 @@
       } else { show(n); }
     },
     show: function () { fit(); },
+    ready: function () { return !!data; },
+    // Blasen setzen: anchor = Punkt, um den sie stehen; from = Hersteller (Lücke Richtung Pfeil); items = Infos
+    bubbles: function (anchor, from, items) {
+      bub = anchor ? { anchor: anchor, from: from, items: items || [] } : null;
+      svg.classList.toggle("bubbling", !!bub);  // übrige Karte fast ausblenden, nur Auswahl und Blasen zählen
+      drawBubbles();
+      if (bub) { frameBubbles(); }
+    },
     // Gewählte Punkte in den freien Bereich [x0, x1] (Pixel im Kartenkasten) schieben, notfalls herauszoomen
     frame: function (ids, x0, x1) {
       var pts = ids.map(function (i) { return byId[i]; }).filter(Boolean);
@@ -653,8 +765,6 @@
     .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
     .then(function (d) {
       data = d; build();
-      var pre = document.querySelector("[data-kb-detail] [data-panel]");  // per Link geöffnet (?t=…): gleich markieren
-      if (pre && byId[pre.getAttribute("data-panel")]) { window.kbMap.select(+pre.getAttribute("data-panel"), +pre.getAttribute("data-g") || null); }
     })
     .catch(function () { empty.textContent = "Karte konnte nicht geladen werden. Seite neu laden."; empty.hidden = false; });
 })();

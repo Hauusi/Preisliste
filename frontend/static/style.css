@@ -1488,3 +1488,60 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .mc-hint { margin: 0; padding: 8px 14px; color: var(--accent); font-size: .82rem; }
 .mc-open { margin: 10px 14px 12px; justify-self: start; padding: 6px 12px; font-size: .86rem; }
 @media (max-width: 700px) { .kb-mapcard { width: auto; left: 8px !important; right: 8px !important; top: auto; bottom: 8px; max-height: 55%; } .kb-mapcard-wire { display: none; } }
+
+/* ---------- Mindmap: Infos als Blasen um den gewählten Punkt ---------- */
+.kb-map-say { margin: 0; font-size: .92rem; color: var(--fg-2); font-weight: 500; min-width: 0; }
+.kb-center > .kb-map-panel { flex: 1; }
+.m-bub-link { stroke: var(--line-2); stroke-width: 1.5; }
+.m-bub { cursor: pointer; outline: none; }
+.m-bub rect { fill: var(--surface); stroke: var(--b, var(--line-2)); stroke-width: 2; }
+.m-bub text { fill: var(--fg); font-family: var(--font); font-size: var(--fs, 12.5px); font-weight: 500; }
+.m-bub:hover rect, .m-bub:focus-visible rect { fill: color-mix(in srgb, var(--b, var(--accent)) 12%, var(--surface)); stroke-width: 3; }
+.m-bub.stale rect { stroke-dasharray: 5 3; }
+.m-bub.b-bezug, .m-bub-link.b-bezug { --b: var(--info); }
+.m-bub.b-kalk { --b: var(--accent); } .m-bub.b-pflicht { --b: var(--signal); } .m-bub.b-liefer { --b: var(--unclear); }
+.m-bub.b-hinweis { --b: var(--muted); } .m-bub.b-angabe { --b: var(--fg-2); } .m-bub.b-artikel { --b: var(--ok); } .m-bub.b-serie { --b: var(--unclear); }
+.m-bub.b-serie rect { stroke-width: 2.5; }
+.m-bub.act rect { fill: var(--accent); stroke: var(--accent); }
+.m-bub.act text { fill: var(--accent-fg); font-weight: 700; }
+.m-bub.b-zuordnen rect { fill: var(--surface); stroke: var(--accent); stroke-dasharray: 5 3; }
+.m-bub.b-zuordnen text { fill: var(--accent); }
+.m-bub.b-link rect { fill: var(--surface-2); stroke: var(--line-2); }
+.m-bub.b-link text { fill: var(--accent); font-weight: 600; }
+.kb-pop { position: absolute; z-index: 20; width: min(360px, calc(100% - 16px)); padding: 14px 16px 12px; display: grid; gap: 8px;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.kb-pop-x { position: absolute; top: 4px; right: 4px; font-size: 1.2rem; line-height: 1; }
+.kb-pop-kind { font-size: .78rem; font-weight: 700; color: var(--t); padding-right: 28px; }
+.kb-pop-head { margin: 0; font-weight: 700; padding-right: 28px; }
+.kb-pop-text { margin: 0; font-size: 1rem; overflow-wrap: anywhere; padding-right: 20px; }
+.kb-pop-meta { margin: 0; font-size: .8rem; color: var(--muted); }
+.kb-pop-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kb-pop-actions .button, .kb-pop-actions button { padding: 6px 12px; font-size: .88rem; }
+.kb-pop-form { display: grid; gap: 8px; }
+.kb-pop-form textarea { font-family: var(--font); font-size: .95rem; resize: vertical; }
+.kb-pop-form select { width: auto; padding: 5px 28px 5px 8px; font-size: .88rem; }
+.kb-pop-err { margin: 0; color: var(--err); font-size: .86rem; font-weight: 600; }
+.danger-text { color: var(--err); }
+/* Solange Blasen offen sind: nur gewählte Punkte, Pfeil und Blasen deutlich */
+.kb-map-svg.bubbling .m-node:not(.sel) { opacity: .08 !important; }
+.kb-map-svg.bubbling .m-edge, .kb-map-svg.bubbling .m-elabel, .kb-map-svg.bubbling .m-groups { opacity: 0 !important; transition: opacity .2s; }
+.kb-map-svg.bubbling .m-node.sel text { font-weight: 700; }
+.kb-overview { position: relative; }
+.kb-overview > summary { list-style: none; padding: 6px 12px; font-size: .88rem; display: inline-flex; gap: 6px; align-items: center; }
+.kb-overview > summary::-webkit-details-marker { display: none; }
+.kb-badge { padding: 0 6px; border-radius: 4px; background: var(--signal-soft); color: var(--signal-ink); font-size: .78rem; }
+.kb-overview-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: min(460px, 90vw); max-height: 70vh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.kb-overview-pop [data-panel-close] { display: none; }
+.kb-bub-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 2px 2px; }
+.kb-bub-item { min-height: 0; padding: 7px 12px; border-radius: 16px; border: 2px solid var(--b, var(--line-2)); background: var(--surface);
+  color: var(--fg); font-weight: 500; font-size: .9rem; text-align: left; line-height: 1.3; }
+.kb-bub-item.b-bezug { --b: var(--info); } .kb-bub-item.b-kalk { --b: var(--accent); } .kb-bub-item.b-pflicht { --b: var(--signal); }
+.kb-bub-item.b-liefer { --b: var(--unclear); } .kb-bub-item.b-hinweis { --b: var(--muted); } .kb-bub-item.b-angabe { --b: var(--fg-2); }
+.kb-bub-item.b-artikel { --b: var(--ok); } .kb-bub-item.b-serie { --b: var(--unclear); } .kb-bub-item.b-link { color: var(--accent); }
+.kb-bub-item.b-zuordnen { border-style: dashed; --b: var(--accent); color: var(--accent); }
+.kb-bub-item.act { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.kb-bub-item.stale { border-style: dashed; }
+@media (max-width: 700px) { .kb-center .kb-map-panel { height: auto; } .kb-work .kb-map { height: 55vh; flex: none; } }
+.kb-bub-item:hover, .kb-bub-item:active, .kb-bub-item:focus-visible { background: color-mix(in srgb, var(--b, var(--accent)) 14%, var(--surface)); color: var(--fg); }
+.kb-bub-item.act:hover, .kb-bub-item.act:active { background: var(--accent-hover); color: var(--accent-fg); }

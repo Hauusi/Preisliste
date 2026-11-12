@@ -1303,3 +1303,87 @@ def group_card(db: Session, user: User, group: KbTopic, by_id: dict[int, KbTopic
             "makers": [{"m": by_id[i], "series": sorted((s for s in series if s.maker_id == i), key=lambda x: x.name.lower()),
                         "entries": per_maker.get(i, [])} for i in makers if i in by_id],
             "count": len(entries)}
+
+
+# ---------- Blasen auf der Karte (Mindmap): je Info eine Blase um den gewählten Punkt ----------
+
+def _entry_bubble(e: KbEntry, names: dict[int, str], prefix: str = "") -> dict:
+    return {"key": f"e{e.id}", "kind": "eintrag", "type": e.type, "entry": e.id, "label": (prefix + e.text),
+            "text": e.text, "type_label": TYPES.get(e.type, ""), "who": names.get(e.updated_by or e.author_id, "–"),
+            "when": (e.updated_at or e.created_at).strftime("%d.%m.%Y"), "stale": is_stale(e), "flag": e.flag_note or (
+                "gemeldet" if e.flagged_at else ""), "topics": list(e.topic_ids or [])}
+
+
+def _fact_bubbles(db: Session, t: KbTopic, by_id: dict[int, KbTopic], skip_moq: bool = False) -> list[dict]:
+    out, fields = [], field_facts(db, t.id)
+    for key in FIELDS_BY_KIND[t.kind] + ([] if skip_moq else ["moq"]):
+        for f in fields.get(key, []):
+            label = FIELDS[key][0]
+            val = describe(f, by_id)
+            out.append({"key": f"f{f.id}", "kind": "angabe", "type": "pflicht" if key == "pflicht" else "angabe",
+                        "label": f"{label}: {val}", "text": f"{label}: {val}", "stale": fact_stale(f),
+                        "link": f"/wissen/{t.id}#angaben"})
+    for f in free_facts(db, t.id):
+        out.append({"key": f"f{f.id}", "kind": "angabe", "type": "angabe", "label": f"{f.label}: {f.value}",
+                    "text": f"{f.label}: {f.value}", "stale": False, "link": f"/wissen/{t.id}#angaben"})
+    return out
+
+
+def bubbles(db: Session, user: User, maker: KbTopic | None, group: KbTopic | None, by_id: dict[int, KbTopic]) -> list[dict]:
+    """Blasen für die Auswahl: nur Hersteller = Standard-Infos ohne Artikelgruppen; nur Gruppe (oder Serie) = alles zur
+    Gruppe, egal welcher Hersteller; Hersteller + Gruppe = nur die Infos dieser Gruppe beim Hersteller."""
+    names = {u.id: u.username for u in db.scalars(select(User))}
+    order = {k: i for i, k in enumerate(["bezug", "angabe", "pflicht", "artikel", "serie", "kalk", "liefer", "hinweis"])}
+    out: list[dict] = []
+    if group is not None and group.kind == "serie":
+        out += _fact_bubbles(db, group, by_id)
+        out += [_entry_bubble(e, names) for e in entries_for(db, user, group.id)]
+    elif maker is not None and group is None:
+        fields = field_facts(db, maker.id)
+        rule = rule_of(fields, by_id)
+        if rule and rule.get("via"):
+            pos, neg = rule_conditions(rule)
+            out.append({"key": "regel", "kind": "angabe", "type": "bezug",
+                        "label": f"{neg[:1].upper() + neg[1:]} → {rule['via'].name}",
+                        "text": f"{pos[:1].upper() + pos[1:]}: bei {maker.name} bestellen. {neg[:1].upper() + neg[1:]}: bei "
+                                f"{rule['via'].name}." + (f" {rule['note']}" if rule.get("note") else ""),
+                        "stale": rule["stale"], "link": f"/wissen/{maker.id}#regel"})
+        out += _fact_bubbles(db, maker, by_id, skip_moq=bool(rule and rule.get("via")))
+        out += [_entry_bubble(e, names) for e in entries_for(db, user, maker.id)
+                if not any(by_id.get(i) and by_id[i].kind in ("gruppe", "serie") for i in e.topic_ids or [])]
+    elif group is not None:
+        series = [s for s in by_id.values() if s.kind == "serie" and s.parent_id == group.id
+                  and (maker is None or s.maker_id == maker.id)]
+        if maker is None:
+            out += _fact_bubbles(db, group, by_id)
+        for r in group_products(db, group):
+            if maker is not None and r["p"].maker_id != maker.id:
+                continue
+            mk = by_id[r["p"].maker_id].name + ": " if maker is None and r["p"].maker_id in by_id else ""
+            art = " · ".join(x for x in (r["p"].artnr, r["p"].name) if x)
+            out.append({"key": f"p{r['p'].id}", "kind": "angabe", "type": "artikel", "label": f"{mk}{art} – {r['stage_label']}",
+                        "text": f"{mk}{art}: {r['stage_label']}" + (f". {r['p'].note}" if r["p"].note else ""), "stale": False,
+                        "link": f"/wissen/{group.id}#p{r['p'].id}"})
+        for s in series:
+            mk = f" ({by_id[s.maker_id].name})" if maker is None and s.maker_id in by_id else ""
+            out.append({"key": f"s{s.id}", "kind": "serie", "type": "serie", "label": f"Serie {s.name}{mk}",
+                        "text": f"Serie {s.name}{mk}", "stale": False, "series": s.id})
+        seen = set()
+        for e in entries_for(db, user, group.id) + [x for s in series for x in entries_for(db, user, s.id)]:
+            if e.id in seen:
+                continue
+            seen.add(e.id)
+            makers = [by_id[i] for i in e.topic_ids or [] if by_id.get(i) and by_id[i].kind == "hersteller"]
+            makers += [by_id[by_id[i].maker_id] for i in e.topic_ids or []
+                       if by_id.get(i) and by_id[i].kind == "serie" and by_id[i].maker_id in by_id]
+            if maker is not None and maker not in makers:
+                continue
+            prefix = "" if maker is not None or not makers else ", ".join(dict.fromkeys(m.name for m in makers)) + ": "
+            out.append(_entry_bubble(e, names, prefix))
+        for f in db.scalars(select(KbFact).where(KbFact.field == "pflicht")):
+            if maker is not None and {f.topic_id, f.ref_topic_id} == {maker.id, group.id}:
+                txt = f"{by_id[f.topic_id].name} braucht {f.number or 1} × {by_id[f.ref_topic_id].name}"
+                out.append({"key": f"f{f.id}", "kind": "angabe", "type": "pflicht", "label": txt, "text": txt,
+                            "stale": False, "link": f"/wissen/{f.topic_id}#angaben"})
+    out.sort(key=lambda b: (order.get(b["type"], 9), b["label"].lower()))
+    return out

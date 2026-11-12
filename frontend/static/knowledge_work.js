@@ -1,198 +1,234 @@
-// Vertriebswissen-Startseite: links Hersteller, rechts Artikelgruppen, Mitte Infos (oder Karte).
-// Hersteller wählen hebt die Artikelgruppen hervor, zu denen es etwas gibt (und umgekehrt); Hersteller + Gruppe
-// zeigt nur die gemeinsamen Infos („Redtronic × Leuchtbalken“). Ohne Script funktionieren alle Links normal.
+// Vertriebswissen-Startseite (Mindmap): links Hersteller, rechts Artikelgruppen, Mitte Karte.
+// Anklicken = Infos erscheinen als Blasen um den Punkt. Hersteller: seine Standard-Infos. Artikelgruppe: alles zur
+// Gruppe (alle Hersteller). Erst Hersteller, dann Gruppe: Pfeil und nur die Infos dieser Gruppe beim Hersteller.
+// Klick auf eine Blase: kleines Fenster mit ganzem Text, Bearbeiten, Löschen. „+ Info“ trägt direkt dort ein.
 (function () {
-  var detail = document.querySelector("[data-kb-detail]");
-  if (!detail) { return; }
-  var root = document.querySelector("[data-kb]"), kinds = {};
-  try { JSON.parse(root.getAttribute("data-topics") || "[]").forEach(function (t) { kinds[t.id] = t.kind === "Hersteller" ? "hersteller" : "gruppe"; }); } catch (e) { /* leer */ }
-  var state = { f: null, g: null }, seq = 0;
-  readPanel();
-  // Neu laden/erneut öffnen startet ohne Auswahl (Adresse mit ?f=…&g=… nur als einmaliger Link)
-  if (location.search && !/fehler=/.test(location.search)) { try { history.replaceState(null, "", "/wissen" + location.hash); } catch (e) { /* egal */ } }
+  var root = document.querySelector("[data-kb]"), mapBox = document.querySelector("[data-kb-map]");
+  if (!root || !mapBox) { return; }
+  var csrf = root.getAttribute("data-csrf") || "", kinds = {}, names = {};
+  try {
+    JSON.parse(root.getAttribute("data-topics") || "[]").forEach(function (t) {
+      kinds[t.id] = t.kind === "Hersteller" ? "hersteller" : t.kind === "Serie" ? "serie" : "gruppe"; names[t.id] = t.name;
+    });
+  } catch (e) { /* leer */ }
+  var state = { f: num(root.getAttribute("data-sel-f")), g: num(root.getAttribute("data-sel-g")) }, seq = 0, current = null;
+  var pop = mapBox.querySelector("[data-pop]"), say = document.querySelector("[data-map-say]");
+  var TYPES = { bezug: "Bezugsweg / Bedingung", kalk: "Kalkulation", pflicht: "Pflicht-Zubehör", liefer: "Lieferzeit / Kontakt", hinweis: "Hinweis" };
+  if (location.search) { try { history.replaceState(null, "", "/wissen"); } catch (e) { /* egal */ } }
 
   function num(v) { return v ? +v : null; }
-  function readPanel() {
-    var p = detail.querySelector("[data-panel]");
-    state.f = p ? num(p.getAttribute("data-f")) : null;
-    state.g = p ? num(p.getAttribute("data-g")) : null;
-    mark();
+  function el(tag, cls, text, parent) {
+    var n = document.createElement(tag); if (cls) { n.className = cls; } if (text != null) { n.textContent = text; }
+    if (parent) { parent.appendChild(n); } return n;
   }
-  // Listen: eigene Auswahl markieren; ist ein Hersteller gewählt, leuchten rechts die bei ihm hinterlegten
-  // Artikelgruppen auf (nur diese, Reihenfolge bleibt). Ohne Auswahl ist nichts markiert.
-  function mark() {
-    var p = detail.querySelector("[data-panel]");
-    var asg = p && state.f ? (p.getAttribute("data-asg-f") || "").split(",").filter(Boolean).map(Number) : [];
-    document.querySelectorAll("[data-list]").forEach(function (ul) {
-      var kind = ul.getAttribute("data-kind"), sel = kind === "hersteller" ? state.f : state.g;
-      ul.querySelectorAll("li").forEach(function (li) {
-        var id = +li.querySelector("[data-pick]").getAttribute("data-pick");
-        li.classList.toggle("active", id === sel);
-        li.classList.toggle("lit", kind === "gruppe" && asg.indexOf(id) >= 0);
-      });
-    });
-    document.querySelectorAll("[data-side]").forEach(function (side) {
-      side.classList.toggle("paired", !!(state.f && state.g));
-    });
-  }
-  function url() {
-    if (state.f && state.g) { return "/wissen?f=" + state.f + "&g=" + state.g; }
-    return state.f || state.g ? "/wissen?t=" + (state.f || state.g) : "/wissen";
-  }
-  function load(opts) {
-    opts = opts || {};
-    var my = ++seq, top = detail.scrollTop;
-    var src = state.f && state.g ? "/wissen/kombi?f=" + state.f + "&g=" + state.g
-      : state.f || state.g ? "/wissen/" + (state.f || state.g) + "/kurz" : "/wissen/ueberblick";
-    detail.classList.add("loading");
-    return fetch(src, { credentials: "same-origin" })
-      .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.text(); })
-      .then(function (html) {
-        if (my !== seq) { return; }
-        detail.innerHTML = html;
-        detail.classList.remove("loading");
-        detail.scrollTop = opts.keepScroll ? top : 0;
-        readPanel();
-        // Adresse bleibt /wissen: beim nächsten Öffnen ist nichts vorausgewählt
-        if (location.search) { try { history.replaceState(null, "", "/wissen"); } catch (e) { /* egal */ } }
-        if (window.kbMap) { window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
-        updateBar();
-        if (!detail.hidden && !opts.fromMap && !opts.keepScroll && window.innerWidth < 1100) { detail.scrollIntoView({ behavior: "smooth", block: "start" }); }
-      })
-      .catch(function () { if (my === seq) { location.href = url(); } });
-  }
-  // Wählen: in den Listen und auf der Karte kombinieren (Hersteller + Gruppe), nochmal klicken = abwählen;
-  // Links im Infofenster wählen genau dieses eine Thema.
-  function pick(id, only, fromMap, keep) {
-    var kind = kinds[id] || "hersteller", key = kind === "hersteller" ? "f" : "g";
-    if (only) { state.f = state.g = null; state[key] = id; }
-    else { state[key] = state[key] === id && !keep ? null : id; }  // schon gewählt: nur dieses abwählen
-    // Ansicht bleibt, wie sie ist (Karte oder Infos) – „Infos“ ruft man selbst auf
-    load({ fromMap: fromMap });
-  }
-
-  document.addEventListener("click", function (ev) {
-    var a = ev.target.closest && ev.target.closest("[data-pick], [data-only], [data-combine], [data-panel-close]");
-    if (!a || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) { return; }
-    ev.preventDefault();
-    if (a.hasAttribute("data-panel-close")) {
-      state.f = state.g = null; load(); if (window.kbMap) { window.kbMap.select(null); } return;
-    }
-    if (a.hasAttribute("data-only")) { pick(+a.getAttribute("data-only"), true); return; }
-    if (a.hasAttribute("data-combine")) { pick(+a.getAttribute("data-combine"), false, false, true); return; }
-    pick(+a.getAttribute("data-pick"), !a.closest("[data-list]"));
-  });
-  function clearAll() {
-    if (!state.f && !state.g) { return; }
-    state.f = state.g = null; load({ fromMap: true }); if (window.kbMap) { window.kbMap.select(null); }
-  }
-  document.addEventListener("kb:pick", function (ev) {
-    if (ev.detail.id) { pick(ev.detail.id, false, true, ev.detail.keep); } else { clearAll(); }
-  });
-  // Klick auf leere Fläche in den Listen: alles abwählen
-  document.querySelectorAll("[data-side] .kb-list-scroll").forEach(function (el) {
-    el.addEventListener("click", function (ev) { if (!ev.target.closest("a, button, input, li")) { clearAll(); } });
-  });
-
-  // Umschalter Infos | Karte
-  var tabs = document.querySelectorAll("[data-tab]");
-  function showTab(name) {
-    tabs.forEach(function (t) { t.setAttribute("aria-selected", t.getAttribute("data-tab") === name ? "true" : "false"); });
-    document.querySelectorAll("[data-pane]").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== name; });
-    if (name === "karte" && window.kbMap) { window.kbMap.show(); window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
-    updateBar();
-  }
-  // Leiste oben links auf der Karte: Auswahl („Hella“ bzw. „Hella → Leuchtbalken“) und Knopf zu den Infos
-  // Infofeld auf der Karte: vom gewählten Punkt (bzw. Pfeil) aus, auf der freien Seite, mit Verbindungslinie
-  var card = document.querySelector("[data-mapcard]"), wire = document.querySelector("[data-mapcard-wire]"), cardSeq = 0;
-  function loadCard() {
-    if (!card) { return; }
-    if (!state.f && !state.g) { card.hidden = true; card.innerHTML = ""; placeCard(); return; }
-    var my = ++cardSeq, q = [];
-    if (state.f) { q.push("f=" + state.f); }
-    if (state.g) { q.push("g=" + state.g); }
-    fetch("/wissen/karteninfo?" + q.join("&"), { credentials: "same-origin" })
-      .then(function (r) { return r.ok ? r.text() : ""; })
-      .then(function (html) {
-        if (my !== cardSeq) { return; }
-        card.innerHTML = html; card.hidden = !html; card.scrollTop = 0;
-        placeCard();
-        if (!card.hidden && window.kbMap) {  // gewählte Punkte nicht unter dem Feld verstecken
-          var w = card.parentNode.clientWidth, ids = [state.f, state.g].filter(Boolean);
-          if (card.classList.contains("right")) { window.kbMap.frame(ids, 0, card.offsetLeft - 12); }
-          else { window.kbMap.frame(ids, card.offsetLeft + card.offsetWidth + 12, w); }
-          placeCard();
-        }
-      });
-  }
-  function placeCard() {
-    if (!card || !wire) { return; }
-    var line = wire.querySelector("line"), dot = wire.querySelector("circle");
-    var a = !card.hidden && window.kbMap && window.kbMap.anchor(state.f || state.g, state.f && state.g ? state.g : null);
-    wire.style.display = a ? "" : "none";
-    if (!a) { return; }
-    var box = card.parentNode, right = a.x < box.clientWidth / 2;  // Feld auf die Seite, wo der Punkt nicht ist
-    card.classList.toggle("right", right); card.classList.toggle("left", !right);
-    var cx = right ? card.offsetLeft : card.offsetLeft + card.offsetWidth;
-    var cy = Math.max(card.offsetTop + 18, Math.min(a.y, card.offsetTop + card.offsetHeight - 18));
-    var dx = cx - a.x, dy = cy - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-    line.setAttribute("x1", a.x + dx / d * (a.r + 3)); line.setAttribute("y1", a.y + dy / d * (a.r + 3));
-    line.setAttribute("x2", cx); line.setAttribute("y2", cy);
-    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy);
-  }
-  document.addEventListener("kb:view", placeCard);
-  window.addEventListener("resize", placeCard);
-  function updateBar() {
-    loadCard();
-    var bar = document.querySelector("[data-map-pair]");
-    if (!bar) { return; }
-    function name(id) { var n = document.querySelector('[data-list] [data-pick="' + id + '"] span'); return n ? n.textContent : ""; }
-    bar.hidden = !(state.f || state.g);
-    if (bar.hidden) { return; }
-    bar.querySelector("b").textContent = state.f && state.g ? name(state.f) + " → " + name(state.g) : name(state.f || state.g);
-    bar.querySelector("button").textContent = state.f && state.g ? "Alle Infos dazu" : "Infos zu " + name(state.f || state.g);
-    var hint = bar.querySelector("small");
-    hint.hidden = !(state.f && !state.g);
-    hint.textContent = "Jetzt rechts eine Artikelgruppe wählen";
-  }
-  tabs.forEach(function (t) { t.addEventListener("click", function () { showTab(t.getAttribute("data-tab")); }); });
-  document.addEventListener("click", function (ev) {
-    if (ev.target.closest && ev.target.closest("[data-show-infos]")) { showTab("infos"); }
-  });
-
-  // Formulare im Infofenster (Eintragen, stimmt noch, melden) ohne Seitenwechsel
-  detail.addEventListener("submit", function (ev) {
-    var form = ev.target.closest("[data-panel-form]");
-    if (!form) { return; }
-    ev.preventDefault();
-    var btn = form.querySelector("button[type=submit]");
-    if (btn) { btn.disabled = true; }
-    var body = new URLSearchParams(new FormData(form)), csrf = body.get("csrf_token") || "";
-    fetch(form.action, { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
+  function send(url, values) {
+    var body = new URLSearchParams(); body.append("csrf_token", csrf);
+    Object.keys(values).forEach(function (k) { [].concat(values[k]).forEach(function (v) { if (v != null) { body.append(k, v); } }); });
+    return fetch(url, { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
       .then(function (r) {
         var m = /[?&]fehler=([^&#]*)/.exec(r.url);
         if (!r.ok) { throw new Error("Nicht gespeichert (Fehler " + r.status + ")"); }
         if (m) { throw new Error(decodeURIComponent(m[1].replace(/\+/g, " "))); }
-        if (/\/wissen\/serie$/.test(form.action)) { location.href = url(); return; }  // neue Serie: Listen neu aufbauen
-        if (/sortiment/.test(form.action) && window.kbMap) { window.kbMap.reload(state.f || state.g); }
-        return load({ fromMap: true, keepScroll: true }).then(function () {
-          var hit = /#(e\d+)$/.exec(r.url), el = hit && document.getElementById(hit[1]);
-          if (el) { el.classList.add("just"); el.scrollIntoView({ block: "nearest" }); }
-        });
-      })
-      .catch(function (e) {
-        if (btn) { btn.disabled = false; }
-        var err = form.querySelector(".kb-d-err") || document.createElement("p");
-        err.className = "kb-d-err"; err.textContent = e.message; form.appendChild(err);
+        return r;
       });
-  });
-  detail.addEventListener("keydown", function (ev) {  // Strg+Enter im Eintragsfeld speichert
-    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey) && ev.target.matches(".kb-d-add textarea")) {
-      ev.preventDefault(); ev.target.form.requestSubmit();
+  }
+
+  // ---------- Auswahl ----------
+  function anchorOf() {  // Punkt auf der Karte, um den die Blasen stehen (Serie: ihre Artikelgruppe)
+    if (state.g) { return kinds[state.g] === "serie" ? (current && current.anchor) || null : state.g; }
+    return state.f;
+  }
+  function pick(id, keep) {
+    var key = kinds[id] === "hersteller" ? "f" : "g";
+    state[key] = state[key] === id && !keep ? null : id;  // nochmal anklicken = nur dieses abwählen
+    refresh();
+  }
+  function clearAll() { if (state.f || state.g) { state.f = state.g = null; refresh(); } }
+  function refresh() {
+    closePop();
+    markLists([]);
+    var my = ++seq;
+    if (!state.f && !state.g) {
+      current = null; setSay(); renderList(null);
+      if (window.kbMap) { window.kbMap.select(null); window.kbMap.bubbles(null); }
+      return;
     }
+    var q = [];
+    if (state.f) { q.push("f=" + state.f); }
+    if (state.g) { q.push("g=" + state.g); }
+    fetch("/api/wissen/blasen?" + q.join("&"), { credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+      .then(function (d) {
+        if (my !== seq) { return; }
+        current = d;
+        markLists(d.lit || []);
+        setSay();
+        var anchor = anchorOf(), from = state.f && state.g ? state.f : null;
+        var list = items(d), narrow = mapBox.clientWidth < 600;  // Handy: Blasen als Liste unter der Karte
+        if (window.kbMap) {
+          window.kbMap.select(from || anchor, from ? anchor : null);
+          window.kbMap.bubbles(anchor, from, narrow ? [] : list);
+        }
+        renderList(narrow ? list : null);
+      })
+      .catch(function () { if (my === seq) { state.f = state.g = null; refresh(); } });
+  }
+  function items(d) {
+    var list = d.bubbles.slice(), sel = state.f && state.g, f = state.f, g = state.g;
+    if (sel && kinds[g] === "gruppe" && !d.assigned) {
+      list.push({ kind: "zuordnen", type: "zuordnen", label: "+ " + names[f] + " führt " + names[g], text: "Artikelgruppe dem Hersteller zuordnen" });
+    }
+    list.push({ kind: "add", type: "add", label: "+ Info", text: "Neue Info eintragen" });
+    if (sel && kinds[g] === "gruppe") { list.push({ kind: "add-serie", type: "add", label: "+ Serie", text: "Serie von " + names[f] + " in " + names[g] + " anlegen" }); }
+    if (!sel) {
+      var t = g || f;
+      list.push({ kind: "link", type: "link", label: "Steckbrief bearbeiten ›", text: "Alles zu " + names[t] + " bearbeiten", link: "/wissen/" + t });
+    }
+    return list;
+  }
+  function setSay() {
+    if (!say) { return; }
+    var f = state.f, g = state.g;
+    say.textContent = f && g ? names[f] + " → " + names[g] + ": nur die Infos dieser Artikelgruppe bei " + names[f] + "."
+      : g ? names[g] + ": alle Infos, alle Hersteller." + (kinds[g] === "serie" ? "" : "")
+      : f ? names[f] + ": Standard-Infos. Rechts eine Artikelgruppe wählen für " + names[f] + " × Gruppe."
+      : "Hersteller oder Artikelgruppe anklicken – die Infos erscheinen als Blasen.";
+  }
+  // Listen: Auswahl markieren; beim gewählten Hersteller leuchten seine Artikelgruppen und Serien auf
+  function markLists(lit) {
+    document.querySelectorAll("[data-list]").forEach(function (ul) {
+      var kind = ul.getAttribute("data-kind");
+      ul.querySelectorAll("li").forEach(function (li) {
+        var a = li.querySelector("[data-pick]"), id = +a.getAttribute("data-pick");
+        li.classList.toggle("active", id === (kind === "hersteller" ? state.f : state.g));
+        li.classList.toggle("lit", kind === "gruppe" && lit.indexOf(id) >= 0);
+      });
+    });
+  }
+
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest && ev.target.closest("[data-list] [data-pick]");
+    if (!a || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) { return; }
+    ev.preventDefault();
+    pick(+a.getAttribute("data-pick"));
+  });
+  document.addEventListener("kb:pick", function (ev) { if (ev.detail.id) { pick(ev.detail.id, ev.detail.keep); } else { clearAll(); } });
+  document.querySelectorAll("[data-side] .kb-list-scroll").forEach(function (box) {
+    box.addEventListener("click", function (ev) { if (!ev.target.closest("a, button, input, li")) { clearAll(); } });
   });
 
-  // Listen filtern (jede Liste für sich); Enter öffnet den ersten Treffer
+  var bubList = document.querySelector("[data-bub-list]");
+  function renderList(list) {
+    if (!bubList) { return; }
+    bubList.textContent = ""; bubList.hidden = !list;
+    (list || []).forEach(function (it) {
+      var b = el("button", "kb-bub-item b-" + it.type + (it.kind === "add" || it.kind === "add-serie" ? " act" : "") + (it.stale ? " stale" : ""), it.label, bubList);
+      b.type = "button";
+      b.addEventListener("click", function () {
+        var r = b.getBoundingClientRect(), o = mapBox.getBoundingClientRect();
+        document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: it, x: mapBox.clientWidth / 2, y: Math.min(r.top - o.top, mapBox.clientHeight - 40) } }));
+        mapBox.scrollIntoView({ block: "nearest" });
+      });
+    });
+  }
+  // ---------- Fenster an der Blase ----------
+  function closePop() { if (pop) { pop.hidden = true; pop.textContent = ""; } }
+  function openPop(x, y, build) {
+    pop.textContent = ""; pop.hidden = false;
+    var close = el("button", "icon-btn kb-pop-x", "×", pop); close.type = "button"; close.setAttribute("aria-label", "Schließen");
+    close.addEventListener("click", closePop);
+    build(pop);
+    var w = pop.offsetWidth, h = pop.offsetHeight, W = mapBox.clientWidth, H = mapBox.clientHeight;
+    pop.style.left = Math.max(8, Math.min(x - w / 2, W - w - 8)) + "px";
+    pop.style.top = (y + 8 + h > H - 8 ? Math.max(8, y - h - 40) : y + 8) + "px";
+    var first = pop.querySelector("textarea, input:not([type=hidden])"); if (first) { first.focus(); }
+  }
+  function errorLine(box) { var p = box.querySelector(".kb-pop-err") || el("p", "kb-pop-err", "", box); return p; }
+  function after(p) {  // nach dem Speichern: Blasen neu laden (Auswahl bleibt)
+    return p.then(function () { refresh(); });
+  }
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && pop && !pop.hidden) { closePop(); } });
+  document.addEventListener("kb:view", function () { /* Fenster bleibt, wo es ist */ });
+
+  document.addEventListener("kb:bubble", function (ev) {
+    var it = ev.detail.item, x = ev.detail.x, y = ev.detail.y;
+    if (it.kind === "link") { location.href = it.link; return; }
+    if (it.kind === "zuordnen") {
+      send("/wissen/sortiment", { hersteller: state.f, gruppe: state.g }).then(function () { if (window.kbMap) { window.kbMap.reload(anchorOf()); } refresh(); });
+      return;
+    }
+    openPop(x, y, function (box) {
+      if (it.kind === "add" || it.kind === "add-serie") { return addForm(box, it.kind === "add-serie"); }
+      if (it.type_label) { el("span", "kb-pop-kind t-" + it.type, it.type_label, box); }
+      el("p", "kb-pop-text", it.text, box);
+      if (it.kind === "eintrag") {
+        el("p", "kb-pop-meta", it.who + ", " + it.when + (it.flag ? " · gemeldet: " + it.flag : it.stale ? " · Prüffrist abgelaufen" : ""), box);
+        var row = el("div", "kb-pop-actions", null, box);
+        var edit = el("button", "secondary", "Bearbeiten", row); edit.type = "button";
+        edit.addEventListener("click", function () { editForm(box, it); });
+        if (it.stale) {
+          var ok = el("button", "secondary", "Stimmt noch", row); ok.type = "button";
+          ok.addEventListener("click", function () { after(send("/wissen/eintrag/" + it.entry + "/geprueft", {})); });
+        }
+        var del = el("a", "button secondary danger-text", "Löschen", row); del.href = "/wissen/eintrag/" + it.entry + "/loeschen";
+      } else if (it.kind === "serie") {
+        var r2 = el("div", "kb-pop-actions", null, box);
+        var open = el("button", "secondary", "Serie öffnen", r2); open.type = "button";
+        open.addEventListener("click", function () { state.g = it.series; refresh(); });
+      } else if (it.link) {
+        var r3 = el("div", "kb-pop-actions", null, box);
+        var chg = el("a", "button secondary", "Ändern", r3); chg.href = it.link;
+      }
+    });
+  });
+  function typeSelect(current) {
+    var s = document.createElement("select"); s.name = "art"; s.setAttribute("aria-label", "Art");
+    var auto = el("option", null, "Art automatisch", s); auto.value = "";
+    Object.keys(TYPES).forEach(function (k) { var o = el("option", null, TYPES[k], s); o.value = k; if (k === current) { o.selected = true; } });
+    return s;
+  }
+  function editForm(box, it) {
+    box.querySelectorAll(":scope > :not(.kb-pop-x)").forEach(function (n) { n.remove(); });
+    var form = el("form", "kb-pop-form", null, box);
+    var ta = el("textarea", null, null, form); ta.value = it.text; ta.rows = 3; ta.maxLength = 1000; ta.required = true; ta.setAttribute("aria-label", "Text");
+    var sel = typeSelect(it.type); form.appendChild(sel);
+    var row = el("div", "kb-pop-actions", null, form);
+    var save = el("button", null, "Speichern", row); save.type = "submit";
+    var cancel = el("button", "secondary", "Abbrechen", row); cancel.type = "button"; cancel.addEventListener("click", closePop);
+    ta.focus();
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault(); save.disabled = true;
+      after(send("/wissen/eintrag/" + it.entry, { text: ta.value, art: sel.value || it.type, themen: it.topics }))
+        .catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
+    });
+  }
+  function addForm(box, serie) {
+    var f = state.f, g = state.g, form = el("form", "kb-pop-form", null, box);
+    if (serie) {
+      el("p", "kb-pop-head", "Neue Serie von " + names[f] + " in " + names[g], form);
+      var name = el("input", null, null, form); name.name = "name"; name.required = true; name.maxLength = 120; name.placeholder = "z. B. Spartan";
+    } else {
+      var target = f && g ? names[f] + " × " + names[g] : names[g || f];
+      el("p", "kb-pop-head", "Neue Info zu " + target, form);
+      var ta = el("textarea", null, null, form); ta.rows = 3; ta.maxLength = 1000; ta.required = true;
+      ta.placeholder = "Einfach reinschreiben, z. B. Lieferzeit 6 Wochen"; ta.setAttribute("aria-label", "Neue Info");
+      var sel = typeSelect(""); form.appendChild(sel);
+      ta.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); form.requestSubmit(); } });
+    }
+    var row = el("div", "kb-pop-actions", null, form);
+    var save = el("button", null, serie ? "Anlegen" : "Eintragen", row); save.type = "submit";
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault(); save.disabled = true;
+      var req = serie ? send("/wissen/serie", { name: name.value, gruppe: g, hersteller: f })
+        : send("/wissen/eintrag", { text: ta.value, art: sel.value, themen: [f, g].filter(Boolean), vorgabe: g || f });
+      req.then(function () {
+        if (serie) { location.href = "/wissen?f=" + f + "&g=" + g; return; }  // neue Serie: Listen neu aufbauen
+        refresh();
+      }).catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
+    });
+  }
+
+  // ---------- Listen filtern ----------
   document.querySelectorAll("[data-side]").forEach(function (side) {
     var filter = side.querySelector("[data-list-filter]"), none = side.querySelector("[data-list-none]");
     if (!filter) { return; }
@@ -208,7 +244,14 @@
       if (ev.key !== "Enter") { return; }
       ev.preventDefault();
       var first = side.querySelector("[data-list] li:not([hidden]) [data-pick]");
-      if (first) { pick(+first.getAttribute("data-pick"), false); }
+      if (first) { pick(+first.getAttribute("data-pick"), true); }
     });
   });
+
+  // Start: Auswahl aus einem Link (?f=…&g=…) übernehmen, sobald die Karte steht
+  if (state.f || state.g) {
+    var tries = 0, wait = setInterval(function () {
+      if ((window.kbMap && window.kbMap.ready && window.kbMap.ready()) || ++tries > 40) { clearInterval(wait); refresh(); }
+    }, 100);
+  } else { setSay(); }
 })();
