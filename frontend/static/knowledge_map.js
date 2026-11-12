@@ -6,7 +6,7 @@
   if (!box) { return; }
   var svg = box.querySelector("svg"), info = box.querySelector("[data-map-info]"), empty = box.querySelector("[data-map-empty]");
   var NS = "http://www.w3.org/2000/svg";
-  var data = null, nodes = [], edges = [], byId = {}, selected = null;
+  var data = null, nodes = [], edges = [], byId = {}, selected = null, infoLayer = null;
   var view = { x: -400, y: -260, w: 800, h: 520 };
   var LABEL = { artikel: "Artikel", bezug: "Bezug über", pflicht: "Pflicht-Zubehör", eintrag: "gemeinsame Einträge" };
   var STAGE = { erste: "erste Wahl", gut: "gut", notfalls: "nur wenn nötig", abraten: "abraten", offen: "noch nicht bewertet" };
@@ -78,6 +78,7 @@
   function draw() {
     svg.textContent = "";
     var gEdges = el("g", { "class": "m-edges" }, svg), gNodes = el("g", { "class": "m-nodes" }, svg);
+    infoLayer = el("g", { "class": "m-infos" }, svg);
     edges.forEach(function (e) {
       var cls = "m-edge e-" + e.type + (e.stage ? " s-" + e.stage : "");
       e.line = el("line", { "class": cls, "stroke-width": Math.min(1.5 + e.n * 0.8, 6) }, gEdges);
@@ -109,10 +110,69 @@
       e.line.setAttribute("x1", a.x); e.line.setAttribute("y1", a.y); e.line.setAttribute("x2", b.x); e.line.setAttribute("y2", b.y);
     });
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
+    if (selected) { drawInfos(selected); }
+  }
+
+  // ---------- Info-Kärtchen rund um das gewählte Thema ----------
+  function fontSize() { return Math.max(9, Math.min(13 * view.w / Math.max(box.clientWidth, 1), 34)); }
+  function wrap(text, max) {
+    var words = text.split(/\s+/), lines = [""];
+    words.forEach(function (w) {
+      var cur = lines[lines.length - 1];
+      if ((cur + " " + w).trim().length > max && cur) { lines.push(w); } else { lines[lines.length - 1] = (cur + " " + w).trim(); }
+    });
+    if (lines.length > 3) { lines = lines.slice(0, 3); lines[2] = lines[2].replace(/.{0,2}$/, "…"); }
+    return lines;
+  }
+  function drawInfos(n) {
+    infoLayer.textContent = "";
+    if (!n || !n.info || !n.info.length || box.clientWidth < 500) { return null; }  // schmal: Liste im Kasten
+    var bb = { x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r + 20 };
+    var fs = fontSize(), items = n.info, count = items.length, narrow = box.clientWidth < 500;
+    var R = n.r + fs * (count > 4 ? 13 : 10);
+    // Kärtchen gleichmäßig im Kreis, mit Lücke dort, wo die meisten Verbindungen hingehen
+    var ax = 0, ay = 0;
+    n.links.forEach(function (e) { var o = byId[e.a === n.id ? e.b : e.a]; ax += o.x - n.x; ay += o.y - n.y; });
+    var start = (ax || ay) ? Math.atan2(ay, ax) + Math.PI / Math.max(count, 1) : -Math.PI / 2;
+    items.forEach(function (it, i) {
+      var a = start + i * 2 * Math.PI / count, x = n.x + Math.cos(a) * R * (narrow ? 0.85 : 1.35), y = n.y + Math.sin(a) * R * (narrow ? 1.25 : 1);
+      var lines = wrap(it.text, narrow ? 20 : 30), w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.4;
+      var h = lines.length * fs * 1.3 + fs * 0.9;
+      bb.x0 = Math.min(bb.x0, x - w / 2); bb.x1 = Math.max(bb.x1, x + w / 2);
+      bb.y0 = Math.min(bb.y0, y - h / 2); bb.y1 = Math.max(bb.y1, y + h / 2);
+      el("line", { x1: n.x, y1: n.y, x2: x, y2: y, "class": "m-info-link t-" + it.type }, infoLayer);
+      var g = el("g", { "class": "m-info t-" + it.type + (it.stale ? " stale" : ""), transform: "translate(" + (x - w / 2).toFixed(1) + "," + (y - h / 2).toFixed(1) + ")",
+                        role: "link", tabindex: "0" }, infoLayer);
+      el("rect", { width: w.toFixed(1), height: h.toFixed(1), rx: (fs * 0.5).toFixed(1) }, g);
+      el("rect", { width: (fs * 0.3).toFixed(1), height: h.toFixed(1), "class": "bar" }, g);
+      lines.forEach(function (l, k) {
+        var t = el("text", { x: (fs * 0.85).toFixed(1), y: (fs * (1.25 + k * 1.3)).toFixed(1) }, g);
+        t.textContent = l;
+      });
+      var title = el("title", {}, g); title.textContent = it.text + (it.stale ? " (bitte prüfen)" : "");
+      var url = "/wissen/" + n.id + (it.entry ? "#e" + it.entry : it.type === "artikel" ? "#vergleich" : "#angaben");
+      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { link: url }; moved = false; });
+      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { location.href = url; } });
+    });
+    return bb;
+  }
+  // Kärtchen sichtbar halten: Ansicht so weit verschieben, dass alles drin ist (Kärtchen wachsen mit dem Zoom mit,
+  // deshalb hilft nur Verschieben; passt es nicht, wird das Thema mittig gesetzt)
+  function reveal(bb, n) {
+    if (!bb) { return; }
+    var m = fontSize(), nx = view.x, ny = view.y;
+    if (bb.x1 - bb.x0 + 2 * m > view.w) { nx = n.x - view.w / 2; }
+    else if (bb.x0 - m < view.x) { nx = bb.x0 - m; }
+    else if (bb.x1 + m > view.x + view.w) { nx = bb.x1 + m - view.w; }
+    if (bb.y1 - bb.y0 + 2 * m > view.h) { ny = n.y - view.h / 2; }
+    else if (bb.y0 - m < view.y) { ny = bb.y0 - m; }
+    else if (bb.y1 + m > view.y + view.h) { ny = bb.y1 + m - view.h; }
+    if (nx !== view.x || ny !== view.y) { view.x = nx; view.y = ny; applyView(); }
   }
 
   function select(n, keep) {
     selected = n;
+    reveal(drawInfos(n), n);
     svg.classList.toggle("focus", !!n);
     var near = {};
     if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
@@ -138,6 +198,18 @@
     info.appendChild(ul);
     var open = document.createElement("a"); open.className = "button"; open.href = "/wissen/" + n.id; open.textContent = "Steckbrief öffnen";
     info.appendChild(open);
+    // Auf schmalen Bildschirmen stehen die Infos als Liste im Kasten statt als Kärtchen rund um den Kreis
+    var narrowList = document.createElement("ol");
+    narrowList.className = "kb-map-infolist";
+    (n.info || []).forEach(function (it) {
+      var li = document.createElement("li"), a = document.createElement("a");
+      li.className = "t-" + it.type + (it.stale ? " stale" : "");
+      a.href = "/wissen/" + n.id + (it.entry ? "#e" + it.entry : it.type === "artikel" ? "#vergleich" : "#angaben");
+      a.textContent = it.text;
+      li.appendChild(a);
+      narrowList.appendChild(li);
+    });
+    if (n.info && n.info.length) { info.appendChild(narrowList); }
     info.hidden = false;
   }
 
@@ -147,6 +219,7 @@
     // Schrift auf dem Bildschirm etwa gleich groß halten (sonst winzig auf dem Handy, riesig beim Hineinzoomen)
     var k = view.w / Math.max(box.clientWidth, 1);
     svg.style.setProperty("--fs", Math.max(9, Math.min(13 * k, 34)).toFixed(1) + "px");
+    if (selected && infoLayer) { drawInfos(selected); }
   }
   function fit() {
     if (!nodes.length) { applyView(); return; }
@@ -196,12 +269,14 @@
   var lastTap = { node: null, t: 0 };
   function endDrag() {
     if (drag && !moved) {
+      if (drag.link) { location.href = drag.link; return; }
       if (drag.pan) { select(null); }
       else {
         var now = Date.now();
-        if (lastTap.node === drag.node && now - lastTap.t < 400) { location.href = "/wissen/" + drag.node.id; }
+        if (lastTap.node === drag.node && now - lastTap.t < 400) { location.href = "/wissen/" + drag.node.id; return; }
+        var again = selected === drag.node && now - lastTap.t >= 400;
         lastTap = { node: drag.node, t: now };
-        select(drag.node);
+        select(again ? null : drag.node);  // nochmal anklicken = abwählen, Karte zeigt wieder nur die Themen
       }
     }
     drag = null;

@@ -25,9 +25,28 @@
       if (!ids.length && vorgabe && !removed[+vorgabe.value] && topics[+vorgabe.value]) { ids.push(+vorgabe.value); }
       return ids;
     }
+    var suggestions = [], fieldsBox = $("[data-capture-fields]", form), fieldList = $("[data-capture-fieldlist]", form), ticked = {};
+    // Erkannte Mindestmenge/Lieferzeit: Häkchen „als Angabe übernehmen“ beim ersten zugeordneten Thema (nie automatisch)
+    function renderFields(ids) {
+      fieldList.textContent = "";
+      var target = topics[ids[0]];
+      fieldsBox.hidden = !suggestions.length || !target;
+      if (fieldsBox.hidden) { return; }
+      suggestions.forEach(function (sg) {
+        var label = document.createElement("label"), cb = document.createElement("input");
+        label.className = "inline-label kb-field-check";
+        cb.type = "checkbox"; cb.name = "angabe_" + sg.field; cb.value = target.id + "|" + sg.value;
+        cb.checked = !!ticked[sg.field + cb.value];
+        cb.addEventListener("change", function () { ticked[sg.field + cb.value] = cb.checked; });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(" " + sg.label + " bei " + target.name));
+        fieldList.appendChild(label);
+      });
+    }
     function renderChips() {
       chips.textContent = "";
       var ids = current();
+      renderFields(ids);
       if (!ids.length) {
         var h = document.createElement("span"); h.className = "hint"; h.textContent = "nichts erkannt – bitte zuordnen";
         chips.appendChild(h);
@@ -55,6 +74,7 @@
         if (!manualType) { var radio = $('input[name="art"][value="' + d.art + '"]', form); if (radio) { radio.checked = true; } }
         tidyEl.textContent = d.text;
         preview.hidden = !d.text;
+        suggestions = d.angaben || [];
         renderChips();
       }).catch(function () { /* ohne Vorschlag: Server erkennt beim Speichern */ });
     }

@@ -114,6 +114,7 @@
       <div class="kb-line"><span class="kb-label">Gehört zu</span>
         <span class="kb-chips" data-capture-chips><span class="hint">{{ "wird erkannt, sonst " ~ topic.name if topic else "wird aus dem Text erkannt" }}</span></span>
         <select data-capture-add aria-label="Weitere Zuordnung"><option value="">+ zuordnen</option>{% for t in topics %}<option value="{{ t.id }}">{{ t.name }} ({{ kinds[t.kind] }})</option>{% endfor %}</select></div>
+      <div class="kb-line kb-suggest-fields" data-capture-fields hidden><span class="kb-label">Als Angabe übernehmen</span><span data-capture-fieldlist></span></div>
       <div class="kb-line kb-preview" data-capture-preview hidden><span class="kb-label">Wird gespeichert als</span><span data-capture-tidy></span></div>
       <label class="inline-label kb-private-check"><input type="checkbox" name="privat" value="1"> nur für mich</label>
     </div>

@@ -472,8 +472,13 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 etwas: **Artikel** (Hersteller hat einen Artikel im Vergleich der Gruppe; Farbe = beste Bewertung: grün erste Wahl,
 hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten), **Bezug über** (blau, aus „Darunter beziehen über“),
 **Pflicht-Zubehör** (orange gestrichelt), **gemeinsame Einträge** (grau, ein Eintrag nennt beide). Je mehr Einträge und
-Artikel, desto größer der Kreis; Themen ohne Verbindung sind blass. Klick auf einen Kreis hebt seine Verbindungen
-hervor und zeigt rechts eine Liste mit „Steckbrief öffnen“; Doppelklick öffnet direkt. Am Hintergrund ziehen =
+Artikel, desto größer der Kreis; Themen ohne Verbindung sind blass. **Klick auf einen Kreis** hebt seine
+Verbindungen hervor und klappt rund um den Kreis **Info-Kärtchen** auf: feste Angaben (z. B. Mindestbestellmenge,
+Bezug über, Pflicht-Zubehör), erste Wahl im Artikelvergleich und die Einträge (Pflicht-Zubehör, Bezug, Kalkulation
+zuerst; höchstens 8). Die Ansicht schiebt sich so, dass alle Kärtchen sichtbar sind; Klick auf ein Kärtchen öffnet die
+Stelle im Steckbrief. **Nochmal auf den Kreis oder auf den Hintergrund klicken** blendet die Kärtchen wieder aus –
+dann zeigt die Karte wieder nur Hersteller und Gruppen. Auf dem Handy stehen die Infos als Liste unten in der Karte.
+Oben links: Name und „Steckbrief öffnen“; Doppelklick auf den Kreis öffnet direkt. Am Hintergrund ziehen =
 verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
 blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
 „Zuletzt geändert“.
@@ -501,6 +506,11 @@ das Tool (ohne KI, mit festen Regeln):
   (stk → Stück, moq → Mindestbestellmenge, mind. → mindestens, zb → z. B.), bekannte Artikelgruppen und häufige
   Substantive (Lieferzeit, Wochen, Kalkulation, Aufschlag …) groß, Zahl und Einheit getrennt (1,80m → 1,80 m), großer Satzanfang, Punkt am Ende. Zahlen bleiben unverändert. Das Original
   bleibt im Verlauf („So eingetippt“).
+
+- **Als Angabe übernehmen**: Erkennt das Tool eine Mindestbestellmenge („moq 36 stk“, „Mindestbestellmenge … = 36
+  Stück“) oder Lieferzeit („Lieferzeit 6 Wochen“, „2-3 Wo.“), bietet es ein Häkchen an, den Wert zusätzlich als feste
+  Angabe beim ersten zugeordneten Thema zu speichern. Nie automatisch: Einschränkungen wie „bei den meisten Artikeln“
+  gingen im Feld verloren – dann nur den Eintrag speichern.
 
 Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller sieht.
 
