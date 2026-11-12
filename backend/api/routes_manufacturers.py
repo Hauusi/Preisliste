@@ -52,9 +52,20 @@ def _edit_page(request: Request, db: Session, m: Manufacturer, error: str | None
                message: str | None = None):
     exceptions = db.scalars(select(RuleException).where(RuleException.manufacturer_id == m.id)
                             .order_by(RuleException.match_type, RuleException.value)).all()
-    return render(request, "manufacturer_edit.html", {
+    return render(request, "manufacturer_edit.html", {**kb_context(request, db, m),
         "m": m, "rules": _rules(db, m.owner_id), "exceptions": exceptions, "factor": factor_of(db, m), "vk_rounding": rounding_of(db, m), "vk_roundings": VK_ROUNDINGS, "match_types": MATCH_TYPES, "form_types": FORM_TYPES,
         "currencies": SUPPORTED_CURRENCIES, "error": error, "message": message}, status_code=status_code)
+
+
+def kb_context(request: Request, db: Session, m: Manufacturer | None) -> dict:
+    """Vertriebswissen zum Hersteller (Mindestmenge, Bezugsweg, Pflicht-Zubehör, Kalkulation) für die Hinweisbox."""
+    from backend.services import knowledge as kb
+
+    sess = getattr(request.state, "session", None)
+    if m is None or sess is None:
+        return {"kb_hints": [], "kb_topics": []}
+    topics = kb.topics_for_manufacturer(db, m)
+    return {"kb_hints": kb.hints(db, sess.user, topics) if topics else [], "kb_topics": topics}
 
 
 def _get(db: Session, mid: int, user: User) -> Manufacturer:

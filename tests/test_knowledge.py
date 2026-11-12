@@ -46,7 +46,7 @@ def test_entry_flow_shared_edit_with_name_and_history(admin_client, user_client)
     with session_scope() as db:
         e = db.query(KbEntry).one()
         assert e.topic_ids == [nid, rid] and e.type == "kalk" and not e.private
-        assert e.text == "Nordic Lights unter 36 Stück über Riedfeld anfragen, andere kalkulation."
+        assert e.text == "Nordic Lights unter 36 Stück über Riedfeld anfragen, andere Kalkulation."
         eid = e.id
     page = a.get(f"/wissen/{nid}").text  # für alle sichtbar
     assert "Nordic Lights unter 36 Stück über Riedfeld" in page and f'href="/wissen/{rid}"' in page
@@ -148,7 +148,7 @@ def test_stale_entries_and_check(admin_client):
         e.checked_at = e.checked_at - timedelta(days=400)
         eid = e.id
     page = a.get("/wissen").text
-    assert "Bitte prüfen" in page and "nicht geprüft" in page
+    assert "Bitte prüfen" in page and "Prüffrist abgelaufen" in page
     a.post(f"/wissen/eintrag/{eid}/geprueft", data={"csrf_token": a.csrf, "zurueck": str(nid)})
     assert "Bitte prüfen" not in a.get("/wissen").text
 
@@ -177,3 +177,118 @@ def test_clear_data_keeps_shared_knowledge_of_deleted_users(admin_client, user_c
         rows = db.query(KbEntry).all()
         assert [e.text for e in rows] == ["Nordic Lights Mindestbestellmenge 36 Stück."] and rows[0].author_id is None
     assert "Mindestbestellmenge 36 Stück" in admin_client.get(f"/wissen/{nid}").text
+
+
+
+def _field(c, tid, field, **data):
+    return c.post(f"/wissen/{tid}/feld/{field}", data={"csrf_token": c.csrf, **data}, follow_redirects=False)
+
+
+def test_stale_by_type_flag_and_owner(admin_client, user_client):
+    """Prüffrist je Art (Lieferzeit 90 Tage, Hinweis 365), „stimmt nicht mehr“ melden, Zuständige sehen es zuerst."""
+    a, u = admin_client, user_client
+    nid = _topic(a, "Nordic Lights")
+    _entry(a, "Nordic Lights Lieferzeit 6 Wochen")
+    _entry(a, "Nordic Lights Hinweis: Katalog kommt im Frühjahr")
+    with session_scope() as db:
+        for e in db.query(KbEntry):
+            e.checked_at = e.checked_at - timedelta(days=100)
+        liefer = db.query(KbEntry).filter_by(type="liefer").one()
+        other = db.query(KbEntry).filter(KbEntry.type != "liefer").one()
+        assert kb.is_stale(liefer) and not kb.is_stale(other)
+        anna_id, oid = db.query(User).filter_by(username="anna").one().id, other.id
+    # Anna meldet den anderen Eintrag; Admin ist zuständig und sieht ihn unter „Du bist zuständig“
+    a.post(f"/wissen/{nid}/zustaendig", data={"csrf_token": a.csrf, "benutzer": "1"})
+    r = u.post(f"/wissen/eintrag/{oid}/melden", data={"csrf_token": u.csrf, "bemerkung": "Katalog kommt erst im Herbst",
+                                                     "zurueck": str(nid)}, follow_redirects=False)
+    assert r.status_code == 303
+    page = a.get("/wissen").text
+    assert "Du bist zuständig" in page and "Gemeldet „stimmt nicht mehr“ von anna" in page and "Katalog kommt erst im Herbst" in page
+    assert page.index("Gemeldet „") < page.index('class="kb-stale">Prüffrist abgelaufen')  # gemeldete zuerst
+    topic_page = u.get(f"/wissen/{nid}").text
+    assert "Zuständig: admin" in topic_page and "gemeldet: Katalog kommt erst im Herbst" in topic_page
+    # Bearbeiten erledigt die Meldung
+    a.post(f"/wissen/eintrag/{oid}", data={"csrf_token": a.csrf, "text": "Katalog kommt im Herbst", "art": "hinweis",
+                                         "themen": [str(nid)], "zurueck": str(nid)})
+    with session_scope() as db:
+        e = db.get(KbEntry, oid)
+        assert e.flagged_at is None and e.flag_note is None
+    assert "Ohne Zuständigen" not in a.get("/wissen").text
+    u.post(f"/wissen/{nid}/zustaendig", data={"csrf_token": u.csrf, "benutzer": str(anna_id)})
+    assert "Zuständig: anna" in a.get(f"/wissen/{nid}").text
+
+
+def test_fields_flow_graph_and_hints_at_work(admin_client, user_client):
+    """Feste Felder: Mindestmenge, Bezug darunter, Lagerartikel, Pflicht-Zubehör mit Menge. Daraus der Ablauf bei
+    kleinen Mengen, Verknüpfungen und die Hinweisbox in Preisliste (Hersteller, Jahresabgleich) und Datenblatt."""
+    a, u = admin_client, user_client
+    nid, rid = _topic(a, "Nordic Lights", aliase="Nordic"), _topic(a, "Riedfeld")
+    gid = _topic(a, "Montageadapter", art="gruppe")
+    assert _field(u, nid, "moq", wert="36").status_code == 303
+    _field(u, nid, "bezug_klein", wert=str(rid))
+    _field(u, nid, "lager", wert="nein")
+    _field(u, nid, "pflicht", wert=str(gid), menge="2", bemerkung="bei Dachmontage")
+    r = _field(u, nid, "moq", wert="abc")
+    assert "fehler=" in r.headers["location"]  # ungültige Menge
+    page = a.get(f"/wissen/{nid}").text
+    assert "36 Stück" in page and "Ablauf bei kleinen Mengen" in page and "Menge mindestens 36 Stück?" in page
+    assert "bei Riedfeld anfragen" in page and "Lagerartikel bei uns?" not in page  # Lager „nein“: direkt zum Bezugsweg
+    assert '2 × <a href="/wissen/%d">Montageadapter</a>' % gid in page and "bei Dachmontage" in page
+    assert 'class="kb-graph"' in page and "Pflicht-Zubehör · 1" in page
+    assert "Genannt bei:" in a.get(f"/wissen/{rid}").text  # Riedfeld weiß, dass Nordic dorthin verweist
+    # Verlauf mit Namen
+    assert "anna</b>" in page and "Angabe angelegt: Mindestbestellmenge: 36 Stück" in page
+    # Hinweise in der Preisliste: Hersteller der eigenen Liste mit gleichem Namen/Alias
+    from tests.test_datasheets import _content, _new, _save
+    from backend.services import datasheets as ds
+
+    with session_scope() as db:
+        anna = db.query(User).filter_by(username="anna").one()
+        m = Manufacturer(owner_id=anna.id, name="Nordic", code="NL")
+        db.add(m)
+        db.flush()
+        mid = m.id
+    box = u.get(f"/hersteller/{mid}").text
+    assert 'class="kb-hintbox"' in box and "Mindestbestellmenge 36 Stück, darunter über Riedfeld" in box
+    assert "Pflicht-Zubehör: 2 × Montageadapter (bei Dachmontage)" in box
+    # Datenblatt nennt Nordic Lights in einer Artikelbeschreibung: Hinweis im Editor
+    sid = _new(u, titel="Arbeitsscheinwerfer", untertitel="Serie X")
+    table = {**ds.new_table(), "zeilen": [{"bild": None, "artnr": "NL1", "farbe": "", "beschreibung": "Nordic Lights Scheinwerfer", "werte": []}]}
+    _save(u, sid, _content(kopf={"titel": "Arbeitsscheinwerfer", "untertitel": "Serie X"}, bloecke=[*ds.DEFAULT_BLOCKS, table]))
+    assert "Mindestbestellmenge 36 Stück" in u.get(f"/datenblatt/{sid}").text
+    # nicht gefolgt: keine Hinweise
+    u.post(f"/wissen/{nid}/folgen", data={"csrf_token": u.csrf})
+    assert 'class="kb-hintbox"' not in u.get(f"/hersteller/{mid}").text
+    # leer speichern entfernt das Feld
+    _field(a, nid, "moq", wert="")
+    assert "Ablauf bei kleinen Mengen" not in a.get(f"/wissen/{nid}").text
+
+
+def test_search_words_synonyms_and_misses(admin_client, user_client):
+    a, u = admin_client, user_client
+    nid = _topic(a, "Nordic Lights", aliase="Nordic")
+    _field(a, nid, "moq", wert="36")
+    _entry(a, "Nordic Lights unter 36 Stück über Riedfeld anfragen")
+    hits = u.get("/api/wissen/suche?q=moq nordic").json()["treffer"]  # Synonym (Startwert) + Wortreihenfolge egal
+    assert any("Mindestbestellmenge: 36 Stück" in h["title"] for h in hits)
+    assert u.get("/api/wissen/suche?q=riedfeld nordic").json()["treffer"]  # Wörter einzeln, nicht als Satz
+    assert not u.get("/api/wissen/suche?q=riedfeld hella").json()["treffer"]  # jedes Wort muss passen
+    page = u.get("/wissen/suche?q=moq").text
+    assert "Auch gesucht nach: Mindestbestellmenge, Mindestmenge, Mindestabnahme" in page
+    # ohne Treffer: nur die ausführliche Suche protokolliert, beim Tippen nicht
+    u.get("/api/wissen/suche?q=drehlich")
+    u.get("/wissen/suche?q=Drehlicht")
+    u.get("/wissen/suche?q=drehlicht")
+    terms = a.get("/wissen/suchbegriffe").text
+    assert "<b>drehlicht</b>" in terms and '<td class="num">2</td>' in terms and "drehlich<" not in terms
+    assert "Als Eintrag erfassen" in u.get("/wissen/suche?q=drehlicht").text
+    # Synonym anlegen: Suche findet, Fehlliste wird bereinigt, Name und Zeit stehen dabei
+    gid = _topic(a, "Rundumleuchten", art="gruppe")
+    r = u.post("/wissen/suchbegriffe", data={"csrf_token": u.csrf, "woerter": "Rundumleuchten, Drehlicht"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert any(h["url"] == f"/wissen/{gid}" for h in u.get("/api/wissen/suche?q=drehlicht").json()["treffer"])
+    terms = a.get("/wissen/suchbegriffe").text
+    assert "<b>drehlicht</b>" not in terms and "Rundumleuchten, Drehlicht" in terms and "anna," in terms
+    r = u.post("/wissen/suchbegriffe", data={"csrf_token": u.csrf, "woerter": "nurEins"}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]
+    assert "Nordic Lights unter 36" in a.get("/wissen?neu=test").text and ">test</textarea>" in a.get("/wissen?neu=test").text

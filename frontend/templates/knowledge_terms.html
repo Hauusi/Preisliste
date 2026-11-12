@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, trash %}
+{% block title %}Suchbegriffe{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/wissen">Vertriebswissen</a></div>
+    <h1>Suchbegriffe</h1>
+    <p>Gleichbedeutende Wörter findet die Suche gegenseitig. „Ohne Treffer“ zeigt, wonach gesucht und nichts gefunden wurde.</p>
+  </div>
+</div>
+{% if error %}<p class="msg FEHLER">{{ error }}</p>{% endif %}
+
+<div class="kb-terms">
+  <section class="card">
+    <h2>Synonyme <small class="hint">für alle, jeder darf ändern</small></h2>
+    <ul class="kb-syn">
+      {% for g in groups %}
+      <li>
+        <form method="post" action="/wissen/suchbegriffe" class="row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ g.id }}">
+          <input name="woerter" value="{{ g.words | join(', ') }}" maxlength="300" class="grow" aria-label="Gleichbedeutende Wörter">
+          <button type="submit" class="secondary">Speichern</button>
+        </form>
+        <small class="hint">{{ names.get(g.updated_by, "Startwert") }}, {{ g.updated_at | dt }} · leer speichern = löschen</small>
+      </li>
+      {% else %}<li class="hint">Noch keine.</li>{% endfor %}
+    </ul>
+    <form method="post" action="/wissen/suchbegriffe" class="row kb-syn-new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input name="woerter" maxlength="300" class="grow" placeholder="z. B. Rundumleuchte, Rundumkennleuchte, Drehlicht" aria-label="Neue Synonymgruppe" required>
+      <button type="submit">{{ icon("plus", 16) }} Hinzufügen</button>
+    </form>
+    <p class="hint">Mit Komma trennen. Andere Schreibweisen eines Herstellers oder einer Artikelgruppe besser direkt im Steckbrief unter „Name“ eintragen – dann erkennt sie auch das Eintippen.</p>
+  </section>
+
+  <section class="card" id="fehl">
+    <h2>Suchen ohne Treffer <small class="hint">aus der ausführlichen Suche (Enter)</small></h2>
+    {% if misses %}
+    <div class="scroll"><table>
+      <thead><tr><th>Gesucht</th><th>Wie oft</th><th>Zuletzt</th><th></th></tr></thead>
+      <tbody>{% for m in misses %}
+        <tr><td><b>{{ m.query }}</b></td><td class="num">{{ m.count }}</td><td class="nowrap">{{ names.get(m.last_user, "–") }}, {{ m.last_at | dt }}</td>
+          <td class="row-actions">
+            <a class="icon-btn" href="/wissen?neu={{ m.query | urlencode }}" title="Als Eintrag erfassen" aria-label="Als Eintrag erfassen">{{ icon("plus", 18) }}</a>
+            <form method="post" action="/wissen/suchbegriffe/fehl/{{ m.id }}/erledigt" class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="icon-btn" title="Erledigt, aus der Liste nehmen" aria-label="Erledigt">{{ icon("check", 18) }}</button></form>
+          </td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <p class="hint">Fehlt ein Wort? Als Synonym zu einem vorhandenen Begriff eintragen. Fehlt das Wissen? Eintrag anlegen.</p>
+    {% else %}
+    <p class="hint">Bisher hat jede Suche etwas gefunden.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

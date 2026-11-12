@@ -23,6 +23,7 @@
   </div>
 </div>
 {% if meldung %}<p class="msg {{ 'UNKLAR' if meldung.startswith(('Bitte', 'Keine', 'Gültig ab:')) else 'OK' }}">{{ meldung }}</p>{% endif %}
+{% include "_kb_hints.html" %}
 
 {% set needs = s.artikel - s.get("OK", 0) - s.get("UNVERAENDERT", 0) %}
 <section class="card progress-card">

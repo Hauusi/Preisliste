@@ -382,7 +382,13 @@ def editor(request: Request, sheet_id: int, db: Session = Depends(get_db), user:
         job = db.get(Job, int(job_id))
         if job and job.type == "DATENBLATT_IMPORT" and (job.result or {}).get("datasheet_id") == sheet.id:
             imported = job.result
+    from backend.services import knowledge as kb
+
+    words = [c["kopf"]["titel"], c["kopf"]["untertitel"]] + [
+        f'{t.get("titel", "")} {r.get("beschreibung", "")}' for t in ds.tables(c) for r in t["zeilen"][:60]]
+    kb_topics = kb.topics_in_text(db, " \n ".join(words))
     return render(request, "datasheet_editor.html", {
+        "kb_hints": kb.hints(db, user, kb_topics) if kb_topics else [], "kb_topics": kb_topics,
         "portal": True, "wide": True, "sheet": sheet, "c": c, "pages_html": html, "page_count": count,
         "colors": ds.COLORS, "color_choices": ds.color_choices, "blocks": ds.BLOCKS, "suggestions": ds.PROPERTY_SUGGESTIONS, "footer": ds.FOOTER,
         "heights": ds.IMAGE_HEIGHTS, "row_images": ds.ROW_IMAGES, "image_pos": ds.GROUP_IMAGE_POS,

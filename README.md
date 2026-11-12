@@ -66,7 +66,10 @@ Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege,
 Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen
 Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
 Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.
-Alle dürfen ändern, jede Änderung mit Name und Zeitpunkt; private Einträge möglich; Suche mit Strg+K. Details:
+Alle dürfen ändern, jede Änderung mit Name und Zeitpunkt; private Einträge möglich. Feste Felder (Mindestmenge, Bezug
+darunter, Lager, Lieferzeit, Pflicht-Zubehör mit Menge) ergeben automatisch den Ablauf bei kleinen Mengen; Hinweise
+erscheinen in Preisliste und Datenblatt-Editor. Prüffristen je Art, Zuständige, „Stimmt nicht mehr“ melden. Suche mit
+Strg+K nach Einzelwörtern mit Synonymen, Liste der Suchen ohne Treffer. Details:
 `docs/HANDBUCH.md`, Abschnitt 12.
 
 ## Benutzer und Sichtbarkeit

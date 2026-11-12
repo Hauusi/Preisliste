@@ -1,0 +1,8 @@
+{# Vertriebswissen-Hinweise am Arbeitsplatz (Preisliste, Datenblatt). Erwartet: kb_hints (Liste), kb_topics (Themen) #}
+{% if kb_hints %}
+<aside class="kb-hintbox" aria-label="Vertriebswissen">
+  <div class="kb-hintbox-head"><b>Vertriebswissen</b>
+    <span class="hint">{% for t in kb_topics %}<a href="/wissen/{{ t.id }}">{{ t.name }}</a>{{ ", " if not loop.last }}{% endfor %}</span></div>
+  <ul>{% for h in kb_hints %}<li class="t-{{ h.type }}{{ ' stale' if h.stale }}"><a href="{{ h.url }}">{{ h.text }}</a>{% if h.stale %} <small class="kb-stale">bitte prüfen</small>{% endif %}</li>{% endfor %}</ul>
+</aside>
+{% endif %}

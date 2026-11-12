@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
 from backend.database.engine import get_db
-from backend.models.entities import KbChange, KbEntry, KbFact, KbTopic, User, utcnow
+from backend.models.entities import KbChange, KbEntry, KbFact, KbSearchMiss, KbTopic, User, utcnow
 from backend.services import knowledge as kb
 from backend.services.audit import audit
 
@@ -52,27 +52,58 @@ def _context(db: Session, user: User, error: str | None) -> dict:
         for t in e.topic_ids or []:
             counts[t] = counts.get(t, 0) + 1
     return {"portal": True, "topics": all_topics, "hidden": hidden, "names": names, "counts": counts,
-            "types": kb.TYPES, "kinds": kb.KINDS, "error": error,
+            "types": kb.TYPES, "kinds": kb.KINDS, "error": error, "is_stale": kb.is_stale, "due_date": kb.due_date,
             "topic_json": json.dumps([{"id": t.id, "name": t.name, "kind": kb.KINDS[t.kind]} for t in all_topics],
                                      ensure_ascii=False)}
 
 
 @router.get("/wissen")
-def overview(request: Request, fehler: str | None = None, db: Session = Depends(get_db),
+def overview(request: Request, fehler: str | None = None, neu: str | None = None, db: Session = Depends(get_db),
              user: User = Depends(current_user)):
     ctx = _context(db, user, fehler)
     hidden, by_id = ctx["hidden"], {t.id: t for t in ctx["topics"]}
     followed = [e for e in db.scalars(kb.visible_entries(db, user).order_by(KbEntry.updated_at.desc()))
                 if any(t not in hidden for t in e.topic_ids or [])]
-    stale = [e for e in followed if kb.is_stale(e)]
-    return render(request, "knowledge.html", {**ctx, "topic": None, "recent": followed[:12], "stale": stale[:20],
-                                              "by_id": by_id, "is_stale": kb.is_stale})
+    return render(request, "knowledge.html", {**ctx, "topic": None, "recent": followed[:12],
+                                              "attention": kb.attention(db, user), "by_id": by_id,
+                                              "prefill": (neu or "")[:200]})
 
 
 @router.get("/wissen/suche")
 def search_page(request: Request, q: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
     ctx = _context(db, user, None)
-    return render(request, "knowledge_search.html", {**ctx, "q": q, "hits": kb.search(db, user, q, limit=60)})
+    hits = kb.search(db, user, q, limit=60)
+    if q.strip() and not hits:
+        kb.record_miss(db, user, q)  # für die Liste „Suchen ohne Treffer“ (nur die ausführliche Suche, nicht beim Tippen)
+    return render(request, "knowledge_search.html", {**ctx, "q": q, "hits": hits, "also": kb.synonyms_used(db, q)})
+
+
+@router.get("/wissen/suchbegriffe")
+def terms_page(request: Request, fehler: str | None = None, db: Session = Depends(get_db),
+               user: User = Depends(current_user)):
+    """Synonyme pflegen und sehen, wonach gesucht und nichts gefunden wurde."""
+    ctx = _context(db, user, fehler)
+    groups = kb.synonym_groups(db)
+    return render(request, "knowledge_terms.html", {**ctx, "groups": groups, "misses": kb.misses(db)})
+
+
+@router.post("/wissen/suchbegriffe", dependencies=[Depends(check_csrf)])
+async def save_terms(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    form = await request.form()
+    gid = str(form.get("id") or "")
+    try:
+        kb.save_synonyms(db, user, int(gid) if gid.isdigit() else None, str(form.get("woerter") or ""))
+    except ValueError as exc:
+        return RedirectResponse("/wissen/suchbegriffe?fehler=" + quote(str(exc)), status_code=303)
+    return RedirectResponse("/wissen/suchbegriffe", status_code=303)
+
+
+@router.post("/wissen/suchbegriffe/fehl/{miss_id}/erledigt", dependencies=[Depends(check_csrf)])
+def miss_done(miss_id: int, db: Session = Depends(get_db), _user: User = Depends(current_user)):
+    row = db.get(KbSearchMiss, miss_id)
+    if row:
+        db.delete(row)
+    return RedirectResponse("/wissen/suchbegriffe#fehl", status_code=303)
 
 
 @router.get("/api/wissen/suche")
@@ -115,12 +146,21 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
     by_id = {x.id: x for x in ctx["topics"]}
     entries = kb.entries_for(db, user, t.id)
     grouped = [(k, label, [e for e in entries if e.type == k]) for k, label in kb.TYPES.items()]
-    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id) if i in by_id]
-    facts = list(db.scalars(select(KbFact).where(KbFact.topic_id == t.id).order_by(KbFact.position, KbFact.id)))
+    fields = kb.field_facts(db, t.id)
+    facts = kb.free_facts(db, t.id)
+    # Verbindungen auch über feste Felder anderer Themen, die hierher zeigen (z. B. „Darunter über Riedfeld“)
+    incoming = list(db.scalars(select(KbFact).where(KbFact.ref_topic_id == t.id)))
+    links = [f for fs in fields.values() for f in fs] + [
+        KbFact(field=f.field, ref_topic_id=f.topic_id, topic_id=t.id) for f in incoming]
+    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id, links) if i in by_id]
     histories = {e.id: kb.history(db, "eintrag", e.id) for e in entries}
     changes = list(db.scalars(select(KbChange).where(KbChange.topic_id == t.id).order_by(KbChange.at.desc()).limit(15)))
     return render(request, "knowledge.html", {
         **ctx, "topic": t, "grouped": grouped, "entries": entries, "facts": facts, "by_id": by_id,
+        "fields": fields, "field_defs": kb.FIELDS, "field_keys": kb.FIELDS_BY_KIND[t.kind], "lager_choices": kb.LAGER_CHOICES,
+        "describe": kb.describe, "fact_stale": kb.fact_stale, "flow": kb.flow(t, fields, by_id), "due_date": kb.due_date,
+        "users": [u for u in db.scalars(select(User).where(User.active.is_(True)).order_by(User.username))],
+        "referenced_by": [(by_id[f.topic_id], f) for f in incoming if f.topic_id in by_id],
         "graph": kb.graph(t, near) if near else None, "histories": histories, "changes": changes,
         "own": kb.own_manufacturers(db, t, user), "following": t.id not in ctx["hidden"], "is_stale": kb.is_stale,
     })
@@ -151,6 +191,26 @@ async def follow(request: Request, topic_id: int, db: Session = Depends(get_db),
     kb.set_follow(db, user, t, str(form.get("aktiv") or "") == "1")
     back = str(form.get("zurueck") or "")
     return RedirectResponse(back if back in ("/wissen", f"/wissen/{t.id}") else f"/wissen/{t.id}", status_code=303)
+
+
+@router.post("/wissen/{topic_id}/feld/{field}", dependencies=[Depends(check_csrf)])
+async def save_field(request: Request, topic_id: int, field: str, db: Session = Depends(get_db),
+                     user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    form = await request.form()
+    try:
+        kb.save_field(db, user, t, field, {k: form.get(k) for k in ("id", "wert", "menge", "bemerkung")})
+    except ValueError as exc:
+        return _back(t.id, str(exc))
+    return _back(t.id, anchor="#angaben")
+
+
+@router.post("/wissen/{topic_id}/zustaendig", dependencies=[Depends(check_csrf)])
+async def set_owner(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    raw = str((await request.form()).get("benutzer") or "")
+    kb.set_owner(db, user, t, int(raw) if raw.isdigit() else None)
+    return _back(t.id)
 
 
 @router.post("/wissen/{topic_id}/angabe", dependencies=[Depends(check_csrf)])
@@ -203,6 +263,15 @@ async def checked(request: Request, entry_id: int, db: Session = Depends(get_db)
     e = _entry(db, entry_id, user)
     kb.mark_checked(db, user, e)
     back = str((await request.form()).get("zurueck") or "")
+    return _back(int(back) if back.isdigit() else None, anchor=f"#e{e.id}")
+
+
+@router.post("/wissen/eintrag/{entry_id}/melden", dependencies=[Depends(check_csrf)])
+async def flag(request: Request, entry_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    e = _entry(db, entry_id, user)
+    form = await request.form()
+    kb.flag_entry(db, user, e, str(form.get("bemerkung") or ""))
+    back = str(form.get("zurueck") or "")
     return _back(int(back) if back.isdigit() else None, anchor=f"#e{e.id}")
 
 
