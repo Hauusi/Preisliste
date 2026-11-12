@@ -67,7 +67,8 @@ Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche 
 Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
 Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.
 Alle dürfen ändern, jede Änderung mit Name und Zeitpunkt; private Einträge möglich. Bezugsregel je Hersteller („ab 36 Stück
-oder Lagerware hier bestellen, sonst bei …“) mit Pfeil auf der Karte und Gegenrichtung beim Händler; feste Felder
+oder Lagerware hier bestellen, sonst bei …“) mit Pfeil auf der Karte und Gegenrichtung beim Händler; Firmengruppen (Mutter/Tochter, z. B. EccoESG mit LED
+Autolamps) als farbige Blase auf der Karte; feste Felder
 (Lieferzeit, Pflicht-Zubehör mit Menge); Hinweise
 erscheinen in Preisliste und Datenblatt-Editor. Prüffristen je Art, Zuständige, „Stimmt nicht mehr“ melden. Suche mit
 Strg+K nach Einzelwörtern mit Synonymen, Liste der Suchen ohne Treffer. Startseite ist eine Karte aller Hersteller und

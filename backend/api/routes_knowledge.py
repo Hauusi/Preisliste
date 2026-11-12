@@ -181,7 +181,11 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
     else:
         compare, maker_rows = [], kb.maker_products(db, t, by_id)
         related = [r["group"].id for r in maker_rows]
-    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id, links, related) if i in by_id]
+    groups = kb.company_groups(by_id)
+    root = kb.root_of(t, by_id)
+    company = [m for m in groups.get(root.id, [])]
+    near = [(by_id[i], kind, n) for i, kind, n in kb.neighbours(entries, t.id, links, related, [m.id for m in company])
+            if i in by_id]
     histories = {e.id: kb.history(db, "eintrag", e.id) for e in entries}
     changes = list(db.scalars(select(KbChange).where(KbChange.topic_id == t.id).order_by(KbChange.at.desc()).limit(15)))
     return render(request, "knowledge.html", {
@@ -194,6 +198,7 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
         "graph": kb.graph(t, near) if near else None, "histories": histories, "changes": changes,
         "own": kb.own_manufacturers(db, t, user), "following": t.id not in ctx["hidden"], "is_stale": kb.is_stale,
         "compare": compare, "maker_rows": maker_rows, "criteria": kb.criteria_of(t),
+        "company": company, "company_root": root, "children": [x for x in ctx["topics"] if x.parent_id == t.id],
         "makers": [x for x in ctx["topics"] if x.kind == "hersteller"],
     })
 
@@ -283,6 +288,25 @@ async def save_rule(request: Request, topic_id: int, db: Session = Depends(get_d
     except ValueError as exc:
         return _back(t.id, str(exc), "#regel")
     return _back(t.id, anchor="#regel")
+
+
+@router.post("/wissen/{topic_id}/firmengruppe", dependencies=[Depends(check_csrf)])
+async def set_parent(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Muttergesellschaft setzen/lösen („mutter“) oder eine Tochterfirma hinzufügen/lösen („tochter“, „loesen“)."""
+    t = _topic(db, topic_id)
+    form = await request.form()
+    try:
+        if "tochter" in form:
+            child = _topic(db, int(form["tochter"])) if str(form["tochter"]).isdigit() else None
+            if child is None:
+                raise ValueError("Bitte eine Firma wählen.")
+            kb.set_parent(db, user, child, None if form.get("loesen") == "1" else t.id)
+        else:
+            raw = str(form.get("mutter") or "")
+            kb.set_parent(db, user, t, int(raw) if raw.isdigit() else None)
+    except ValueError as exc:
+        return _back(t.id, str(exc), "#firmengruppe")
+    return _back(t.id, anchor="#firmengruppe")
 
 
 @router.post("/wissen/{topic_id}/zustaendig", dependencies=[Depends(check_csrf)])

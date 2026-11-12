@@ -1155,3 +1155,30 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
 .kb-connect.single .kb-connect-opt > input[type=radio] { display: none; }
 .kb-connect.single .kb-connect-opt { border: 0; background: none; padding: 0; }
 .kb-connect-opt input[name=notiz] { display: block; width: 100%; margin-top: 4px; line-height: normal; }
+
+/* Firmengruppen: Blase auf der Karte, Abschnitt im Steckbrief */
+.m-group { stroke-width: 2; stroke-linejoin: round; transition: d .05s; }
+.m-group.c0 { fill: color-mix(in srgb, var(--signal) 22%, transparent); stroke: color-mix(in srgb, var(--signal) 70%, transparent); }
+.m-group.c1 { fill: color-mix(in srgb, var(--info) 18%, transparent); stroke: color-mix(in srgb, var(--info) 60%, transparent); }
+.m-group.c2 { fill: color-mix(in srgb, var(--ok) 18%, transparent); stroke: color-mix(in srgb, var(--ok) 60%, transparent); }
+.m-group.c3 { fill: color-mix(in srgb, var(--unclear) 16%, transparent); stroke: color-mix(in srgb, var(--unclear) 60%, transparent); }
+.m-group.c4 { fill: color-mix(in srgb, var(--err) 12%, transparent); stroke: color-mix(in srgb, var(--err) 50%, transparent); }
+.m-group.c5 { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: color-mix(in srgb, var(--accent) 55%, transparent); }
+.m-group-label { font-family: var(--font-display); font-size: var(--fs, 12.5px); font-weight: 700; letter-spacing: .02em; pointer-events: none; }
+.m-group-label.c0 { fill: var(--signal-ink); } .m-group-label.c1 { fill: var(--info); } .m-group-label.c2 { fill: var(--ok); }
+.m-group-label.c3 { fill: var(--unclear); } .m-group-label.c4 { fill: var(--err); } .m-group-label.c5 { fill: var(--accent); }
+.kb-map-svg.focus .m-group { opacity: .45; }
+.kb-map-filters i.l-konzern { border-top: 8px solid color-mix(in srgb, var(--signal) 40%, transparent); border-radius: 4px; width: 16px; height: 0; }
+.kb-company-members { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding: 10px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--signal) 14%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--signal) 55%, transparent); }
+.kb-company-chip { padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); color: var(--fg); text-decoration: none; font-weight: 600; font-size: .9rem; }
+.kb-company-chip.root { border-color: var(--signal); }
+.kb-company-chip.here { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.kb-company-chip small { font-weight: 400; color: inherit; opacity: .75; }
+.kb-company-forms { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: flex-end; }
+.kb-company-forms .row { align-items: flex-end; gap: 8px; }
+.kb-company-forms label { margin: 0; }
+.kb-company-forms select { width: auto; min-width: 200px; }
+.kb-children { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-children li { display: inline-flex; align-items: center; gap: 2px; padding: 0 0 0 10px; border: 1px solid var(--line-2); border-radius: 999px; }
+.kb-children .icon-btn { width: 26px; height: 26px; }

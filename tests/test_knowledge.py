@@ -431,3 +431,35 @@ def test_map_condition_arrow_and_reverse(admin_client, user_client):
     assert any(i["text"] == "Pflicht-Zubehör für Arbeitsscheinwerfer (2 ×)" for i in info[acc])
     assert {n["id"]: n["moq"] for n in d["nodes"]}[nid] == 36
     assert "data-map-connect" in u.get("/wissen").text
+
+
+def test_company_groups_parent_child_map_and_search(admin_client, user_client):
+    """EccoESG ist Mutter von LED Autolamps und Vision Alert: Steckbrief zeigt die Gruppe, Karte liefert die Gruppe
+    für die Blase, Suche nach der Mutter findet die Töchter, Kreise werden verhindert, Lösen geht."""
+    a, u = admin_client, user_client
+    ecco, led, vis = _topic(a, "EccoESG"), _topic(a, "LED Autolamps"), _topic(a, "Vision Alert")
+    grp = _topic(a, "Leuchtbalken", art="gruppe")
+    r = u.post(f"/wissen/{led}/firmengruppe", data={"csrf_token": u.csrf, "mutter": str(ecco)}, follow_redirects=False)
+    assert r.headers["location"].endswith("#firmengruppe")
+    u.post(f"/wissen/{ecco}/firmengruppe", data={"csrf_token": u.csrf, "tochter": str(vis)})   # von der Mutter aus
+    r = u.post(f"/wissen/{ecco}/firmengruppe", data={"csrf_token": u.csrf, "mutter": str(led)}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]  # Kreis
+    r = u.post(f"/wissen/{led}/firmengruppe", data={"csrf_token": u.csrf, "mutter": str(grp)}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]  # nur Hersteller
+    page = a.get(f"/wissen/{vis}").text
+    assert "kb-company-chip root" in page and "EccoESG <small>Mutter</small>" in page and "LED Autolamps" in page
+    assert ">Vision Alert</a>" in page.split("kb-company-members")[1].split("</div>")[0]
+    assert "Firmengruppe · " in page  # Verknüpfungsbild zeigt die Gruppe
+    d = u.get("/api/wissen/karte").json()
+    assert d["groups"] == [{"id": ecco, "name": "EccoESG", "members": [ecco, led, vis]}]
+    nodes = {n["id"]: n for n in d["nodes"]}
+    assert nodes[led]["group"] == ecco and nodes[led]["parent"] == ecco and nodes[grp]["group"] is None
+    assert any(i["text"] == "Gehört zur Firmengruppe EccoESG" and i["target"] == ecco for i in nodes[vis]["info"])
+    assert any("Töchter LED Autolamps, Vision Alert" in i["text"] for i in nodes[ecco]["info"])
+    titles = [h["title"] for h in u.get("/api/wissen/suche?q=ecco").json()["treffer"]]
+    assert {"EccoESG", "LED Autolamps", "Vision Alert"} <= set(titles)
+    with session_scope() as db:
+        assert [c.action for c in kb.history(db, "thema", led)][:1] == ["Firmengruppe"]
+    # Tochter lösen
+    u.post(f"/wissen/{ecco}/firmengruppe", data={"csrf_token": u.csrf, "tochter": str(vis), "loesen": "1"})
+    assert u.get("/api/wissen/karte").json()["groups"][0]["members"] == [ecco, led]

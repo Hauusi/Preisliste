@@ -6,7 +6,7 @@
   if (!box) { return; }
   var svg = box.querySelector("svg"), info = box.querySelector("[data-map-info]"), empty = box.querySelector("[data-map-empty]");
   var NS = "http://www.w3.org/2000/svg";
-  var data = null, nodes = [], edges = [], byId = {}, selected = null, infoLayer = null;
+  var data = null, nodes = [], edges = [], byId = {}, selected = null, infoLayer = null, groups = [], groupLayer = null;
   var view = { x: -400, y: -260, w: 800, h: 520 };
   var LABEL = { artikel: "Artikel", bezug: "Bezug über", pflicht: "Pflicht-Zubehör", eintrag: "gemeinsame Einträge" };
   var STAGE = { erste: "erste Wahl", gut: "gut", notfalls: "nur wenn nötig", abraten: "abraten", offen: "noch nicht bewertet" };
@@ -32,7 +32,11 @@
     edges = data.edges.filter(function (e) { return on[e.type] && byId[e.a] && byId[e.b]; });
     nodes.forEach(function (n) { n.deg = 0; n.links = []; });
     edges.forEach(function (e) { byId[e.a].deg++; byId[e.b].deg++; byId[e.a].links.push(e); byId[e.b].links.push(e); });
-    empty.hidden = edges.length > 0;
+    groups = (data.groups || []).map(function (g, i) {
+      return { id: g.id, name: g.name, color: i % 6, members: g.members.filter(function (id) { return byId[id]; }) };
+    }).filter(function (g) { return g.members.length > 1; });
+    groups.forEach(function (g) { g.members.forEach(function (id) { byId[id].deg = byId[id].deg || 1; }); });
+    empty.hidden = edges.length > 0 || groups.length > 0;
     layout();
     draw();
     fit();
@@ -64,6 +68,14 @@
         var k = (d - (e.label ? 270 : 150)) * 0.04;  // beschriftete Pfeile länger, damit der Text Platz hat
         a.vx += dx / d * k; a.vy += dy / d * k; b.vx -= dx / d * k; b.vy -= dy / d * k;
       });
+      groups.forEach(function (g) {  // Firmengruppe: Töchter bleiben bei der Mutter, damit die Blase kompakt ist
+        var root = byId[g.id] || byId[g.members[0]];
+        g.members.forEach(function (id) {
+          var n = byId[id]; if (n === root) { return; }
+          var dx = root.x - n.x, dy = root.y - n.y, d = Math.sqrt(dx * dx + dy * dy) || 1, k = (d - 120) * 0.05;
+          n.vx += dx / d * k; n.vy += dy / d * k; root.vx -= dx / d * k * 0.5; root.vy -= dy / d * k * 0.5;
+        });
+      });
       nodes.forEach(function (n) {
         if (n.pinned) { return; }
         var m = Math.min(Math.sqrt(n.vx * n.vx + n.vy * n.vy), 40 * t + 2);
@@ -77,6 +89,14 @@
 
   function draw() {
     svg.textContent = "";
+    groupLayer = el("g", { "class": "m-groups" }, svg);
+    groups.forEach(function (g) {
+      g.path = el("path", { "class": "m-group c" + g.color }, groupLayer);
+      g.label = el("text", { "class": "m-group-label c" + g.color }, groupLayer);
+      g.label.textContent = g.name + "-Gruppe";
+      var t = el("title", {}, g.path); t.textContent = "Firmengruppe " + g.name;
+    });
+    groupLayer.style.display = showGroups() ? "" : "none";
     var gEdges = el("g", { "class": "m-edges" }, svg), gNodes = el("g", { "class": "m-nodes" }, svg);
     var defs = el("defs", {}, svg);
     ["bezug", "pflicht"].forEach(function (t) {
@@ -126,6 +146,7 @@
       if (e.text) { e.text.setAttribute("x", ((a.x + b.x) / 2).toFixed(1)); e.text.setAttribute("y", ((a.y + b.y) / 2 - 5).toFixed(1)); }
     });
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
+    groups.forEach(drawGroup);
     if (selected) { drawInfos(selected); }
   }
 
@@ -192,6 +213,48 @@
     if (nx !== view.x || ny !== view.y) { view.x = nx; view.y = ny; applyView(); }
   }
 
+  // ---------- Firmengruppen: weiche Blase um alle Firmen der Gruppe, folgt beim Verschieben ----------
+  function showGroups() { var c = document.querySelector("[data-map-groups]"); return !c || c.checked; }
+  function hull(points) {  // konvexe Hülle (Monotone Chain)
+    points.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    function cross(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+    var lower = [], upper = [];
+    points.forEach(function (p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) { lower.pop(); } lower.push(p); });
+    for (var i = points.length - 1; i >= 0; i--) {
+      var p = points[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) { upper.pop(); }
+      upper.push(p);
+    }
+    upper.pop(); lower.pop();
+    return lower.concat(upper);
+  }
+  function drawGroup(g) {
+    if (!g.path) { return; }
+    var pts = [], fs = fontSize();
+    g.members.forEach(function (id) {
+      var n = byId[id], r = (n.r || 12) + fs * 2.2;
+      for (var k = 0; k < 16; k++) {
+        var a = k / 16 * Math.PI * 2;
+        pts.push([n.x + Math.cos(a) * r * 1.25, n.y + Math.sin(a) * r + (Math.sin(a) > 0 ? fs * 1.2 : 0)]);  // Platz für den Namen
+      }
+    });
+    var h = hull(pts), d = "";
+    if (h.length < 3) { return; }
+    // weiche Kurve durch die Mitten der Hüllkanten
+    function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+    var start = mid(h[h.length - 1], h[0]);
+    d = "M" + start[0].toFixed(1) + "," + start[1].toFixed(1);
+    h.forEach(function (p, i) {
+      var m = mid(p, h[(i + 1) % h.length]);
+      d += " Q" + p[0].toFixed(1) + "," + p[1].toFixed(1) + " " + m[0].toFixed(1) + "," + m[1].toFixed(1);
+    });
+    g.path.setAttribute("d", d + " Z");
+    var top = h.reduce(function (a, b) { return b[1] < a[1] ? b : a; });
+    g.label.setAttribute("x", top[0].toFixed(1));
+    g.label.setAttribute("y", (top[1] + fs * 1.4).toFixed(1));
+    g.label.setAttribute("text-anchor", "middle");
+  }
+
   function select(n, keep) {
     selected = n;
     reveal(drawInfos(n), n);
@@ -252,6 +315,7 @@
     var k = view.w / Math.max(box.clientWidth, 1);
     svg.style.setProperty("--fs", Math.max(9, Math.min(13 * k, 34)).toFixed(1) + "px");
     if (selected && infoLayer) { drawInfos(selected); }
+    groups.forEach(drawGroup);  // Abstand der Blase hängt vom Zoom ab
   }
   function fit() {
     if (!nodes.length) { applyView(); return; }
@@ -392,6 +456,9 @@
     if (b) {
       qty = input({ type: "number", min: "1", max: "999", name: "menge", value: "1", "aria-label": "Stück" });
       note = input({ type: "text", name: "text", maxlength: "1000", placeholder: "z. B. gleiche Halter, austauschbar", "aria-label": "Hinweis" });
+      if (a.kind === "hersteller" && b.kind === "hersteller") {
+        option("konzern", ["Firmengruppe: ", bold(b.name), " ist Tochterfirma von ", bold(a.name)], false);
+      }
       option("pflicht", [a.name + " braucht ", qty, " × " + b.name + " (Pflicht-Zubehör)"], !canRule);
       option("hinweis", ["Hinweis zu beiden: ", note], false);
     }
@@ -410,6 +477,8 @@
         var target = b ? b.id : via.value;
         if (!target) { err.textContent = "Bitte wählen, bei wem sonst bestellt wird."; err.hidden = false; via.focus(); return; }
         req = send("/wissen/" + a.id + "/bezugsregel", { moq: moq.value, lagerware: stock.checked ? "1" : "", via: target, notiz: ruleNote.value });
+      } else if (art === "konzern") {
+        req = send("/wissen/" + a.id + "/firmengruppe", { tochter: b.id });
       } else if (art === "pflicht") {
         req = send("/wissen/" + a.id + "/feld/pflicht", { wert: b.id, menge: qty.value || 1 });
       } else if (art === "hinweis") {
@@ -471,6 +540,8 @@
   var fitBtn = document.querySelector("[data-map-fit]");
   if (fitBtn) { fitBtn.addEventListener("click", fit); }
   document.querySelectorAll("[data-map-type], [data-map-off]").forEach(function (c) { c.addEventListener("change", build); });
+  var groupBox = document.querySelector("[data-map-groups]");
+  if (groupBox) { groupBox.addEventListener("change", function () { if (groupLayer) { groupLayer.style.display = showGroups() ? "" : "none"; } }); }
   window.addEventListener("resize", fit);
 
   fetch("/api/wissen/karte", { credentials: "same-origin", headers: { Accept: "application/json" } })

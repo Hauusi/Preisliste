@@ -506,6 +506,7 @@ welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
 
 - **Bezugsregel** (nur bei Herstellern): derselbe Satz wie oben, das zweite Thema ist der Händler.
 - **„A braucht [1] × B (Pflicht-Zubehör)“** – Pflicht-Zubehör mit Stückzahl.
+- **„Firmengruppe: B ist Tochterfirma von A“** (nur zwischen Herstellern) – siehe Firmengruppen.
 - **„Hinweis zu beiden“** – ein Eintrag, der beiden zugeordnet ist.
 
 „Verbinden“ speichert (mit Name und Zeit wie im Steckbrief), die Karte zeigt sofort die neue Linie. Bezug und
@@ -514,6 +515,20 @@ löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Anga
 verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
 blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
 „Zuletzt geändert“.
+
+**Firmengruppen (Beispiel EccoESG mit LED Autolamps und Vision Alert):** Hersteller können eine
+**Muttergesellschaft** haben. Festlegen im Steckbrief im Kasten **„Firmengruppe“** (nur Hersteller): „Gehört zu
+(Muttergesellschaft)“ wählen – speichert sofort – oder bei der Mutter „Tochterfirma hinzufügen“; „Lösen“ nimmt eine
+Tochter wieder heraus. Alternativ auf der Karte über „Verbinden“. Eine Firma hat höchstens eine Mutter, Kreise
+(A gehört zu B gehört zu A) werden abgelehnt; mehrstufig (Enkel) geht, die Gruppe zählt dann zur obersten Mutter.
+Danach:
+
+- **Karte:** alle Firmen einer Gruppe liegen in einer **farbigen Blase** mit Namen („EccoESG-Gruppe“), jede Gruppe in
+  eigener Farbe. Töchter werden zur Mutter gezogen. Zieht man eine Firma weg, **verformt sich die Blase mit** und
+  umschließt weiter alle Mitglieder. Häkchen „Firmengruppen“ blendet die Blasen aus. Info-Kärtchen: bei der Mutter
+  „Firmengruppe EccoESG: LED Autolamps, Vision Alert“, bei der Tochter „Gehört zur Firmengruppe EccoESG“.
+- **Steckbrief:** oben die Mitglieder der Gruppe als Chips (Mutter markiert, Klick öffnet).
+- **Suche:** „ecco“ findet auch alle Töchter.
 
 **Themen:** links die **Hersteller** und **Artikelgruppen**. Die Herstellerliste ist **gemeinsam für alle**: Jeder
 Hersteller aus den Preislisten aller Benutzer steht automatisch einmal darin (gleicher Name oder Alias = derselbe
@@ -550,7 +565,8 @@ Enter speichert. „nur für mich“ = privater Eintrag, den nur der Ersteller s
 
 - **Zuständig** (oben rechts): eine Person je Hersteller/Gruppe. Sie sieht Meldungen und überfällige Einträge dieses
   Themas auf der Übersicht zuerst („Du bist zuständig“). Themen ohne Zuständigen stehen auf der Übersicht.
-- **Bezugsregel** (nur Hersteller, ganz oben): siehe oben.
+- **Firmengruppe** (nur Hersteller, ganz oben): siehe oben.
+- **Bezugsregel** (nur Hersteller): siehe oben.
 - **Angaben** als **feste Felder**: Lieferzeit, Ansprechpartner (nur Hersteller) und
   **Pflicht-Zubehör** (Artikelgruppe oder Hersteller, Stück je Artikel, Bemerkung; mehrere möglich). Bleistift
   ändert, leer speichern entfernt, unverändert speichern bestätigt. Unter jedem Feld stehen Name und Zeitpunkt der
@@ -703,7 +719,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
-| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, Muttergesellschaft `parent_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

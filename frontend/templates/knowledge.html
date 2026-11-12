@@ -203,6 +203,33 @@
       </div>
 
       {% if topic.kind == "hersteller" %}
+      <section class="kb-panel kb-company" id="firmengruppe">
+        <div class="kb-panel-head"><h2>Firmengruppe</h2><span class="hint">Mutter- und Tochtergesellschaften – auf der Karte als farbige Blase</span></div>
+        {% if company %}
+        <div class="kb-company-members">
+          {% for m in company %}<a class="kb-company-chip{{ ' root' if m.id == company_root.id }}{{ ' here' if m.id == topic.id }}" href="/wissen/{{ m.id }}">{{ m.name }}{% if m.id == company_root.id %} <small>Mutter</small>{% endif %}</a>{% endfor %}
+        </div>
+        {% endif %}
+        <div class="kb-company-forms">
+          <form method="post" action="/wissen/{{ topic.id }}/firmengruppe" class="row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Gehört zu (Muttergesellschaft)
+              <select name="mutter" data-autosubmit><option value="">– keine –</option>{% for m in makers if m.id != topic.id %}<option value="{{ m.id }}"{% if topic.parent_id == m.id %} selected{% endif %}>{{ m.name }}</option>{% endfor %}</select></label>
+            <noscript><button type="submit" class="secondary">Speichern</button></noscript>
+          </form>
+          <form method="post" action="/wissen/{{ topic.id }}/firmengruppe" class="row">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Tochterfirma hinzufügen
+              <select name="tochter" required><option value="">bitte wählen</option>{% for m in makers if m.id != topic.id and m.parent_id != topic.id %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></label>
+            <button type="submit" class="secondary">{{ icon("plus", 16) }} Hinzufügen</button>
+          </form>
+        </div>
+        {% if children %}<ul class="kb-children">{% for c in children %}<li><a href="/wissen/{{ c.id }}">{{ c.name }}</a>
+          <form method="post" action="/wissen/{{ topic.id }}/firmengruppe" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="tochter" value="{{ c.id }}"><input type="hidden" name="loesen" value="1">
+            <button type="submit" class="icon-btn" title="Aus der Gruppe lösen" aria-label="{{ c.name }} aus der Gruppe lösen">{{ icon("x", 14) }}</button></form></li>{% endfor %}</ul>{% endif %}
+      </section>
+
       <section class="kb-panel kb-rule{{ ' empty' if not rule or not rule.via }}" id="regel">
         <div class="kb-panel-head"><h2>Bezugsregel</h2>
           <span class="hint">{% if rule and rule.via %}{{ who(rule.updated.updated_by) }}, {{ rule.updated.updated_at | dt }}{{ " · bitte prüfen" if rule.stale }}{% else %}Wann hier bestellen, wann woanders{% endif %}</span></div>
@@ -401,6 +428,7 @@
             <label><input type="checkbox" data-map-type="bezug" checked> <i class="l-bezug"></i>Bezug über</label>
             <label><input type="checkbox" data-map-type="pflicht" checked> <i class="l-pflicht"></i>Pflicht-Zubehör</label>
             <label><input type="checkbox" data-map-type="eintrag" checked> <i class="l-eintrag"></i>gemeinsame Einträge</label>
+            <label><input type="checkbox" data-map-groups checked> <i class="l-konzern"></i>Firmengruppen</label>
             <label><input type="checkbox" data-map-off> nicht gefolgte</label>
           </span>
           <span class="grow"></span>
