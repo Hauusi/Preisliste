@@ -13,7 +13,7 @@ import re
 import unicodedata
 from datetime import datetime, timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from backend.models.entities import (KbAssortment, KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow,
@@ -1177,3 +1177,84 @@ def series_of(tops, group: KbTopic | None = None, maker: KbTopic | None = None) 
     """Serien einer Artikelgruppe und/oder eines Herstellers, alphabetisch."""
     return sorted((t for t in tops if t.kind == "serie" and (group is None or t.parent_id == group.id)
                    and (maker is None or t.maker_id == maker.id)), key=lambda x: x.name.lower())
+
+
+# ---------- Hersteller, Artikelgruppe oder Serie löschen ----------
+
+def _dependent_series(db: Session, t: KbTopic) -> list[KbTopic]:
+    if t.kind == "gruppe":
+        return list(db.scalars(select(KbTopic).where(KbTopic.kind == "serie", KbTopic.parent_id == t.id)))
+    if t.kind == "hersteller":
+        return list(db.scalars(select(KbTopic).where(KbTopic.kind == "serie", KbTopic.maker_id == t.id)))
+    return []
+
+
+def topic_delete_impact(db: Session, user: User, t: KbTopic) -> tuple[str | None, list[str]]:
+    """(Sperrgrund oder None, Liste was mitgelöscht/geändert wird) für die Sicherheitsabfrage."""
+    if t.kind == "hersteller":
+        keys = {t.key, *(key_of(a) for a in t.aliases or [])}
+        if any(key_of(m.name) in keys for m in db.scalars(select(Manufacturer))):
+            return (f"„{t.name}“ steht in einer Preisliste und käme sofort wieder. Zuerst dort den Hersteller entfernen "
+                    "oder umbenennen.", [])
+    ids = [t.id] + [s.id for s in _dependent_series(db, t)]
+    entries = [e for e in db.scalars(select(KbEntry)) if set(e.topic_ids or []) & set(ids)]
+    only = [e for e in entries if not set(e.topic_ids or []) - set(ids)]
+    impact = []
+    if only:
+        impact.append(f"{len(only)} {'Eintrag, der' if len(only) == 1 else 'Einträge, die'} nur hierzu gehör{'t' if len(only) == 1 else 'en'} (für alle Benutzer)")
+    if len(entries) > len(only):
+        n = len(entries) - len(only)
+        impact.append(f"bei {n} {'weiteren Eintrag' if n == 1 else 'weiteren Einträgen'} wird nur die Zuordnung entfernt")
+    facts = db.scalar(select(func.count()).select_from(KbFact).where(or_(KbFact.topic_id.in_(ids), KbFact.ref_topic_id.in_(ids)))) or 0
+    if facts:
+        impact.append(f"{facts} Angaben (z. B. Lieferzeit, Bezugsregel, Pflicht-Zubehör, auch Verweise anderer)")
+    col = KbProduct.group_id if t.kind == "gruppe" else KbProduct.maker_id
+    prods = db.scalar(select(func.count()).select_from(KbProduct).where(col == t.id)) or 0
+    if prods:
+        impact.append(f"{prods} Artikel im Artikelvergleich" + ("" if t.kind == "gruppe" else " verlieren den Hersteller"))
+    series = _dependent_series(db, t)
+    if series:
+        impact.append("Serien: " + ", ".join(s.name for s in series))
+    asg = db.scalar(select(func.count()).select_from(KbAssortment).where(or_(KbAssortment.maker_id == t.id, KbAssortment.group_id == t.id))) or 0
+    if asg:
+        impact.append(f"{asg} Zuordnung{'en' if asg != 1 else ''} Hersteller ↔ Artikelgruppe")
+    children = db.scalar(select(func.count()).select_from(KbTopic).where(KbTopic.kind == "hersteller", KbTopic.parent_id == t.id)) or 0
+    if children:
+        impact.append(f"{children} Tochterfirma/-firmen verlieren die Muttergesellschaft")
+    if not impact:
+        impact.append("keine weiteren Daten")
+    return None, impact
+
+
+def delete_topic(db: Session, user: User, t: KbTopic) -> None:
+    """Thema löschen samt Serien (bei Gruppe/Hersteller), Angaben, Zuordnungen; Einträge verlieren die Zuordnung,
+    Einträge ohne weiteres Thema werden gelöscht. Im Verlauf bleibt vermerkt, wer es wann gelöscht hat."""
+    for s in _dependent_series(db, t):
+        delete_topic(db, user, s)
+    for e in list(db.scalars(select(KbEntry))):
+        if t.id in (e.topic_ids or []):
+            rest = [i for i in e.topic_ids if i != t.id]
+            if rest:
+                e.topic_ids = rest
+            else:
+                delete_entry(db, user, e)
+    for f in db.scalars(select(KbFact).where(or_(KbFact.topic_id == t.id, KbFact.ref_topic_id == t.id))):
+        db.delete(f)
+    for a in db.scalars(select(KbAssortment).where(or_(KbAssortment.maker_id == t.id, KbAssortment.group_id == t.id))):
+        db.delete(a)
+    for p in db.scalars(select(KbProduct).where(or_(KbProduct.group_id == t.id, KbProduct.maker_id == t.id))):
+        if p.group_id == t.id:
+            db.delete(p)
+        else:
+            p.maker_id = None
+    for u in db.scalars(select(KbUnfollow).where(KbUnfollow.topic_id == t.id)):
+        db.delete(u)
+    for c in db.scalars(select(KbTopic).where(or_(KbTopic.parent_id == t.id, KbTopic.maker_id == t.id))):
+        if c.parent_id == t.id:
+            c.parent_id = None
+        if c.maker_id == t.id:
+            c.maker_id = None
+    log(db, user, "thema", t.id, None, "gelöscht", f"{KINDS[t.kind]}: {t.name}", None)
+    db.flush()
+    db.delete(t)
+    db.flush()

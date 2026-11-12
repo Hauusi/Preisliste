@@ -472,6 +472,12 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 die **Karte** (Umschalter „Karte | Infos“). Die Mitte wechselt nie von selbst auf „Infos“ – die ruft man über den
 Reiter oder den Knopf oben links auf der Karte auf.
 
+- **Löschen:** Mülleimer rechts neben dem Hersteller, der Artikelgruppe oder Serie (erscheint beim Darüberfahren,
+  am Handy immer). Es folgt die übliche Sicherheitsabfrage mit allem, was mitgeht: Einträge, die nur dazu gehören,
+  werden gelöscht, bei anderen nur die Zuordnung entfernt; Angaben (auch Verweise anderer, z. B. Bezugsregel oder
+  Pflicht-Zubehör), Zuordnungen, Serien und (bei Gruppen) der Artikelvergleich gehen mit. Erst mit Häkchen „Ja, …
+  endgültig löschen“. Hersteller, die in einer Preisliste stehen, lassen sich nicht löschen (kämen sofort wieder) –
+  dort zuerst entfernen.
 - **Listen:** Firmengruppen stehen links zusammen (Mutter, darunter eingerückt die Töchter, farbiger Strich wie die
   Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
   eigenes Filterfeld; Enter wählt den ersten Treffer.

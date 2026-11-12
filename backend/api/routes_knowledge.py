@@ -559,6 +559,28 @@ async def flag(request: Request, entry_id: int, db: Session = Depends(get_db), u
     return _ret(back, None, anchor=f"#e{e.id}")
 
 
+@router.get("/wissen/{topic_id}/loeschen")
+def confirm_delete_topic(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    blocked, impact = kb.topic_delete_impact(db, user, t)
+    return render(request, "confirm_delete.html", {
+        "portal": True, "title": f"{kb.KINDS[t.kind]} löschen", "name": t.name, "action": f"/wissen/{t.id}/loeschen",
+        "back": "/wissen", "blocked": blocked, "impact": impact})
+
+
+@router.post("/wissen/{topic_id}/loeschen", dependencies=[Depends(check_csrf)])
+async def delete_topic(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    t = _topic(db, topic_id)
+    if (await request.form()).get("bestaetigt") != "ja":
+        return RedirectResponse(f"/wissen/{t.id}/loeschen", status_code=303)
+    blocked, _impact = kb.topic_delete_impact(db, user, t)
+    if blocked:
+        return RedirectResponse(f"/wissen/{t.id}/loeschen", status_code=303)
+    audit(db, user, "wissen_thema_geloescht", "kb_topic", t.id, {"art": t.kind, "name": t.name}, client_ip(request))
+    kb.delete_topic(db, user, t)
+    return RedirectResponse("/wissen", status_code=303)
+
+
 @router.get("/wissen/eintrag/{entry_id}/loeschen")
 def confirm_delete(request: Request, entry_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     e = _entry(db, entry_id, user)
