@@ -359,7 +359,7 @@
     else if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
     nodes.forEach(function (x) { x.g.classList.toggle("hi", !!n && !!near[x.id]); x.g.classList.toggle("sel", !!n && (x === n || x === second)); });
     edges.forEach(function (e) {
-      var on = !!n && (second ? near[e.a] && near[e.b] : e.a === n.id || e.b === n.id);
+      var on = !!n && !!(second ? near[e.a] && near[e.b] : e.a === n.id || e.b === n.id);
       e.line.classList.toggle("hi", on);
       if (e.text) { e.text.classList.toggle("hi", on); }
     });

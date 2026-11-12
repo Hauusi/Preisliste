@@ -469,7 +469,8 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
 **Startseite – drei Spalten, volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen**, in der Mitte
-die **Infos** (Umschalter „Infos | Karte“).
+die **Karte** (Umschalter „Karte | Infos“). Die Mitte wechselt nie von selbst auf „Infos“ – die ruft man über den
+Reiter oder den Knopf oben links auf der Karte auf.
 
 - **Listen:** Firmengruppen stehen links zusammen (Mutter, darunter eingerückt die Töchter, farbiger Strich wie die
   Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
@@ -480,10 +481,11 @@ die **Infos** (Umschalter „Infos | Karte“).
   geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
   Artikel-Linie.
 - **Start:** Die Seite öffnet immer ohne Auswahl (auch nach Neuladen); in der Mitte der Überblick.
-- **Hersteller anklicken** (z. B. Redtronic): in der Mitte **alle Redtronic-Infos**; rechts **leuchten die bei
-  Redtronic hinterlegten Artikelgruppen auf** (blau). Sonst ist nichts eingefärbt.
+- **Hersteller anklicken** (z. B. Redtronic): auf der Karte ist Redtronic hervorgehoben, oben links „Redtronic – Jetzt
+  rechts eine Artikelgruppe wählen“ mit Knopf „Infos zu Redtronic“; rechts **leuchten die bei Redtronic hinterlegten
+  Artikelgruppen auf** (blau). Sonst ist nichts eingefärbt. Im Reiter „Infos“ stehen **alle Redtronic-Infos**.
 - **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge).
-- **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): die Mitte springt auf die **Karte** und zeigt einen
+- **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): die Karte zeigt einen
   **Pfeil Redtronic → Leuchtbalken** (beide hervorgehoben, Rest abgeblendet); oben links „Redtronic → Leuchtbalken“ mit
   Knopf **„Alle Infos dazu“**. Im Reiter „Infos“ dann: Verbindung (führt / nicht zugeordnet, mit Knopf „… hinzufügen“),
   Redtronic-Artikel in der Gruppe mit Platz im Vergleich, Pflicht-Zubehör zwischen beiden, **Einträge zu beiden**

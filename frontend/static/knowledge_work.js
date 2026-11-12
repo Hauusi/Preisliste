@@ -56,7 +56,8 @@
         // Adresse bleibt /wissen: beim nächsten Öffnen ist nichts vorausgewählt
         if (location.search) { try { history.replaceState(null, "", "/wissen"); } catch (e) { /* egal */ } }
         if (window.kbMap) { window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
-        if (!opts.fromMap && !opts.keepScroll && window.innerWidth < 1100) { detail.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        updateBar();
+        if (!detail.hidden && !opts.fromMap && !opts.keepScroll && window.innerWidth < 1100) { detail.scrollIntoView({ behavior: "smooth", block: "start" }); }
       })
       .catch(function () { if (my === seq) { location.href = url(); } });
   }
@@ -66,9 +67,7 @@
     var kind = kinds[id] || "hersteller", key = kind === "hersteller" ? "f" : "g";
     if (only) { state.f = state.g = null; state[key] = id; }
     else { state[key] = state[key] === id && !fromMap && !keep ? null : id; }
-    // Erst Hersteller, dann Artikelgruppe: auf der Karte den Pfeil zeigen; sonst die Infos
-    var pair = key === "g" && state.f && state.g && !only;
-    showTab(pair ? "karte" : "infos");
+    // Ansicht bleibt, wie sie ist (Karte oder Infos) – „Infos“ ruft man selbst auf
     load({ fromMap: fromMap });
   }
 
@@ -91,14 +90,20 @@
     tabs.forEach(function (t) { t.setAttribute("aria-selected", t.getAttribute("data-tab") === name ? "true" : "false"); });
     document.querySelectorAll("[data-pane]").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== name; });
     if (name === "karte" && window.kbMap) { window.kbMap.show(); window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
+    updateBar();
+  }
+  // Leiste oben links auf der Karte: Auswahl („Hella“ bzw. „Hella → Leuchtbalken“) und Knopf zu den Infos
+  function updateBar() {
     var bar = document.querySelector("[data-map-pair]");
-    if (bar) {
-      bar.hidden = !(state.f && state.g);
-      if (state.f && state.g) {
-        var nf = document.querySelector('[data-list] [data-pick="' + state.f + '"] span'), ng = document.querySelector('[data-list] [data-pick="' + state.g + '"] span');
-        bar.querySelector("b").textContent = (nf ? nf.textContent : "") + " → " + (ng ? ng.textContent : "");
-      }
-    }
+    if (!bar) { return; }
+    function name(id) { var n = document.querySelector('[data-list] [data-pick="' + id + '"] span'); return n ? n.textContent : ""; }
+    bar.hidden = !(state.f || state.g);
+    if (bar.hidden) { return; }
+    bar.querySelector("b").textContent = state.f && state.g ? name(state.f) + " → " + name(state.g) : name(state.f || state.g);
+    bar.querySelector("button").textContent = state.f && state.g ? "Alle Infos dazu" : "Infos zu " + name(state.f || state.g);
+    var hint = bar.querySelector("small");
+    hint.hidden = !(state.f && !state.g);
+    hint.textContent = "Jetzt rechts eine Artikelgruppe wählen";
   }
   tabs.forEach(function (t) { t.addEventListener("click", function () { showTab(t.getAttribute("data-tab")); }); });
   document.addEventListener("click", function (ev) {
