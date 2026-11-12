@@ -587,3 +587,42 @@ def test_assortment_assign_groups_to_maker(user_client):
     with session_scope() as db:
         actions = [c.action for c in db.query(kb.KbChange).filter_by(topic_id=red)]
     assert actions.count("Artikelgruppe") == 2
+
+
+def test_series_in_group_with_maker(user_client):
+    """Serien (z. B. Spartan = Leuchtbalken von Redtronic): anlegen bei Gruppe/Hersteller/Kombi, eigene Infos,
+    Erkennung im Text, Ausgabe in Gruppe, Hersteller, Kombi und eigenem Fenster; nicht auf der Karte."""
+    u = user_client
+    red, balken = _topic(u, "Redtronic"), _topic(u, "Leuchtbalken", "gruppe")
+    r = u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red,
+                                      "aliase": "Spartan LED", "zurueck": f"start:{balken}"}, follow_redirects=False)
+    assert r.headers["location"] == f"/wissen?t={balken}"
+    with session_scope() as db:
+        sp = db.query(KbTopic).filter_by(kind="serie").one()
+        assert (sp.name, sp.parent_id, sp.maker_id, sp.aliases) == ("Spartan", balken, red, ["Spartan LED"])
+        spid = sp.id
+    # Gruppe wird dem Hersteller automatisch zugeordnet
+    assert re.search(r'data-asg-f="[\d,]*%d' % balken, u.get(f"/wissen/{red}/kurz").text)
+    # nur über /wissen/serie, nicht als normales Thema; doppelt = dieselbe
+    assert u.post("/wissen/thema", data={"csrf_token": u.csrf, "art": "serie", "name": "X"}, follow_redirects=False
+                  ).headers["location"].startswith("/wissen?fehler=")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "spartan", "gruppe": balken, "hersteller": red})
+
+    # Infos zur Serie: Text mit „Spartan“ wird erkannt; Angabe Lieferzeit
+    _entry(u, "Spartan gibt es nur bis 1,50 m")
+    u.post(f"/wissen/{spid}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "8 Wochen"})
+    _entry(u, "Leuchtbalken immer mit Kabelsatz anbieten", themen=[balken])
+    frag = u.get(f"/wissen/{spid}/kurz").text
+    assert "Spartan gibt es nur bis 1,50 m." in frag and "8 Wochen" in frag
+    assert "Artikelgruppe</small> Leuchtbalken" in frag and "Hersteller</small> Redtronic" in frag
+    assert "Gilt für alle Leuchtbalken" in frag and "Kabelsatz" in frag
+
+    # Ausgabe bei Gruppe, Hersteller, Kombi und in der Liste rechts
+    for url in (f"/wissen/{balken}/kurz", f"/wissen/{red}/kurz", f"/wissen/kombi?f={red}&g={balken}"):
+        assert 'data-only="%d"><b>Spartan</b>' % spid in u.get(url).text, url
+    assert "Serien von Redtronic in Leuchtbalken" in u.get(f"/wissen/kombi?f={red}&g={balken}").text
+    page = u.get("/wissen").text
+    assert re.search(r'<li class="child serie"[^>]*>\s*<a href="/wissen\?t=%d" data-pick="%d" data-kind="serie"' % (spid, spid), page)
+    assert "Spartan" in u.get(f"/wissen?f={red}&g={spid}").text  # Serie als „Gruppe“ gewählt: eigenes Fenster
+    assert all(n["id"] != spid for n in u.get("/api/wissen/karte").json()["nodes"])
+    assert u.get(f"/wissen/{spid}").status_code == 200  # Steckbrief

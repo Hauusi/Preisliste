@@ -1418,3 +1418,23 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .kb-rows li.lit:not(.active) > a { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .kb-map-pair > span { display: grid; min-width: 0; }
 .kb-map-pair small { color: var(--muted); font-size: .8rem; }
+
+/* Serien (z. B. Spartan = Leuchtbalken von Hersteller X) */
+.kb-rows li.serie > a { padding-left: 26px; font-size: .88rem; color: var(--fg-2); }
+.kb-rows li.serie > a > span::before { content: "Serie "; color: var(--muted); font-size: .76rem; }
+.kb-d-series { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kb-d-series a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 8px 12px;
+  border: 1px solid var(--line); border-left: 3px solid var(--unclear); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2); color: var(--fg); text-decoration: none; }
+.kb-d-series a:hover { border-color: var(--accent); }
+.kb-d-series a span { color: var(--fg-2); font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-d-series a small { color: var(--muted); font-size: .78rem; }
+.kb-d-new > summary { list-style: none; cursor: pointer; color: var(--accent); font-weight: 600; font-size: .9rem; display: inline-flex; align-items: center; gap: 5px; }
+.kb-d-new > summary::-webkit-details-marker { display: none; }
+.kb-d-newform { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 12px; margin-top: 8px; align-items: end; }
+.kb-d-newform label { margin: 0; font-size: .86rem; }
+.kb-d-newform button { justify-self: start; }
+.kb-asg-chip-ro { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--line-2);
+  background: var(--surface); color: var(--fg); font-weight: 600; text-decoration: none; font-size: .9rem; }
+.kb-asg-chip-ro small { color: var(--muted); font-weight: 500; font-size: .76rem; }
+.kb-asg-chip-ro:hover { border-color: var(--accent); color: var(--accent); }

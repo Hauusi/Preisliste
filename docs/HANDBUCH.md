@@ -491,6 +491,15 @@ Reiter oder den Knopf oben links auf der Karte auf.
   Redtronic-Artikel in der Gruppe mit Platz im Vergleich, Pflicht-Zubehör zwischen beiden, **Einträge zu beiden**
   (dort direkt neu eintragen – gehört dann zu beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von
   Redtronic“** (Bezugsregel, Angaben, allgemeine Einträge).
+- **Serien** (z. B. „Spartan“ = Leuchtbalken von Redtronic): gehören immer zu **einer Artikelgruppe und einem
+  Hersteller**. Anlegen mit „+ Serie anlegen“ im Infofenster der Artikelgruppe, des Herstellers oder bei
+  „Redtronic × Leuchtbalken“ (Name, ggf. andere Schreibweisen). Die Gruppe wird dabei dem Hersteller zugeordnet.
+  Serien stehen rechts eingerückt unter ihrer Artikelgruppe („Serie Spartan“) und leuchten mit auf, wenn ihr Hersteller
+  gewählt ist. Klick auf die Serie zeigt **ihre eigenen Infos**: Angaben (Lieferzeit, Pflicht-Zubehör, freie Angaben
+  im Steckbrief), Einträge (direkt neu eintragen) und darunter „Gilt für alle Leuchtbalken“ und „Gilt für alles von
+  Redtronic“. Einträge, in denen der Serienname vorkommt („Spartan nur bis 1,50 m“), werden automatisch der Serie
+  zugeordnet. Gruppe oder Hersteller ändern: „Gruppe oder Hersteller ändern“ im Infofenster der Serie; Name und andere
+  Schreibweisen im Steckbrief. Serien erscheinen nicht auf der Karte.
 - Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
 - **Abwählen:** Klick auf einen gewählten Hersteller oder eine gewählte Gruppe (in der Liste oder auf der Karte) wählt
   nur diesen ab, der andere bleibt. **Klick auf eine leere Fläche** (Kartenhintergrund oder leerer Bereich einer
@@ -749,7 +758,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
 | `kb_assortment` | Vertriebswissen: welche Artikelgruppen ein Hersteller führt (Hersteller, Gruppe, wer, wann) |
-| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, Muttergesellschaft `parent_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen, Serien; Name, Schlüssel, Muttergesellschaft bzw. bei Serien Artikelgruppe `parent_id`, Hersteller einer Serie `maker_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

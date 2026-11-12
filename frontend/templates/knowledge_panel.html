@@ -32,6 +32,32 @@
 </li>
 {%- endmacro %}
 
+{% macro series_block(items, group=None, maker=None, back="", title="Serien") -%}
+<section class="kb-d-sec kb-d-series-sec">
+  <h3>{{ title }} <small>{{ items | length }}</small></h3>
+  {% if items %}
+  <ul class="kb-d-series">{% for x in items %}
+    <li><a href="/wissen?t={{ x.id }}" data-only="{{ x.id }}"><b>{{ x.name }}</b>
+      <span>{% if not group and x.parent_id in by_id %}{{ by_id[x.parent_id].name }}{% endif %}{% if not group and not maker %} · {% endif %}{% if not maker and x.maker_id in by_id %}{{ by_id[x.maker_id].name }}{% endif %}</span>
+      <small>{{ s_counts.get(x.id, 0) }} {{ "Eintrag" if s_counts.get(x.id, 0) == 1 else "Einträge" }}</small></a></li>{% endfor %}
+  </ul>
+  {% else %}<p class="kb-d-empty">Noch keine Serie. Serien wie „Spartan“ mit eigenen Infos anlegen.</p>{% endif %}
+  <details class="kb-d-new">
+    <summary>{{ icon("plus", 14) }} Serie anlegen</summary>
+    <form method="post" action="/wissen/serie" class="kb-d-newform" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ back }}">
+      <label>Name <input name="name" maxlength="120" required placeholder="z. B. Spartan"></label>
+      {% if group %}<input type="hidden" name="gruppe" value="{{ group.id }}">
+      {% else %}<label>Artikelgruppe <select name="gruppe" required><option value="">bitte wählen</option>{% for x in s_groups | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>{% endif %}
+      {% if maker %}<input type="hidden" name="hersteller" value="{{ maker.id }}">
+      {% else %}<label>Hersteller <select name="hersteller" required><option value="">bitte wählen</option>{% for x in s_makers | sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>{% endif %}
+      <label>Andere Schreibweisen <input name="aliase" maxlength="300" placeholder="optional, z. B. Spartan LED"></label>
+      <button type="submit">Anlegen</button>
+    </form>
+  </details>
+</section>
+{%- endmacro %}
+
 {% if pair is defined %}{% set f, g, P = pf, pg, pair %}{% set back = "kombi:%d:%d" % (f.id, g.id) %}
 <div class="kb-d" data-panel="{{ f.id }}" data-f="{{ f.id }}" data-g="{{ g.id }}"
      data-rel-f="{{ rel_f.keys() | join(',') }}" data-rel-g="{{ rel_g.keys() | join(',') }}"
@@ -83,6 +109,8 @@
     {% endif %}
   </section>
 
+  {{ series_block(p_series, g, f, back, "Serien von " ~ f.name ~ " in " ~ g.name) }}
+
   {% if P.pflicht %}
   <section class="kb-d-sec">
     <h3>Pflicht-Zubehör</h3>
@@ -128,7 +156,7 @@
 {% elif sel %}{% set t = p_topic %}
 <div class="kb-d" data-panel="{{ t.id }}" data-panel-name="{{ t.name }}"
      data-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ t.id }}" data-rel-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_rel.keys() | join(',') }}"
-     data-asg-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_assigned | map(attribute='id') | join(',') }}">
+     data-asg-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ ((p_assigned | map(attribute='id') | list) + ((p_series or []) | map(attribute='id') | list)) | join(',') }}">
   <header class="kb-d-head">
     <div class="kb-d-title">
       <span class="kb-d-kind">{{ kinds[t.kind] }}{% if t.aliases %} · auch {{ t.aliases | join(", ") }}{% endif %}</span>
@@ -146,6 +174,25 @@
     </form>
   </div>
 
+  {% if t.kind == "serie" %}
+  <section class="kb-d-sec">
+    <h3>Serie</h3>
+    <div class="kb-d-chips">
+      {% if s_group %}<a class="kb-asg-chip-ro" href="/wissen?t={{ s_group.id }}" data-only="{{ s_group.id }}"><small>Artikelgruppe</small> {{ s_group.name }}</a>{% endif %}
+      {% if s_maker %}<a class="kb-asg-chip-ro" href="/wissen?t={{ s_maker.id }}" data-only="{{ s_maker.id }}"><small>Hersteller</small> {{ s_maker.name }}</a>{% endif %}
+    </div>
+    <details class="kb-d-new">
+      <summary>{{ icon("pencil", 14) }} Gruppe oder Hersteller ändern</summary>
+      <form method="post" action="/wissen/serie" class="kb-d-newform" data-panel-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="start:{{ t.id }}">
+        <input type="hidden" name="id" value="{{ t.id }}"><input type="hidden" name="name" value="{{ t.name }}">
+        <label>Artikelgruppe <select name="gruppe" required>{% for x in s_groups | sort(attribute="name") %}<option value="{{ x.id }}"{% if s_group and x.id == s_group.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+        <label>Hersteller <select name="hersteller" required>{% for x in s_makers | sort(attribute="name") %}<option value="{{ x.id }}"{% if s_maker and x.id == s_maker.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+        <button type="submit">Speichern</button>
+      </form>
+    </details>
+  </section>
+  {% else %}
   {% set maker = t.kind == "hersteller" %}
   <section class="kb-d-sec kb-d-assort">
     <h3>{{ "Artikelgruppen" if maker else "Hersteller" }} <small>{{ p_assigned | length }}</small></h3>
@@ -170,6 +217,9 @@
     </form>
     {% endif %}
   </section>
+
+  {{ series_block(p_series, t if t.kind == "gruppe" else None, t if t.kind == "hersteller" else None, "start:%d" % t.id) }}
+  {% endif %}
 
   {% if p_company | length > 1 %}
   <section class="kb-d-sec">
@@ -245,6 +295,26 @@
     {% endfor %}
     {% if not p_entries %}<p class="kb-d-empty">Noch nichts eingetragen.</p>{% endif %}
   </section>
+  {% if t.kind == "serie" and s_pair %}{% set P = s_pair %}
+  {% if P.general %}
+  <section class="kb-d-sec">
+    <h3>Gilt für alle {{ s_group.name }} <small>{{ P.general | length }}</small></h3>
+    <ul class="kb-d-entries">{% for e in P.general[:8] %}{{ entry_row(e, s_group.id, back="start:%d" % t.id) }}{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% if (P.rule and P.rule.via) or P.maker_facts or P.maker_general %}
+  <section class="kb-d-sec">
+    <h3>Gilt für alles von {{ s_maker.name }}</h3>
+    {% if P.rule and P.rule.via %}{% set pos, neg = rule_conditions(P.rule) %}
+    <ul class="kb-d-rule">
+      <li class="yes"><span>{{ pos[:1].upper() ~ pos[1:] }}</span><b>bei {{ s_maker.name }}</b></li>
+      <li class="no"><span>{{ neg[:1].upper() ~ neg[1:] }}</span><b>bei {{ pick(P.rule.via) }}</b></li>
+    </ul>{% endif %}
+    {% if P.maker_facts %}<dl class="kb-d-facts">{% for label, value in P.maker_facts %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
+    {% if P.maker_general %}<ul class="kb-d-entries">{% for e in P.maker_general[:8] %}{{ entry_row(e, s_maker.id, back="start:%d" % t.id) }}{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
+  {% endif %}
 </div>
 
 {% else %}

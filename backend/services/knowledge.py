@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from backend.models.entities import (KbAssortment, KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow,
                                      Manufacturer, User, utcnow)
 
-KINDS = {"hersteller": "Hersteller", "gruppe": "Artikelgruppe"}
+KINDS = {"hersteller": "Hersteller", "gruppe": "Artikelgruppe", "serie": "Serie"}
 TYPES = {  # Reihenfolge = Reihenfolge im Steckbrief
     "bezug": "Bezugsweg / Bedingung",
     "kalk": "Kalkulation",
@@ -46,7 +46,7 @@ FIELDS = {
 }
 # Im Raster „Angaben“; Mindestmenge und Bezug stehen in der Bezugsregel. „lager“ nur noch, wenn schon eingetragen.
 FIELDS_BY_KIND = {"hersteller": ["lieferzeit", "kontakt", "pflicht"],
-                  "gruppe": ["lieferzeit", "pflicht"]}
+                  "gruppe": ["lieferzeit", "pflicht"], "serie": ["lieferzeit", "pflicht"]}
 RULE_FIELDS = ("moq", "bezug_klein", "regel_lager", "regel_notiz")
 LAGER_CHOICES = ["ja", "teilweise", "nein"]
 HINT_TYPES = ("pflicht", "bezug", "kalk")
@@ -117,6 +117,8 @@ def create_topic(db: Session, user: User | None, kind: str, name: str, aliases=N
     name = clean_name(name)
     if kind not in KINDS or not key_of(name):
         raise ValueError("Art und Name angeben")
+    if kind == "serie":  # Serien nur mit Artikelgruppe und Hersteller (save_series)
+        raise ValueError("Serien bitte bei der Artikelgruppe anlegen.")
     existing = find_topic(db, kind, name)
     if existing:
         return existing
@@ -858,7 +860,7 @@ def map_data(db: Session, user: User) -> dict:
     """Knoten = Hersteller und Artikelgruppen, Kanten mit Bedeutung: Artikel (Hersteller liefert in Gruppe, Stärke nach
     bester Bewertung), Bezug über, Pflicht-Zubehör, gemeinsame Einträge. Nicht gefolgte Themen sind markiert."""
     hidden = unfollowed(db, user)
-    tops = {t.id: t for t in topics(db)}
+    tops = {t.id: t for t in topics(db) if t.kind != "serie"}  # Serien stehen bei ihrer Artikelgruppe, nicht auf der Karte
     entries = [e for e in db.scalars(visible_entries(db, user))]
     counts: dict[int, int] = {}
     pcounts: dict[int, int] = {}
@@ -1134,3 +1136,44 @@ def pair_info(db: Session, user: User, maker: KbTopic, group: KbTopic, by_id: di
     return {"maker_general": maker_general, "maker_facts": facts, "mine": [r for r in rows if r["p"].maker_id == maker.id], "others": [r for r in rows if r["p"].maker_id != maker.id],
             "rated": rated, "entries": entries, "general": general, "pflicht": pflicht, "rule": rule,
             "criteria": criteria_of(group)}
+
+
+
+# ---------- Serien (z. B. „Spartan“ = Leuchtbalken von Hersteller X) ----------
+
+def save_series(db: Session, user: User, name: str, group: KbTopic, maker: KbTopic, aliases=None,
+                series: KbTopic | None = None) -> KbTopic:
+    """Serie anlegen oder (series) Artikelgruppe/Hersteller ändern. Ordnet die Gruppe dem Hersteller zu."""
+    if group.kind != "gruppe" or maker.kind != "hersteller":
+        raise ValueError("Bitte Artikelgruppe und Hersteller wählen.")
+    name = clean_name(name)
+    if not key_of(name):
+        raise ValueError("Name der Serie angeben.")
+    other = find_topic(db, "serie", name)
+    if other and (series is None or other.id != series.id):
+        if other.parent_id == group.id and other.maker_id == maker.id:
+            return other
+        raise ValueError(f"Serie „{other.name}“ gibt es schon.")
+    if series is None:
+        series = KbTopic(kind="serie", name=name, key=key_of(name),
+                         aliases=[clean_name(a) for a in (aliases or []) if key_of(a)], parent_id=group.id, maker_id=maker.id)
+        db.add(series)
+        db.flush()
+        log(db, user, "thema", series.id, series.id, "angelegt", None, f"{name} ({group.name}, {maker.name})")
+    else:
+        before = f"{series.name} ({group_name(db, series)})"
+        series.name, series.key, series.parent_id, series.maker_id = name, key_of(name), group.id, maker.id
+        log(db, user, "thema", series.id, series.id, "geändert", before, f"{name} ({group.name}, {maker.name})")
+    set_assortment(db, user, maker, group, True)
+    return series
+
+
+def group_name(db: Session, t: KbTopic) -> str:
+    g = db.get(KbTopic, t.parent_id) if t.parent_id else None
+    return g.name if g else ""
+
+
+def series_of(tops, group: KbTopic | None = None, maker: KbTopic | None = None) -> list[KbTopic]:
+    """Serien einer Artikelgruppe und/oder eines Herstellers, alphabetisch."""
+    return sorted((t for t in tops if t.kind == "serie" and (group is None or t.parent_id == group.id)
+                   and (maker is None or t.maker_id == maker.id)), key=lambda x: x.name.lower())
