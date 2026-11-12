@@ -170,11 +170,11 @@
 
     <section class="kb-center">
       <div class="kb-tabs" role="tablist" aria-label="Ansicht">
-        <button type="button" role="tab" aria-selected="true" data-tab="infos">Infos</button>
-        <button type="button" role="tab" aria-selected="false" data-tab="karte">Karte</button>
+        <button type="button" role="tab" aria-selected="true" data-tab="karte">Karte</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="infos">Infos</button>
       </div>
-      <div class="kb-detail" data-kb-detail data-pane="infos">{% include "knowledge_panel.html" %}</div>
-      <div class="kb-panel kb-map-panel" data-pane="karte" hidden aria-label="Karte">
+      <div class="kb-detail" data-kb-detail data-pane="infos" hidden>{% include "knowledge_panel.html" %}</div>
+      <div class="kb-panel kb-map-panel" data-pane="karte" aria-label="Karte">
         <div class="kb-map-bar">
           <button type="button" class="secondary kb-map-connect" data-map-connect aria-pressed="false" title="Zwei Themen verbinden: erst das eine, dann das andere antippen">{{ icon("link", 16) }} Verbinden</button>
           <details class="kb-map-layers">
@@ -196,7 +196,7 @@
         </div>
         <div class="kb-map" data-kb-map title="Klick: Infos · Doppelklick: Steckbrief · ziehen verschiebt · Mausrad zoomt">
           <svg class="kb-map-svg" role="img" aria-label="Karte der Hersteller und Artikelgruppen mit ihren Verbindungen"></svg>
-          <div class="kb-map-pair" data-map-pair hidden><b></b><button type="button" class="secondary" data-show-infos>Alle Infos dazu</button></div>
+          <div class="kb-map-pair" data-map-pair hidden><span><b></b><small hidden></small></span><button type="button" class="secondary" data-show-infos>Alle Infos dazu</button></div>
           <p class="kb-map-empty hint" data-map-empty hidden>Noch keine Verbindungen. Sie entstehen durch Bezugsregeln, Firmengruppen, Pflicht-Zubehör und Artikelvergleiche.</p>
         </div>
       </div>

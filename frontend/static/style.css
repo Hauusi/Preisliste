@@ -1416,3 +1416,5 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .kb-map-pair button { padding: 5px 12px; font-size: .86rem; flex-shrink: 0; }
 /* Hinterlegte Artikelgruppen des gewählten Herstellers leuchten auf */
 .kb-rows li.lit:not(.active) > a { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.kb-map-pair > span { display: grid; min-width: 0; }
+.kb-map-pair small { color: var(--muted); font-size: .8rem; }
