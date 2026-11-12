@@ -51,7 +51,7 @@ RULE_FIELDS = ("moq", "bezug_klein", "regel_lager", "regel_notiz")
 LAGER_CHOICES = ["ja", "teilweise", "nein"]
 HINT_TYPES = ("pflicht", "bezug", "kalk")
 LINK_LABELS = {"bezug": "Bezugsweg", "kalk": "Kalkulation", "pflicht": "Pflicht-Zubehör", "liefer": "Lieferzeit",
-               "hinweis": "Hinweis", "artikel": "Artikel"}
+               "hinweis": "Hinweis", "artikel": "Artikel", "konzern": "Firmengruppe"}
 
 # Artikelvergleich: Punkte 1–5 je Kriterium, Schnitt ergibt Rang und Stufe
 DEFAULT_CRITERIA = ["Helligkeit", "Qualität", "Preis", "Lieferbarkeit"]
@@ -564,10 +564,10 @@ def history(db: Session, obj: str, obj_id: int) -> list[KbChange]:
 
 
 def neighbours(entries: list[KbEntry], topic_id: int, facts: list[KbFact] | None = None,
-               products: list[int] | None = None) -> list[tuple[int, str, int]]:
+               products: list[int] | None = None, company: list[int] | None = None) -> list[tuple[int, str, int]]:
     """Themen, die über Einträge oder feste Felder (Bezug über, Pflicht-Zubehör) verbunden sind:
     (Thema, wichtigste Art, Anzahl Verbindungen)."""
-    weight = {"pflicht": 3, "artikel": 2, "bezug": 2, "kalk": 1, "liefer": 0, "hinweis": 0}
+    weight = {"pflicht": 3, "artikel": 2, "bezug": 2, "konzern": 1, "kalk": 1, "liefer": 0, "hinweis": 0}
     out: dict[int, list] = {}
 
     def add(t: int, kind: str) -> None:
@@ -585,6 +585,9 @@ def neighbours(entries: list[KbEntry], topic_id: int, facts: list[KbFact] | None
             add(f.ref_topic_id, "pflicht" if f.field == "pflicht" else "bezug")
     for other in products or []:  # Artikelvergleich: Hersteller ↔ Artikelgruppe
         add(other, "artikel")
+    for other in company or []:  # gleiche Firmengruppe
+        if other != topic_id:
+            add(other, "konzern")
     return [(t, k, n) for t, (k, n) in out.items()]
 
 
@@ -671,7 +674,8 @@ def search(db: Session, user: User, q: str, limit: int = 30) -> list[dict]:
     by_all = {t.id: t for t in topics(db)}
     hits = []
     for t in tops.values():
-        hay = key_of(" ".join([t.name, *(t.aliases or []), KINDS[t.kind]]))
+        root = root_of(t, by_all)
+        hay = key_of(" ".join([t.name, *(t.aliases or []), KINDS[t.kind], root.name if root.id != t.id else ""]))
         if _match(hay, alts):
             hits.append({"url": f"/wissen/{t.id}", "title": t.name, "sub": KINDS[t.kind], "rank": 0})
     for f in db.scalars(select(KbFact).where(KbFact.topic_id.in_(list(tops)))):
@@ -900,14 +904,25 @@ def map_data(db: Session, user: User) -> dict:
     for e in edges.values():
         if e["type"] == "artikel":
             e["stage"] = stage_of(e.get("score"))[0]
+    groups = company_groups(tops)
+    member_of = {m.id: rid for rid, ms in groups.items() for m in ms}
     infos = map_infos(db, tops, entries)
+    for rid, ms in groups.items():  # Kärtchen: zu welcher Gruppe gehört die Firma
+        for m in ms:
+            others = [x.name for x in ms if x.id != m.id]
+            text = (f"Firmengruppe {tops[rid].name}: Töchter {', '.join(others)}" if m.id == rid
+                    else f"Gehört zur Firmengruppe {tops[rid].name}")
+            infos.setdefault(m.id, []).append({"type": "konzern", "text": text, "stale": False,
+                                               "target": rid if m.id != rid else None})
     nodes = [{"id": t.id, "name": t.name, "kind": t.kind, "n": counts.get(t.id, 0) + pcounts.get(t.id, 0),
               "entries": counts.get(t.id, 0), "products": pcounts.get(t.id, 0), "off": t.id in hidden,
               "owner": t.owner_id == user.id, "info": infos.get(t.id, []), "moq": moqs.get(t.id),
               "rule": ({"moq": rules[t.id]["moq"], "stock": rules[t.id]["stock"], "note": rules[t.id]["note"],
-                        "via": rules[t.id]["via"].id if rules[t.id]["via"] else None} if t.id in rules else None)}
+                        "via": rules[t.id]["via"].id if rules[t.id]["via"] else None} if t.id in rules else None),
+              "group": member_of.get(t.id), "parent": t.parent_id if t.parent_id in tops else None}
              for t in tops.values()]
-    return {"nodes": nodes, "edges": list(edges.values())}
+    return {"nodes": nodes, "edges": list(edges.values()),
+            "groups": [{"id": rid, "name": tops[rid].name, "members": [m.id for m in ms]} for rid, ms in groups.items()]}
 
 
 MAP_INFO_MAX = 8
@@ -998,3 +1013,51 @@ def apply_suggestions(db: Session, user: User, e: KbEntry, form) -> list[str]:
         save_field(db, user, topic, s["field"], {"wert": value})
         done.append(f"{s['label']} bei {topic.name}")
     return done
+
+
+# ---------- Firmengruppen: Mutter- und Tochtergesellschaften ----------
+
+def root_of(t: KbTopic, by_id: dict[int, KbTopic]) -> KbTopic:
+    """Oberste Muttergesellschaft (Schutz gegen Kreise durch die Schrittgrenze)."""
+    seen, cur = 0, t
+    while cur.parent_id and cur.parent_id in by_id and seen < 20:
+        cur, seen = by_id[cur.parent_id], seen + 1
+    return cur
+
+
+def company_groups(tops: dict[int, KbTopic]) -> dict[int, list[KbTopic]]:
+    """Mutter-ID → alle Firmen der Gruppe (Mutter zuerst, dann Töchter alphabetisch). Nur Gruppen mit Töchtern."""
+    groups: dict[int, list[KbTopic]] = {}
+    for t in tops.values():
+        if t.kind == "hersteller" and t.parent_id in tops:
+            groups.setdefault(root_of(t, tops).id, []).append(t)
+    return {rid: [tops[rid]] + sorted(m, key=lambda x: x.name.lower()) for rid, m in groups.items()}
+
+
+def set_parent(db: Session, user: User, child: KbTopic, parent_id: int | None) -> None:
+    """Muttergesellschaft setzen oder (None) lösen. Nur Hersteller, keine Kreise."""
+    if child.kind != "hersteller":
+        raise ValueError("Firmengruppen gibt es nur bei Herstellern.")
+    tops = {t.id: t for t in topics(db)}
+    parent = tops.get(parent_id) if parent_id else None
+    if parent_id and (parent is None or parent.kind != "hersteller"):
+        raise ValueError("Bitte einen Hersteller als Muttergesellschaft wählen.")
+    if parent and (parent.id == child.id or root_of(parent, tops).id == child.id or _is_below(parent, child, tops)):
+        raise ValueError(f"{parent.name} gehört schon zur Gruppe von {child.name} – das wäre ein Kreis.")
+    new = parent.id if parent else None
+    if new == child.parent_id:
+        return
+    before = tops[child.parent_id].name if child.parent_id in tops else None
+    child.parent_id, child.updated_by, child.updated_at = new, user.id, utcnow()
+    log(db, user, "thema", child.id, child.id, "Firmengruppe", before, parent.name if parent else None)
+    if parent:
+        log(db, user, "thema", parent.id, parent.id, "Firmengruppe", None, f"Tochter: {child.name}")
+
+
+def _is_below(t: KbTopic, ancestor: KbTopic, tops: dict[int, KbTopic]) -> bool:
+    seen, cur = 0, t
+    while cur.parent_id and cur.parent_id in tops and seen < 20:
+        if cur.parent_id == ancestor.id:
+            return True
+        cur, seen = tops[cur.parent_id], seen + 1
+    return False
