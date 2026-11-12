@@ -8,6 +8,8 @@
   try { JSON.parse(root.getAttribute("data-topics") || "[]").forEach(function (t) { kinds[t.id] = t.kind === "Hersteller" ? "hersteller" : "gruppe"; }); } catch (e) { /* leer */ }
   var state = { f: null, g: null }, seq = 0;
   readPanel();
+  // Neu laden/erneut öffnen startet ohne Auswahl (Adresse mit ?f=…&g=… nur als einmaliger Link)
+  if (location.search && !/fehler=/.test(location.search)) { try { history.replaceState(null, "", "/wissen" + location.hash); } catch (e) { /* egal */ } }
 
   function num(v) { return v ? +v : null; }
   function readPanel() {
@@ -16,14 +18,17 @@
     state.g = p ? num(p.getAttribute("data-g")) : null;
     mark();
   }
-  // Listen: Auswahl markieren, Passendes hervorheben und nach oben holen
-  // Listen: nur die eigene Auswahl markieren (keine Dauer-Hervorhebung); die Verbindung zeigt die Mitte,
-  // sobald Hersteller und Artikelgruppe gewählt sind
+  // Listen: eigene Auswahl markieren; ist ein Hersteller gewählt, leuchten rechts die bei ihm hinterlegten
+  // Artikelgruppen auf (nur diese, Reihenfolge bleibt). Ohne Auswahl ist nichts markiert.
   function mark() {
+    var p = detail.querySelector("[data-panel]");
+    var asg = p && state.f ? (p.getAttribute("data-asg-f") || "").split(",").filter(Boolean).map(Number) : [];
     document.querySelectorAll("[data-list]").forEach(function (ul) {
-      var sel = ul.getAttribute("data-kind") === "hersteller" ? state.f : state.g;
+      var kind = ul.getAttribute("data-kind"), sel = kind === "hersteller" ? state.f : state.g;
       ul.querySelectorAll("li").forEach(function (li) {
-        li.classList.toggle("active", +li.querySelector("[data-pick]").getAttribute("data-pick") === sel);
+        var id = +li.querySelector("[data-pick]").getAttribute("data-pick");
+        li.classList.toggle("active", id === sel);
+        li.classList.toggle("lit", kind === "gruppe" && asg.indexOf(id) >= 0);
       });
     });
     document.querySelectorAll("[data-side]").forEach(function (side) {
@@ -48,7 +53,8 @@
         detail.classList.remove("loading");
         detail.scrollTop = opts.keepScroll ? top : 0;
         readPanel();
-        try { history.replaceState(null, "", url()); } catch (e) { /* egal */ }
+        // Adresse bleibt /wissen: beim nächsten Öffnen ist nichts vorausgewählt
+        if (location.search) { try { history.replaceState(null, "", "/wissen"); } catch (e) { /* egal */ } }
         if (window.kbMap) { window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
         if (!opts.fromMap && !opts.keepScroll && window.innerWidth < 1100) { detail.scrollIntoView({ behavior: "smooth", block: "start" }); }
       })
@@ -60,7 +66,9 @@
     var kind = kinds[id] || "hersteller", key = kind === "hersteller" ? "f" : "g";
     if (only) { state.f = state.g = null; state[key] = id; }
     else { state[key] = state[key] === id && !fromMap && !keep ? null : id; }
-    showTab("infos");
+    // Erst Hersteller, dann Artikelgruppe: auf der Karte den Pfeil zeigen; sonst die Infos
+    var pair = key === "g" && state.f && state.g && !only;
+    showTab(pair ? "karte" : "infos");
     load({ fromMap: fromMap });
   }
 
@@ -83,8 +91,19 @@
     tabs.forEach(function (t) { t.setAttribute("aria-selected", t.getAttribute("data-tab") === name ? "true" : "false"); });
     document.querySelectorAll("[data-pane]").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== name; });
     if (name === "karte" && window.kbMap) { window.kbMap.show(); window.kbMap.select(state.f || state.g, state.f && state.g ? state.g : null); }
+    var bar = document.querySelector("[data-map-pair]");
+    if (bar) {
+      bar.hidden = !(state.f && state.g);
+      if (state.f && state.g) {
+        var nf = document.querySelector('[data-list] [data-pick="' + state.f + '"] span'), ng = document.querySelector('[data-list] [data-pick="' + state.g + '"] span');
+        bar.querySelector("b").textContent = (nf ? nf.textContent : "") + " → " + (ng ? ng.textContent : "");
+      }
+    }
   }
   tabs.forEach(function (t) { t.addEventListener("click", function () { showTab(t.getAttribute("data-tab")); }); });
+  document.addEventListener("click", function (ev) {
+    if (ev.target.closest && ev.target.closest("[data-show-infos]")) { showTab("infos"); }
+  });
 
   // Formulare im Infofenster (Eintragen, stimmt noch, melden) ohne Seitenwechsel
   detail.addEventListener("submit", function (ev) {
