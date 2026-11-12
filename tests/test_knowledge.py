@@ -626,3 +626,41 @@ def test_series_in_group_with_maker(user_client):
     assert "Spartan" in u.get(f"/wissen?f={red}&g={spid}").text  # Serie als „Gruppe“ gewählt: eigenes Fenster
     assert all(n["id"] != spid for n in u.get("/api/wissen/karte").json()["nodes"])
     assert u.get(f"/wissen/{spid}").status_code == 200  # Steckbrief
+
+
+def test_delete_topic_with_confirmation(user_client):
+    """Hersteller/Artikelgruppe löschen: Sicherheitsabfrage mit Auswirkungen, Einträge verlieren die Zuordnung bzw.
+    werden gelöscht, Serien und Angaben gehen mit; Hersteller aus einer Preisliste sind gesperrt."""
+    u = user_client
+    red, balken, hella = _topic(u, "Redtronic"), _topic(u, "Leuchtbalken", "gruppe"), _topic(u, "Hella")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red})
+    _entry(u, "Leuchtbalken immer mit Kabelsatz", themen=[balken])
+    _entry(u, "Redtronic und Hella Leuchtbalken gleiche Halter", themen=[red, balken, hella])
+    u.post(f"/wissen/{red}/feld/pflicht", data={"csrf_token": u.csrf, "wert": balken, "menge": "1"})
+
+    page = u.get("/wissen").text
+    assert 'href="/wissen/%d/loeschen"' % balken in page and 'href="/wissen/%d/loeschen"' % red in page
+    conf = u.get(f"/wissen/{balken}/loeschen").text
+    assert "Artikelgruppe löschen" in conf and "Leuchtbalken" in conf and "Serien: Spartan" in conf
+    assert "1 Eintrag, der nur hierzu gehört" in conf and "bei 1 weiteren Eintrag wird nur die Zuordnung entfernt" in conf
+    # ohne Häkchen passiert nichts
+    r = u.post(f"/wissen/{balken}/loeschen", data={"csrf_token": u.csrf}, follow_redirects=False)
+    assert r.headers["location"] == f"/wissen/{balken}/loeschen"
+    r = u.post(f"/wissen/{balken}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"}, follow_redirects=False)
+    assert r.headers["location"] == "/wissen"
+    with session_scope() as db:
+        assert db.get(KbTopic, balken) is None and db.query(KbTopic).filter_by(kind="serie").count() == 0
+        texts = {e.text: sorted(e.topic_ids) for e in db.query(KbEntry)}
+        assert not any("Kabelsatz" in t for t in texts)
+        assert sorted([red, hella]) in texts.values()
+        assert db.query(kb.KbFact).filter(kb.KbFact.ref_topic_id == balken).count() == 0
+    assert u.get("/wissen").status_code == 200 and u.get(f"/wissen/{red}/kurz").status_code == 200
+
+    # Hersteller aus einer Preisliste: gesperrt
+    with session_scope() as db:
+        anna = db.query(User).filter_by(username="anna").one()
+        db.add(Manufacturer(owner_id=anna.id, name="Redtronic", code="RT"))
+    assert "steht in einer Preisliste" in u.get(f"/wissen/{red}/loeschen").text
+    u.post(f"/wissen/{red}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"})
+    with session_scope() as db:
+        assert db.get(KbTopic, red) is not None
