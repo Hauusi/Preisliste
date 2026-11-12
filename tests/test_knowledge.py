@@ -664,3 +664,35 @@ def test_delete_topic_with_confirmation(user_client):
     u.post(f"/wissen/{red}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"})
     with session_scope() as db:
         assert db.get(KbTopic, red) is not None
+
+
+def test_map_card_maker_group_pair(user_client):
+    """Infofeld auf der Karte: nur Hersteller = Standard-Infos ohne Artikelgruppen; nur Gruppe = alles zur Gruppe,
+    egal welcher Hersteller, sortiert (Allgemein, dann je Hersteller); beide = Kombination."""
+    u = user_client
+    red, hella, balken = _topic(u, "Redtronic"), _topic(u, "Hella"), _topic(u, "Leuchtbalken", "gruppe")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red})
+    u.post(f"/wissen/{red}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "3 Wochen"})
+    _entry(u, "Redtronic Rabatt ab 10 Stück", themen=[red])
+    _entry(u, "Redtronic Leuchtbalken mit Montagesatz", themen=[red, balken])
+    _entry(u, "Hella Leuchtbalken nur 12 V", themen=[hella, balken])
+    _entry(u, "Leuchtbalken über 1,80 m mehr kalkulieren", themen=[balken])
+    _entry(u, "Spartan nur bis 1,50 m")
+
+    m = u.get(f"/wissen/karteninfo?f={red}").text
+    assert "Redtronic" in m and "3 Wochen" in m and "Rabatt ab 10 Stück" in m
+    assert "Montagesatz" not in m and "1,50 m" not in m  # nichts mit Artikelgruppe/Serie
+
+    g = u.get(f"/wissen/karteninfo?g={balken}").text
+    assert "alle Hersteller" in g and "1,80 m mehr kalkulieren" in g and "Montagesatz" in g and "nur 12 V" in g
+    assert "1,50 m" in g and "Serie Spartan" in g  # Serien-Einträge beim Hersteller der Serie
+    assert g.index("Für alle Leuchtbalken") < g.index("<span>Hella</span>") < g.index("<span>Redtronic</span>")  # sortiert
+    assert "Rabatt ab 10 Stück" not in g
+
+    k = u.get(f"/wissen/karteninfo?f={red}&g={balken}").text
+    assert "Redtronic → Leuchtbalken" in k and "Montagesatz" in k and "1,80 m" in k and "3 Wochen" in k
+    assert "Spartan" in k and "nur 12 V" not in k
+    with session_scope() as db:
+        sp = db.query(KbTopic).filter_by(kind="serie").one().id
+    assert "1,50 m" in u.get(f"/wissen/karteninfo?g={sp}").text
+    assert u.get("/wissen/karteninfo").status_code == 404

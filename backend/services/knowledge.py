@@ -1258,3 +1258,48 @@ def delete_topic(db: Session, user: User, t: KbTopic) -> None:
     db.flush()
     db.delete(t)
     db.flush()
+
+
+# ---------- Infofeld auf der Karte (vom gewählten Punkt aus) ----------
+
+def _by_type(entries: list[KbEntry]) -> list[tuple[str, str, list[KbEntry]]]:
+    return [(k, label, [e for e in entries if e.type == k]) for k, label in TYPES.items() if any(e.type == k for e in entries)]
+
+
+def maker_card(db: Session, user: User, maker: KbTopic, by_id: dict[int, KbTopic]) -> dict:
+    """Nur Hersteller: Standard-Infos ohne Artikelgruppen-Bezug (Bezugsregel, Angaben, allgemeine Einträge)."""
+    fields = field_facts(db, maker.id)
+    rule = rule_of(fields, by_id)
+    keys = FIELDS_BY_KIND["hersteller"] + ([] if rule and rule.get("via") else ["moq"])
+    facts = [(FIELDS[k][0], describe(f, by_id)) for k in keys for f in fields.get(k, [])] \
+        + [(f.label, f.value) for f in free_facts(db, maker.id)]
+    general = [e for e in entries_for(db, user, maker.id)
+               if not any(by_id.get(i) and by_id[i].kind in ("gruppe", "serie") for i in e.topic_ids or [])]
+    return {"rule": rule, "facts": facts, "types": _by_type(general), "count": len(general)}
+
+
+def group_card(db: Session, user: User, group: KbTopic, by_id: dict[int, KbTopic]) -> dict:
+    """Nur Artikelgruppe: alles, was zur Gruppe gespeichert ist, egal welcher Hersteller – sortiert: Angaben,
+    Artikelvergleich, Allgemeines, dann je Hersteller (alphabetisch) mit seinen Serien und Einträgen."""
+    fields = field_facts(db, group.id)
+    facts = [(FIELDS[k][0], describe(f, by_id)) for k in FIELDS_BY_KIND["gruppe"] for f in fields.get(k, [])] \
+        + [(f.label, f.value) for f in free_facts(db, group.id)]
+    series = [t for t in by_id.values() if t.kind == "serie" and t.parent_id == group.id]
+    sids = {s.id for s in series}
+    entries = entries_for(db, user, group.id)
+    for s in series:
+        entries += [e for e in entries_for(db, user, s.id) if e not in entries]
+    general, per_maker = [], {}
+    for e in entries:
+        makers = [i for i in e.topic_ids or [] if by_id.get(i) and by_id[i].kind == "hersteller"]
+        makers += [by_id[i].maker_id for i in e.topic_ids or [] if i in sids and by_id[i].maker_id in by_id]
+        if not makers:
+            general.append(e)
+        for m in dict.fromkeys(makers):
+            per_maker.setdefault(m, []).append(e)
+    makers = sorted(set(per_maker) | {s.maker_id for s in series if s.maker_id in by_id}
+                    | set(assortment_of(db, group)), key=lambda i: by_id[i].name.lower() if i in by_id else "")
+    return {"facts": facts, "products": group_products(db, group)[:6], "general": _by_type(general),
+            "makers": [{"m": by_id[i], "series": sorted((s for s in series if s.maker_id == i), key=lambda x: x.name.lower()),
+                        "entries": per_maker.get(i, [])} for i in makers if i in by_id],
+            "count": len(entries)}

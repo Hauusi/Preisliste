@@ -103,7 +103,47 @@
     updateBar();
   }
   // Leiste oben links auf der Karte: Auswahl („Hella“ bzw. „Hella → Leuchtbalken“) und Knopf zu den Infos
+  // Infofeld auf der Karte: vom gewählten Punkt (bzw. Pfeil) aus, auf der freien Seite, mit Verbindungslinie
+  var card = document.querySelector("[data-mapcard]"), wire = document.querySelector("[data-mapcard-wire]"), cardSeq = 0;
+  function loadCard() {
+    if (!card) { return; }
+    if (!state.f && !state.g) { card.hidden = true; card.innerHTML = ""; placeCard(); return; }
+    var my = ++cardSeq, q = [];
+    if (state.f) { q.push("f=" + state.f); }
+    if (state.g) { q.push("g=" + state.g); }
+    fetch("/wissen/karteninfo?" + q.join("&"), { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (html) {
+        if (my !== cardSeq) { return; }
+        card.innerHTML = html; card.hidden = !html; card.scrollTop = 0;
+        placeCard();
+        if (!card.hidden && window.kbMap) {  // gewählte Punkte nicht unter dem Feld verstecken
+          var w = card.parentNode.clientWidth, ids = [state.f, state.g].filter(Boolean);
+          if (card.classList.contains("right")) { window.kbMap.frame(ids, 0, card.offsetLeft - 12); }
+          else { window.kbMap.frame(ids, card.offsetLeft + card.offsetWidth + 12, w); }
+          placeCard();
+        }
+      });
+  }
+  function placeCard() {
+    if (!card || !wire) { return; }
+    var line = wire.querySelector("line"), dot = wire.querySelector("circle");
+    var a = !card.hidden && window.kbMap && window.kbMap.anchor(state.f || state.g, state.f && state.g ? state.g : null);
+    wire.style.display = a ? "" : "none";
+    if (!a) { return; }
+    var box = card.parentNode, right = a.x < box.clientWidth / 2;  // Feld auf die Seite, wo der Punkt nicht ist
+    card.classList.toggle("right", right); card.classList.toggle("left", !right);
+    var cx = right ? card.offsetLeft : card.offsetLeft + card.offsetWidth;
+    var cy = Math.max(card.offsetTop + 18, Math.min(a.y, card.offsetTop + card.offsetHeight - 18));
+    var dx = cx - a.x, dy = cy - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    line.setAttribute("x1", a.x + dx / d * (a.r + 3)); line.setAttribute("y1", a.y + dy / d * (a.r + 3));
+    line.setAttribute("x2", cx); line.setAttribute("y2", cy);
+    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy);
+  }
+  document.addEventListener("kb:view", placeCard);
+  window.addEventListener("resize", placeCard);
   function updateBar() {
+    loadCard();
     var bar = document.querySelector("[data-map-pair]");
     if (!bar) { return; }
     function name(id) { var n = document.querySelector('[data-list] [data-pick="' + id + '"] span'); return n ? n.textContent : ""; }

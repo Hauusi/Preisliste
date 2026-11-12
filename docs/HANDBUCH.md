@@ -486,17 +486,21 @@ Reiter oder den Knopf oben links auf der Karte auf.
   und Gruppe gewählt auf „… hinzufügen“. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
   geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
   Artikel-Linie.
-- **Start:** Die Seite öffnet immer ohne Auswahl (auch nach Neuladen); in der Mitte der Überblick.
-- **Hersteller anklicken** (z. B. Redtronic): auf der Karte ist Redtronic hervorgehoben, oben links „Redtronic – Jetzt
-  rechts eine Artikelgruppe wählen“ mit Knopf „Infos zu Redtronic“; rechts **leuchten die bei Redtronic hinterlegten
-  Artikelgruppen auf** (blau). Sonst ist nichts eingefärbt. Im Reiter „Infos“ stehen **alle Redtronic-Infos**.
-- **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge).
-- **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): die Karte zeigt einen
-  **Pfeil Redtronic → Leuchtbalken** (beide hervorgehoben, Rest abgeblendet); oben links „Redtronic → Leuchtbalken“ mit
-  Knopf **„Alle Infos dazu“**. Im Reiter „Infos“ dann: Verbindung (führt / nicht zugeordnet, mit Knopf „… hinzufügen“),
-  Redtronic-Artikel in der Gruppe mit Platz im Vergleich, Pflicht-Zubehör zwischen beiden, **Einträge zu beiden**
-  (dort direkt neu eintragen – gehört dann zu beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von
-  Redtronic“** (Bezugsregel, Angaben, allgemeine Einträge).
+- **Start:** Die Seite öffnet immer ohne Auswahl (auch nach Neuladen); in der Mitte die Karte, im Reiter „Infos“ der
+  Überblick.
+- **Infofeld auf der Karte:** Was gewählt ist, zeigt ein Infofeld direkt auf der Karte – auf der freien Seite, mit
+  gestrichelter Linie zum gewählten Punkt bzw. zum Pfeil; die Karte schiebt die gewählten Punkte neben das Feld.
+  „Alle Infos · bearbeiten“ öffnet den Reiter „Infos“ (dort eintragen, prüfen, bearbeiten).
+- **Hersteller anklicken** (z. B. Redtronic): rechts leuchten die bei Redtronic hinterlegten Artikelgruppen (und
+  Serien) auf. Das Infofeld zeigt die **Standard-Infos ohne Artikelgruppen-Bezug**: Bezugsregel, Angaben (Lieferzeit,
+  Ansprechpartner …), allgemeine Einträge nach Art.
+- **Nur Artikelgruppe anklicken:** das Infofeld zeigt **alles zur Gruppe, egal welcher Hersteller**, sortiert:
+  Angaben, Artikelvergleich, „Für alle Leuchtbalken“ (Einträge ohne Hersteller), dann je Hersteller alphabetisch seine
+  Einträge zur Gruppe und seine Serien (Serien-Einträge mit Kennzeichen „Serie …“).
+- **Erst Hersteller, dann Artikelgruppe anklicken:** Pfeil Redtronic → Leuchtbalken auf der Karte; das Infofeld zeigt
+  die **Kombination**: Redtronic-Artikel in der Gruppe (Platz im Vergleich), Serien, Einträge zu beiden,
+  Pflicht-Zubehör, „Für alle Leuchtbalken“ und „Allgemein Redtronic“ (Bezugsregel, Angaben, allgemeine Einträge).
+  Im Reiter „Infos“ dasselbe ausführlich mit Verbindungsgrafik (führt / nicht zugeordnet), zum Eintragen und Bearbeiten.
 - **Serien** (z. B. „Spartan“ = Leuchtbalken von Redtronic): gehören immer zu **einer Artikelgruppe und einem
   Hersteller**. Anlegen mit „+ Serie anlegen“ im Infofenster der Artikelgruppe, des Herstellers oder bei
   „Redtronic × Leuchtbalken“ (Name, ggf. andere Schreibweisen). Die Gruppe wird dabei dem Hersteller zugeordnet.
@@ -506,7 +510,6 @@ Reiter oder den Knopf oben links auf der Karte auf.
   Redtronic“. Einträge, in denen der Serienname vorkommt („Spartan nur bis 1,50 m“), werden automatisch der Serie
   zugeordnet. Gruppe oder Hersteller ändern: „Gruppe oder Hersteller ändern“ im Infofenster der Serie; Name und andere
   Schreibweisen im Steckbrief. Serien erscheinen nicht auf der Karte.
-- Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
 - **Abwählen:** Klick auf einen gewählten Hersteller oder eine gewählte Gruppe (in der Liste oder auf der Karte) wählt
   nur diesen ab, der andere bleibt. **Klick auf eine leere Fläche** (Kartenhintergrund oder leerer Bereich einer
   Liste) wählt beide ab. × im Infofenster hebt ebenfalls alles auf (Überblick).

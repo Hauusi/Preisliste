@@ -165,6 +165,7 @@
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
     groups.forEach(drawGroup);
     drawPair();
+    document.dispatchEvent(new CustomEvent("kb:view"));
   }
   function drawPair() {
     if (!pairLayer) { return; }
@@ -380,6 +381,7 @@
     var k = view.w / Math.max(box.clientWidth, 1);
     svg.style.setProperty("--fs", Math.max(9, Math.min(13 * k, 34)).toFixed(1) + "px");
     groups.forEach(drawGroup);  // Abstand der Blase hängt vom Zoom ab
+    document.dispatchEvent(new CustomEvent("kb:view"));
   }
   function fit() {
     if (!box.clientWidth || !box.clientHeight) { return; }  // Karte verborgen: beim Anzeigen einpassen
@@ -621,7 +623,29 @@
         view = { x: (n.x + m.x) / 2 - w / 2, y: (n.y + m.y) / 2 - h / 2, w: w, h: h }; applyView();
       } else { show(n); }
     },
-    show: function () { fit(); },  // Karte war verborgen (Reiter „Karte“): jetzt Größe kennen und einpassen
+    show: function () { fit(); },
+    // Gewählte Punkte in den freien Bereich [x0, x1] (Pixel im Kartenkasten) schieben, notfalls herauszoomen
+    frame: function (ids, x0, x1) {
+      var pts = ids.map(function (i) { return byId[i]; }).filter(Boolean);
+      if (!pts.length || !box.clientWidth) { return; }
+      var r = svg.getBoundingClientRect(), o = box.getBoundingClientRect(), off = r.left - o.left, k = view.w / r.width;
+      var minX = Math.min.apply(null, pts.map(function (n) { return n.x; })) - 70, maxX = Math.max.apply(null, pts.map(function (n) { return n.x; })) + 70;
+      var freeW = (x1 - x0) * k;
+      if (freeW <= 0) { return; }
+      if (maxX - minX > freeW) { var f = (maxX - minX) / freeW; zoom(1 / f, (minX + maxX) / 2, view.y + view.h / 2); k = view.w / r.width; freeW = (x1 - x0) * k; }
+      var left = view.x + (x0 - off) * k, right = left + freeW;
+      if (minX >= left && maxX <= right) { return; }
+      view.x += ((minX + maxX) / 2) - (left + right) / 2;
+      applyView();
+    },
+    // Punkt, von dem das Infofeld ausgeht: gewählter Kreis bzw. Mitte des Pfeils (Pixel relativ zum Kartenkasten)
+    anchor: function (id, second) {
+      var a = byId[id], b = byId[second];
+      if (!a || !box.clientWidth) { return null; }
+      var x = b ? (a.x + b.x) / 2 : a.x, y = b ? (a.y + b.y) / 2 : a.y, r = svg.getBoundingClientRect(), o = box.getBoundingClientRect();
+      return { x: r.left - o.left + (x - view.x) / view.w * r.width, y: r.top - o.top + (y - view.y) / view.h * r.height,
+               r: b ? 6 : (a.r || 12) * r.width / view.w };
+    },  // Karte war verborgen (Reiter „Karte“): jetzt Größe kennen und einpassen
     reload: function (id) { if (data) { reload(id); } }
   };
 

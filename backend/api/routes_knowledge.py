@@ -211,6 +211,33 @@ async def assortment(request: Request, db: Session = Depends(get_db), user: User
     return _ret(back, maker.id)
 
 
+@router.get("/wissen/karteninfo")
+def map_card(request: Request, f: int | None = None, g: int | None = None, db: Session = Depends(get_db),
+             user: User = Depends(current_user)):
+    """Infofeld auf der Karte: nur Hersteller (Standard-Infos), nur Artikelgruppe (alles zur Gruppe, nach Herstellern
+    sortiert), Hersteller → Gruppe (Kombination)."""
+    ctx = _context(db, user, None)
+    by_id = {x.id: x for x in ctx["topics"]}
+    fx, gx = _selection(db, None, f, g)
+    data: dict = {"cf": fx, "cg": gx, "by_id": by_id, "rule_conditions": kb.rule_conditions}
+    if gx and gx.kind == "serie":
+        e = kb.entries_for(db, user, gx.id)
+        fields = kb.field_facts(db, gx.id)
+        data.update(mode="serie", series=gx, s_group=by_id.get(gx.parent_id), s_maker=by_id.get(gx.maker_id),
+                    s_facts=[(kb.FIELDS[k][0], kb.describe(x, by_id)) for k in kb.FIELDS_BY_KIND["serie"] for x in fields.get(k, [])]
+                    + [(x.label, x.value) for x in kb.free_facts(db, gx.id)], types=kb._by_type(e), count=len(e))
+    elif fx and gx:
+        data.update(mode="pair", P=kb.pair_info(db, user, fx, gx, by_id), series=kb.series_of(ctx["topics"], gx, fx),
+                    assigned=gx.id in kb.assortment_of(db, fx))
+    elif fx:
+        data.update(mode="maker", C=kb.maker_card(db, user, fx, by_id))
+    elif gx:
+        data.update(mode="group", C=kb.group_card(db, user, gx, by_id))
+    else:
+        raise HTTPException(404, "Nicht gefunden")
+    return render(request, "knowledge_mapcard.html", {**ctx, **data})
+
+
 @router.get("/wissen/kombi")
 def pair_panel(request: Request, f: int, g: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     ctx = _context(db, user, None)
