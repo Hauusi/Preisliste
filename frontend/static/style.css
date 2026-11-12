@@ -1403,3 +1403,16 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
   .kb-link.off .kb-link-wire i { border-left-style: dashed; border-color: var(--line-2); }
   .kb-link-wire i::before, .kb-link-wire i::after { display: none; }
 }
+
+/* Pfeil Hersteller → Artikelgruppe auf der Karte */
+.m-pair-halo { stroke: var(--surface); stroke-width: 10; stroke-linecap: round; }
+.m-pair-line { stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 600; animation: kb-draw .5s ease-out; }
+.mk-pair path { fill: var(--accent); }
+@keyframes kb-draw { from { stroke-dashoffset: 600; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .m-pair-line { animation: none; } }
+.kb-map-pair { position: absolute; left: 12px; top: 12px; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-width: calc(100% - 24px); }
+.kb-map-pair b { font-family: var(--font-display); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-map-pair button { padding: 5px 12px; font-size: .86rem; flex-shrink: 0; }
+/* Hinterlegte Artikelgruppen des gewählten Herstellers leuchten auf */
+.kb-rows li.lit:not(.active) > a { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }

@@ -6,7 +6,7 @@
   if (!box) { return; }
   var svg = box.querySelector("svg"), empty = box.querySelector("[data-map-empty]");
   var NS = "http://www.w3.org/2000/svg";
-  var data = null, nodes = [], edges = [], byId = {}, selected = null, groups = [], groupLayer = null;
+  var data = null, nodes = [], edges = [], byId = {}, selected = null, pair = null, pairLayer = null, groups = [], groupLayer = null;
   var view = { x: -400, y: -260, w: 800, h: 520 };
   var LABEL = { artikel: "Artikel", bezug: "Bezug über", pflicht: "Pflicht-Zubehör", eintrag: "gemeinsame Einträge" };
   var STAGE = { erste: "erste Wahl", gut: "gut", notfalls: "nur wenn nötig", abraten: "abraten", offen: "noch nicht bewertet" };
@@ -115,7 +115,7 @@
     groupLayer.style.display = showGroups() ? "" : "none";
     var gEdges = el("g", { "class": "m-edges" }, svg), gNodes = el("g", { "class": "m-nodes" }, svg);
     var defs = el("defs", {}, svg);
-    ["bezug", "pflicht"].forEach(function (t) {
+    ["bezug", "pflicht", "pair"].forEach(function (t) {
       var mk = el("marker", { id: "mk-" + t, viewBox: "0 0 10 10", refX: "10", refY: "5", markerWidth: "7", markerHeight: "7",
                               orient: "auto-start-reverse", "class": "mk-" + t }, defs);
       el("path", { d: "M0,0 L10,5 L0,10 z" }, mk);
@@ -123,6 +123,8 @@
     svg.insertBefore(defs, gEdges);
     var gLabels = el("g", { "class": "m-elabels" }, svg);
     svg.insertBefore(gLabels, gNodes);
+    pairLayer = el("g", { "class": "m-pair" }, svg);  // Pfeil Hersteller → Artikelgruppe (bei Auswahl beider)
+    svg.insertBefore(pairLayer, gNodes);
     edges.forEach(function (e) {
       var cls = "m-edge e-" + e.type + (e.stage ? " s-" + e.stage : "");
       e.line = el("line", { "class": cls, "stroke-width": Math.min(1.5 + e.n * 0.8, 6) }, gEdges);
@@ -162,6 +164,17 @@
     });
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
     groups.forEach(drawGroup);
+    drawPair();
+  }
+  function drawPair() {
+    if (!pairLayer) { return; }
+    pairLayer.textContent = "";
+    if (!pair) { return; }
+    var a = pair[0], b = pair[1], dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var x1 = a.x + dx / d * ((a.r || 12) + 4), y1 = a.y + dy / d * ((a.r || 12) + 4);
+    var x2 = b.x - dx / d * ((b.r || 12) + 8), y2 = b.y - dy / d * ((b.r || 12) + 8);
+    el("line", { x1: x1, y1: y1, x2: x2, y2: y2, "class": "m-pair-halo" }, pairLayer);
+    el("line", { x1: x1, y1: y1, x2: x2, y2: y2, "class": "m-pair-line", "marker-end": "url(#mk-pair)" }, pairLayer);
   }
 
   function fontSize() { return Math.max(9, Math.min(13 * view.w / Math.max(box.clientWidth, 1), 34)); }
@@ -338,6 +351,8 @@
   // Mit zweitem Thema (Hersteller × Artikelgruppe): nur diese beiden und ihre Verbindung hervorheben
   function select(n, quiet, second) {
     selected = n;
+    pair = n && second ? [n, second] : null;
+    drawPair();
     svg.classList.toggle("focus", !!n);
     var near = {};
     if (n && second) { near[n.id] = near[second.id] = true; }
@@ -594,7 +609,16 @@
   if (groupBox) { groupBox.addEventListener("change", function () { if (groupLayer) { groupLayer.style.display = showGroups() ? "" : "none"; } }); }
   window.addEventListener("resize", function () { if (box.clientWidth) { fit(); } });
   window.kbMap = {
-    select: function (id, second) { var n = byId[id]; select(n || null, true, byId[second] || null); if (n && box.clientWidth) { show(n); } },
+    select: function (id, second) {
+      var n = byId[id], m = byId[second] || null;
+      select(n || null, true, m);
+      if (!n || !box.clientWidth) { return; }
+      if (m) {  // beide ins Bild: Ansicht auf die Mitte, notfalls herauszoomen
+        var w = Math.max(view.w, Math.abs(m.x - n.x) * 1.6 + 200), h = w * view.h / view.w;
+        if (Math.abs(m.y - n.y) * 1.6 + 160 > h) { h = Math.abs(m.y - n.y) * 1.6 + 160; w = h * view.w / view.h; }
+        view = { x: (n.x + m.x) / 2 - w / 2, y: (n.y + m.y) / 2 - h / 2, w: w, h: h }; applyView();
+      } else { show(n); }
+    },
     show: function () { fit(); },  // Karte war verborgen (Reiter „Karte“): jetzt Größe kennen und einpassen
     reload: function (id) { if (data) { reload(id); } }
   };

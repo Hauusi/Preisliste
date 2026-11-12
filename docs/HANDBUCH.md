@@ -479,17 +479,16 @@ die **Infos** (Umschalter „Infos | Karte“).
   und Gruppe gewählt auf „… hinzufügen“. × an der Gruppe löst die Zuordnung. Von der Gruppe aus
   geht es genauso („Hersteller“). Jede Zuordnung steht mit Name und Zeit im Verlauf; auf der Karte erscheint eine
   Artikel-Linie.
-- **Nur Hersteller wählen** (z. B. Redtronic): in der Mitte **alle Redtronic-Infos** (zugeordnete Artikelgruppen,
-  Bezug, Angaben, Artikel, Einträge). Die Listen markieren nur die eigene Auswahl – nichts bleibt dauerhaft eingefärbt.
+- **Start:** Die Seite öffnet immer ohne Auswahl (auch nach Neuladen); in der Mitte der Überblick.
+- **Hersteller anklicken** (z. B. Redtronic): in der Mitte **alle Redtronic-Infos**; rechts **leuchten die bei
+  Redtronic hinterlegten Artikelgruppen auf** (blau). Sonst ist nichts eingefärbt.
 - **Nur Artikelgruppe wählen:** **alle Infos zur Gruppe** (zugeordnete Hersteller, Artikelvergleich, Einträge).
-- **Erst Hersteller, dann Artikelgruppe wählen** (Klick in der rechten Liste oder auf die Gruppe im Infofenster): oben
-  in der Mitte erscheint die **Verbindung als Grafik** – „Redtronic ── führt ── Leuchtbalken“ mit Anzahl Artikel und
-  Einträge; ist die Gruppe nicht zugeordnet, ist die Linie gestrichelt („nicht zugeordnet“) mit Knopf „Leuchtbalken
-  zu Redtronic hinzufügen“. Auf der Karte sind dann nur diese beiden und ihre Linie hervorgehoben. Darunter **alle
-  Infos zu beiden**: Redtronic-Artikel in der Gruppe mit Platz im Vergleich (aufklappbar die anderen Hersteller),
-  Pflicht-Zubehör zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu
-  beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von Redtronic“** (Bezugsregel, Angaben, allgemeine
-  Einträge). Klick auf einen der beiden Kästen oder „Alles zu …“ wechselt zu einem allein.
+- **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): die Mitte springt auf die **Karte** und zeigt einen
+  **Pfeil Redtronic → Leuchtbalken** (beide hervorgehoben, Rest abgeblendet); oben links „Redtronic → Leuchtbalken“ mit
+  Knopf **„Alle Infos dazu“**. Im Reiter „Infos“ dann: Verbindung (führt / nicht zugeordnet, mit Knopf „… hinzufügen“),
+  Redtronic-Artikel in der Gruppe mit Platz im Vergleich, Pflicht-Zubehör zwischen beiden, **Einträge zu beiden**
+  (dort direkt neu eintragen – gehört dann zu beiden), **„Gilt für alle Leuchtbalken“** und **„Gilt für alles von
+  Redtronic“** (Bezugsregel, Angaben, allgemeine Einträge).
 - Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
 - Nochmal auf den gewählten Eintrag klicken = abwählen; × in der Mitte hebt alles auf (Überblick).
 - **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
@@ -502,7 +501,8 @@ die **Infos** (Umschalter „Infos | Karte“).
   **Pflicht-Zubehör** (orange gestrichelt), **Artikel** (grün erste Wahl … rot gestrichelt abraten),
   **Firmengruppen** (Blasen). „Anzeigen“ blendet Linienarten ein/aus. Klick wählt wie in den Listen, Doppelklick öffnet
   den Steckbrief.
-- **Links weitergeben:** `/wissen?t=…` (ein Thema) bzw. `/wissen?f=…&g=…` (Hersteller × Gruppe) öffnen die Ansicht direkt.
+- **Links weitergeben:** `/wissen?t=…` (ein Thema) bzw. `/wissen?f=…&g=…` (Hersteller × Gruppe) öffnen die Ansicht
+  einmalig direkt; danach steht in der Adresse wieder `/wissen`.
 - **Handy/schmal:** Listen oben, darunter Infos/Karte.
 
 Am Kartenhintergrund ziehen = verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt
