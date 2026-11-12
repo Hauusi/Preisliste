@@ -1,0 +1,59 @@
+{# Infofeld auf der Karte, vom gewählten Punkt aus: kompakt und sortiert. Nachgeladen über /wissen/karteninfo. #}
+{% macro elist(entries, show_topics=false) -%}
+<ul class="mc-entries">{% for e in entries[:12] %}<li class="t-{{ e.type }}{{ ' stale' if is_stale(e) }}">{{ e.text }}
+  {% if show_topics %}{% for i in e.topic_ids if i in by_id and by_id[i].kind == "serie" %}<small class="mc-tag">Serie {{ by_id[i].name }}</small>{% endfor %}{% endif %}</li>{% endfor %}
+  {% if entries | length > 12 %}<li class="mc-more">und {{ entries | length - 12 }} weitere</li>{% endif %}</ul>
+{%- endmacro %}
+{% macro by_type(types) -%}
+{% for k, label, items in types %}<div class="mc-type t-{{ k }}"><h5><i></i>{{ label }}</h5>{{ elist(items) }}</div>{% endfor %}
+{%- endmacro %}
+{% macro factlist(list) -%}
+{% if list %}<dl class="mc-facts">{% for label, value in list %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
+{%- endmacro %}
+{% macro rule(r, name) -%}
+{% if r and r.via %}{% set pos, neg = rule_conditions(r) %}
+<ul class="mc-rule"><li class="yes">{{ pos[:1].upper() ~ pos[1:] }} → <b>{{ name }}</b></li><li class="no">{{ neg[:1].upper() ~ neg[1:] }} → <b>{{ r.via.name }}</b></li></ul>{% endif %}
+{%- endmacro %}
+
+<div class="mc" data-mc="{{ mode }}">
+{% if mode == "maker" %}
+  <header><small>Hersteller</small><b>{{ cf.name }}</b></header>
+  {% if C.rule and C.rule.via %}<section><h4>Bezug</h4>{{ rule(C.rule, cf.name) }}</section>{% endif %}
+  {% if C.facts %}<section><h4>Angaben</h4>{{ factlist(C.facts) }}</section>{% endif %}
+  {% if C.types %}<section><h4>Allgemein <small>{{ C.count }}</small></h4>{{ by_type(C.types) }}</section>{% endif %}
+  {% if not (C.facts or C.types or (C.rule and C.rule.via)) %}<p class="mc-empty">Noch keine allgemeinen Infos zu {{ cf.name }}.</p>{% endif %}
+  <p class="mc-hint">Rechts eine Artikelgruppe wählen für {{ cf.name }} × Gruppe.</p>
+
+{% elif mode == "group" %}
+  <header><small>Artikelgruppe · alle Hersteller</small><b>{{ cg.name }}</b></header>
+  {% if C.facts %}<section><h4>Angaben</h4>{{ factlist(C.facts) }}</section>{% endif %}
+  {% if C.products %}<section><h4>Artikelvergleich</h4>
+    <ol class="mc-products">{% for r in C.products %}<li class="stage-{{ r.stage }}"><b>{{ by_id[r.p.maker_id].name if r.p.maker_id in by_id else "–" }}</b>
+      <span>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</span><em class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</em></li>{% endfor %}</ol></section>{% endif %}
+  {% if C.general %}<section><h4>Für alle {{ cg.name }}</h4>{{ by_type(C.general) }}</section>{% endif %}
+  {% for x in C.makers %}
+  <section class="mc-maker"><h4><span>{{ x.m.name }}</span>{% if x.series %} <small>Serien: {{ x.series | map(attribute="name") | join(", ") }}</small>{% endif %}</h4>
+    {% if x.entries %}{{ elist(x.entries, true) }}{% else %}<p class="mc-empty">keine Einträge</p>{% endif %}</section>
+  {% endfor %}
+  {% if not (C.facts or C.products or C.general or C.makers) %}<p class="mc-empty">Noch nichts zu {{ cg.name }} gespeichert.</p>{% endif %}
+
+{% elif mode == "pair" %}
+  <header><small>Hersteller × Artikelgruppe{{ "" if assigned else " · nicht zugeordnet" }}</small><b>{{ cf.name }} → {{ cg.name }}</b></header>
+  {% if P.mine %}<section><h4>Artikel</h4><ol class="mc-products">{% for r in P.mine %}<li class="stage-{{ r.stage }}"><b>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</b>
+    <span>{{ ("Platz %d von %d" % (r.rank, P.rated)) if r.rank else "nicht bewertet" }}</span><em class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</em></li>{% endfor %}</ol></section>{% endif %}
+  {% if series %}<section><h4>Serien</h4><p class="mc-line">{{ series | map(attribute="name") | join(", ") }}</p></section>{% endif %}
+  {% if P.entries %}<section><h4>{{ cf.name }} + {{ cg.name }}</h4>{{ elist(P.entries) }}</section>{% endif %}
+  {% if P.pflicht %}<section><h4>Pflicht-Zubehör</h4><ul class="mc-entries">{% for x in P.pflicht %}<li class="t-pflicht">{{ by_id[x.topic_id].name if x.topic_id in by_id else "?" }} braucht {{ x.number or 1 }} × {{ by_id[x.ref_topic_id].name if x.ref_topic_id in by_id else "?" }}</li>{% endfor %}</ul></section>{% endif %}
+  {% if P.general %}<section><h4>Für alle {{ cg.name }}</h4>{{ elist(P.general) }}</section>{% endif %}
+  {% if (P.rule and P.rule.via) or P.maker_facts or P.maker_general %}<section><h4>Allgemein {{ cf.name }}</h4>
+    {{ rule(P.rule, cf.name) }}{{ factlist(P.maker_facts) }}{% if P.maker_general %}{{ elist(P.maker_general) }}{% endif %}</section>{% endif %}
+  {% if not (P.mine or series or P.entries or P.pflicht or P.general or P.maker_facts or P.maker_general) %}<p class="mc-empty">Noch nichts zu {{ cf.name }} und {{ cg.name }}.</p>{% endif %}
+
+{% elif mode == "serie" %}
+  <header><small>Serie · {{ s_group.name if s_group else "" }}{{ " · " ~ s_maker.name if s_maker else "" }}</small><b>{{ series.name }}</b></header>
+  {% if s_facts %}<section><h4>Angaben</h4>{{ factlist(s_facts) }}</section>{% endif %}
+  {% if types %}<section><h4>Einträge <small>{{ count }}</small></h4>{{ by_type(types) }}</section>{% endif %}
+  {% if not (s_facts or types) %}<p class="mc-empty">Noch nichts zu {{ series.name }}.</p>{% endif %}
+{% endif %}
+  <button type="button" class="secondary mc-open" data-show-infos>Alle Infos · bearbeiten</button>
+</div>
