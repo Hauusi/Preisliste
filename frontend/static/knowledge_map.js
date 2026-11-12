@@ -61,7 +61,7 @@
       }
       edges.forEach(function (e) {
         var a = byId[e.a], b = byId[e.b], dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        var k = (d - 150) * 0.04;
+        var k = (d - (e.label ? 270 : 150)) * 0.04;  // beschriftete Pfeile länger, damit der Text Platz hat
         a.vx += dx / d * k; a.vy += dy / d * k; b.vx -= dx / d * k; b.vy -= dy / d * k;
       });
       nodes.forEach(function (n) {
@@ -224,6 +224,12 @@
     info.appendChild(ul);
     var open = document.createElement("a"); open.className = "button"; open.href = "/wissen/" + n.id; open.textContent = "Steckbrief öffnen";
     info.appendChild(open);
+    if (n.kind === "hersteller") {
+      var ruleBtn = document.createElement("button"); ruleBtn.type = "button"; ruleBtn.className = "secondary";
+      ruleBtn.textContent = n.rule && n.rule.via ? "Bezugsregel ändern" : "Bezugsregel festlegen";
+      ruleBtn.addEventListener("click", function () { openDialog(n, null); });
+      info.appendChild(ruleBtn);
+    }
     // Auf schmalen Bildschirmen stehen die Infos als Liste im Kasten statt als Kärtchen rund um den Kreis
     var narrowList = document.createElement("ol");
     narrowList.className = "kb-map-infolist";
@@ -287,7 +293,7 @@
     } else {
       var p = toSvg(ev);
       if (Math.abs(p.x - drag.start.x) + Math.abs(p.y - drag.start.y) > 3) { moved = true; }
-      drag.node.x = drag.x + p.x - drag.start.x; drag.node.y = drag.y + p.y - drag.start.y; drag.node.pinned = true;
+      drag.node.x = drag.x + p.x - drag.start.x; drag.node.y = drag.y + p.y - drag.start.y; drag.node.pinned = drag.node.dragged = true;
       place();
     }
   });
@@ -338,58 +344,90 @@
     var l = document.createElement("label"); l.appendChild(document.createTextNode(label)); l.appendChild(input); return l;
   }
   function input(attrs) { var i = document.createElement("input"); for (var k in attrs) { i.setAttribute(k, attrs[k]); } return i; }
+  // Fenster: Bezugsregel (Satz zum Ausfüllen) und – wenn zwei Themen gewählt sind – Pflicht-Zubehör oder Hinweis
   function openDialog(a, b) {
     hint.hidden = true;
     dialog.textContent = "";
     var head = document.createElement("div"); head.className = "kb-connect-head";
-    var title = document.createElement("b"); title.textContent = a.name + " → " + b.name;
-    var swap = document.createElement("button"); swap.type = "button"; swap.className = "link"; swap.textContent = "⇄ umdrehen";
-    swap.addEventListener("click", function () { openDialog(b, a); });
-    head.appendChild(title); head.appendChild(swap); dialog.appendChild(head);
-    function option(value, text, checked, extra) {
+    var title = document.createElement("b"); title.textContent = b ? a.name + " → " + b.name : "Bezugsregel für " + a.name;
+    head.appendChild(title);
+    if (b) {
+      var swap = document.createElement("button"); swap.type = "button"; swap.className = "link"; swap.textContent = "⇄ umdrehen";
+      swap.addEventListener("click", function () { openDialog(b, a); });
+      head.appendChild(swap);
+    }
+    dialog.appendChild(head);
+    function option(value, parts, checked) {
       var row = document.createElement("label"); row.className = "kb-connect-opt";
       var r = input({ type: "radio", name: "art", value: value }); if (checked) { r.checked = true; }
       row.appendChild(r);
-      var span = document.createElement("span"); span.innerHTML = ""; text.forEach(function (part) {
-        if (typeof part === "string") { span.appendChild(document.createTextNode(part)); } else { span.appendChild(part); }
-      });
+      var span = document.createElement("span");
+      parts.forEach(function (part) { span.appendChild(typeof part === "string" ? document.createTextNode(part) : part); });
       row.appendChild(span);
-      if (extra) { row.appendChild(extra); }
       dialog.appendChild(row);
       return r;
     }
-    var moq = input({ type: "number", min: "1", max: "99999", name: "moq", value: a.moq || "", placeholder: "36", "aria-label": "Mindestbestellmenge" });
-    var qty = input({ type: "number", min: "1", max: "999", name: "menge", value: "1", "aria-label": "Stück" });
-    var note = input({ type: "text", name: "text", maxlength: "1000", placeholder: "z. B. gleiche Halter, austauschbar", "aria-label": "Hinweis" });
-    var bothMakers = a.kind === "hersteller" && b.kind === "hersteller";
-    option("bezug", ["Anfragen an " + a.name + " unter ", moq, " Stück gehen an " + b.name], bothMakers);
-    option("pflicht", [a.name + " braucht ", qty, " × " + b.name + " (Pflicht-Zubehör)"], !bothMakers);
-    option("hinweis", ["Hinweis zu beiden: "], false, note);
+    function bold(t) { var x = document.createElement("b"); x.textContent = t; return x; }
+    var rule = a.rule || {};
+    var moq = input({ type: "number", min: "1", max: "99999", name: "moq", value: rule.moq || a.moq || "", placeholder: "36", "aria-label": "Mindestmenge" });
+    var stockLabel = document.createElement("label"); stockLabel.className = "kb-rule-check";
+    var stock = input({ type: "checkbox", name: "lagerware", value: "1" }); stock.checked = !!rule.stock;
+    stockLabel.appendChild(stock); stockLabel.appendChild(document.createTextNode(" oder wenn Lagerware"));
+    var via = null;
+    if (!b) {
+      via = document.createElement("select"); via.name = "via"; via.setAttribute("aria-label", "Sonst bestellen bei");
+      var none = document.createElement("option"); none.value = ""; none.textContent = "bitte wählen"; via.appendChild(none);
+      data.nodes.filter(function (x) { return x.kind === "hersteller" && x.id !== a.id; })
+        .sort(function (x, y) { return x.name.localeCompare(y.name); })
+        .forEach(function (x) { var o = document.createElement("option"); o.value = x.id; o.textContent = x.name; if (rule.via === x.id) { o.selected = true; } via.appendChild(o); });
+    }
+    var ruleNote = input({ type: "text", name: "notiz", maxlength: "200", value: rule.note || "", placeholder: "Bemerkung, z. B. dort andere Kalkulation", "aria-label": "Bemerkung" });
+    var canRule = a.kind === "hersteller";
+    if (canRule && !b) { dialog.classList.add("single"); } else { dialog.classList.remove("single"); }
+    if (canRule) {
+      option("regel", ["Bezugsregel: bei ", bold(a.name), " bestellen ab ", moq, " Stück ", stockLabel, ". Sonst bestellen bei ",
+                       b ? bold(b.name) : via, ".", ruleNote], true);
+    }
+    var qty, note;
+    if (b) {
+      qty = input({ type: "number", min: "1", max: "999", name: "menge", value: "1", "aria-label": "Stück" });
+      note = input({ type: "text", name: "text", maxlength: "1000", placeholder: "z. B. gleiche Halter, austauschbar", "aria-label": "Hinweis" });
+      option("pflicht", [a.name + " braucht ", qty, " × " + b.name + " (Pflicht-Zubehör)"], !canRule);
+      option("hinweis", ["Hinweis zu beiden: ", note], false);
+    }
+    if (!canRule && !b) { return; }
     var err = document.createElement("p"); err.className = "kb-connect-err"; err.hidden = true; dialog.appendChild(err);
     var row = document.createElement("div"); row.className = "kb-connect-actions";
-    var ok = document.createElement("button"); ok.type = "submit"; ok.textContent = "Verbinden";
+    var ok = document.createElement("button"); ok.type = "submit"; ok.textContent = "Speichern";
     var cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "secondary"; cancel.textContent = "Abbrechen";
-    cancel.addEventListener("click", function () { setConnect(true); });
+    cancel.addEventListener("click", function () { if (connect.on) { setConnect(true); } else { dialog.hidden = true; } });
     row.appendChild(ok); row.appendChild(cancel); dialog.appendChild(row);
     dialog.onsubmit = function (ev) {
       ev.preventDefault();
-      var art = (dialog.querySelector("input[name=art]:checked") || {}).value, steps = [];
-      if (art === "bezug") {
-        if (moq.value && String(moq.value) !== String(a.moq || "")) { steps.push(["/wissen/" + a.id + "/feld/moq", { wert: moq.value }]); }
-        steps.push(["/wissen/" + a.id + "/feld/bezug_klein", { wert: b.id }]);
+      var art = (dialog.querySelector("input[name=art]:checked") || {}).value, req;
+      if (art === "regel") {
+        if (!moq.value && !stock.checked) { err.textContent = "Mindestmenge eintragen oder „oder wenn Lagerware“ anhaken."; err.hidden = false; moq.focus(); return; }
+        var target = b ? b.id : via.value;
+        if (!target) { err.textContent = "Bitte wählen, bei wem sonst bestellt wird."; err.hidden = false; via.focus(); return; }
+        req = send("/wissen/" + a.id + "/bezugsregel", { moq: moq.value, lagerware: stock.checked ? "1" : "", via: target, notiz: ruleNote.value });
       } else if (art === "pflicht") {
-        steps.push(["/wissen/" + a.id + "/feld/pflicht", { wert: b.id, menge: qty.value || 1 }]);
+        req = send("/wissen/" + a.id + "/feld/pflicht", { wert: b.id, menge: qty.value || 1 });
       } else if (art === "hinweis") {
         if (!note.value.trim()) { note.focus(); return; }
-        steps.push(["/wissen/eintrag", { text: note.value, themen: [a.id, b.id] }]);
+        req = send("/wissen/eintrag", { text: note.value, themen: [a.id, b.id] });
       } else { return; }
       ok.disabled = true;
-      steps.reduce(function (chain, st) { return chain.then(function () { return send(st[0], st[1]); }); }, Promise.resolve())
-        .then(function () { setConnect(false); reload(a.id); })
+      req.then(function () { setConnect(false); dialog.hidden = true; reload(a.id); })
         .catch(function (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; });
     };
     dialog.hidden = false;
-    (moq.value ? dialog.querySelector("input[name=art]:checked") : moq).focus();
+    // Radio-Auswahl folgt dem Feld, in das man tippt
+    if (!dialog.dataset.wired) dialog.addEventListener("focusin", function (ev) {
+      var opt = ev.target.closest && ev.target.closest(".kb-connect-opt");
+      if (opt && ev.target.type !== "radio") { opt.querySelector("input[type=radio]").checked = true; }
+    });
+    dialog.dataset.wired = "1";
+    (canRule ? (moq.value ? (b ? ok : via) : moq) : qty).focus();
   }
   function send(url, values) {
     var body = new URLSearchParams();
@@ -411,12 +449,11 @@
       .then(function (d) {
         var old = {};
         data.nodes.forEach(function (n) { old[n.id] = n; });
-        d.nodes.forEach(function (n) { var o = old[n.id]; if (o) { n.x = o.x; n.y = o.y; n.pinned = true; } });
+        // Positionen übernehmen, Layout mit der neuen Verbindung nachrechnen; selbst verschobene Kreise bleiben
+        d.nodes.forEach(function (n) { var o = old[n.id]; if (o) { n.x = o.x; n.y = o.y; n.pinned = n.dragged = !!o.dragged; } });
         data = d;
         selected = null;
-        var keep = view;
         build();
-        view = keep; applyView();
         if (byId[selectId]) { select(byId[selectId]); }
       });
   }

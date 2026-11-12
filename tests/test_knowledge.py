@@ -225,18 +225,23 @@ def test_fields_flow_graph_and_hints_at_work(admin_client, user_client):
     a, u = admin_client, user_client
     nid, rid = _topic(a, "Nordic Lights", aliase="Nordic"), _topic(a, "Riedfeld")
     gid = _topic(a, "Montageadapter", art="gruppe")
-    assert _field(u, nid, "moq", wert="36").status_code == 303
-    _field(u, nid, "bezug_klein", wert=str(rid))
-    _field(u, nid, "lager", wert="nein")
-    _field(u, nid, "pflicht", wert=str(gid), menge="2", bemerkung="bei Dachmontage")
-    r = _field(u, nid, "moq", wert="abc")
-    assert "fehler=" in r.headers["location"]  # ungültige Menge
     page = a.get(f"/wissen/{nid}").text
-    assert "36 Stück" in page and "Ablauf bei kleinen Mengen" in page and "Menge mindestens 36 Stück?" in page
-    assert "bei Riedfeld anfragen" in page and "Lagerartikel bei uns?" not in page  # Lager „nein“: direkt zum Bezugsweg
+    assert "Bezugsregel festlegen" in page and 'name="lagerware"' in page  # leer: Satz zum Ausfüllen
+    r = u.post(f"/wissen/{nid}/bezugsregel", data={"csrf_token": u.csrf, "moq": "36", "via": ""}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]  # ohne Händler
+    r = u.post(f"/wissen/{nid}/bezugsregel", data={"csrf_token": u.csrf, "moq": "", "via": str(rid)}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]  # weder Menge noch Lagerware
+    r = u.post(f"/wissen/{nid}/bezugsregel", data={"csrf_token": u.csrf, "moq": "36", "lagerware": "1", "via": str(rid),
+                                                 "notiz": "dort andere Kalkulation"}, follow_redirects=False)
+    assert r.headers["location"].endswith("#regel")
+    _field(u, nid, "pflicht", wert=str(gid), menge="2", bemerkung="bei Dachmontage")
+    page = a.get(f"/wissen/{nid}").text
+    assert "Anfrage <b>Nordic Lights</b>: Ab 36 Stück oder Lagerware?" in page
+    assert "Bei Nordic Lights bestellen" in page and "Bei Riedfeld bestellen →" in page
+    assert "nein · unter 36 Stück und keine Lagerware" in page and "dort andere Kalkulation" in page
     assert '2 × <a href="/wissen/%d">Montageadapter</a>' % gid in page and "bei Dachmontage" in page
     assert 'class="kb-graph"' in page and "Pflicht-Zubehör · 1" in page
-    assert "Für Nordic Lights: Anfragen unter 36 Stück kommen hierher" in a.get(f"/wissen/{rid}").text  # Gegenrichtung
+    assert "Für Nordic Lights: unter 36 Stück und keine Lagerware → hier bestellen" in a.get(f"/wissen/{rid}").text
     # Verlauf mit Namen
     assert "anna</b>" in page and "Angabe angelegt: Mindestbestellmenge: 36 Stück" in page
     # Hinweise in der Preisliste: Hersteller der eigenen Liste mit gleichem Namen/Alias
@@ -250,19 +255,21 @@ def test_fields_flow_graph_and_hints_at_work(admin_client, user_client):
         db.flush()
         mid = m.id
     box = u.get(f"/hersteller/{mid}").text
-    assert 'class="kb-hintbox"' in box and "Mindestbestellmenge 36 Stück, darunter über Riedfeld" in box
+    assert 'class="kb-hintbox"' in box
+    assert "Ab 36 Stück oder Lagerware → bei Nordic Lights bestellen, sonst (unter 36 Stück und keine Lagerware) → bei Riedfeld" in box
     assert "Pflicht-Zubehör: 2 × Montageadapter (bei Dachmontage)" in box
     # Datenblatt nennt Nordic Lights in einer Artikelbeschreibung: Hinweis im Editor
     sid = _new(u, titel="Arbeitsscheinwerfer", untertitel="Serie X")
     table = {**ds.new_table(), "zeilen": [{"bild": None, "artnr": "NL1", "farbe": "", "beschreibung": "Nordic Lights Scheinwerfer", "werte": []}]}
     _save(u, sid, _content(kopf={"titel": "Arbeitsscheinwerfer", "untertitel": "Serie X"}, bloecke=[*ds.DEFAULT_BLOCKS, table]))
-    assert "Mindestbestellmenge 36 Stück" in u.get(f"/datenblatt/{sid}").text
+    assert "Ab 36 Stück oder Lagerware" in u.get(f"/datenblatt/{sid}").text
     # nicht gefolgt: keine Hinweise
     u.post(f"/wissen/{nid}/folgen", data={"csrf_token": u.csrf})
     assert 'class="kb-hintbox"' not in u.get(f"/hersteller/{mid}").text
-    # leer speichern entfernt das Feld
-    _field(a, nid, "moq", wert="")
-    assert "Ablauf bei kleinen Mengen" not in a.get(f"/wissen/{nid}").text
+    # Regel entfernen: Händler weg, Mindestmenge bleibt als Angabe
+    a.post(f"/wissen/{nid}/bezugsregel", data={"csrf_token": a.csrf, "aktion": "entfernen"})
+    page = a.get(f"/wissen/{nid}").text
+    assert "Bei Riedfeld bestellen" not in page and "Mindestbestellmenge 36 Stück ist eingetragen" in page
 
 
 def test_search_words_synonyms_and_misses(admin_client, user_client):
@@ -401,23 +408,26 @@ def test_map_condition_arrow_and_reverse(admin_client, user_client):
     a, u = admin_client, user_client
     nid, rid = _topic(a, "Nordic Lights"), _topic(a, "Riedfeld")
     gid, acc = _topic(a, "Arbeitsscheinwerfer", art="gruppe"), _topic(a, "Montageadapter", art="gruppe")
-    # wie das Fenster „Verbinden“ auf der Karte: Menge, dann Bezugsweg; Pflicht-Zubehör; Hinweis zu beiden
-    r = u.post(f"/wissen/{nid}/feld/moq", data={"wert": "36"}, headers={"X-CSRF-Token": u.csrf})
+    # wie das Fenster auf der Karte: Bezugsregel, Pflicht-Zubehör, Hinweis zu beiden
+    r = u.post(f"/wissen/{nid}/bezugsregel", data={"moq": "36", "lagerware": "1", "via": str(rid)},
+               headers={"X-CSRF-Token": u.csrf})
     assert r.status_code == 200 and "fehler=" not in str(r.url)
-    u.post(f"/wissen/{nid}/feld/bezug_klein", data={"wert": str(rid)}, headers={"X-CSRF-Token": u.csrf})
     u.post(f"/wissen/{gid}/feld/pflicht", data={"wert": str(acc), "menge": "2"}, headers={"X-CSRF-Token": u.csrf})
     u.post("/wissen/eintrag", data={"text": "gleiche Halter", "themen": [str(nid), str(gid)]}, headers={"X-CSRF-Token": u.csrf})
     d = u.get("/api/wissen/karte").json()
     edges = {e["type"]: e for e in d["edges"]}
-    assert edges["bezug"]["source"] == nid and edges["bezug"]["label"] == "unter 36 Stk"
+    assert edges["bezug"]["source"] == nid and edges["bezug"]["label"] == "unter 36 Stk / keine Lagerware"
     assert edges["pflicht"]["source"] == gid and edges["pflicht"]["label"] == "2 ×"
     assert "eintrag" in edges
     info = {n["id"]: n["info"] for n in d["nodes"]}
     card = next(i for i in info[nid] if i.get("target") == rid)
-    assert card["text"] == "Mindestbestellmenge 36 Stück – darunter bei Riedfeld anfragen"
+    assert card["type"] == "regel" and info[nid][0] is card  # Regel-Kärtchen zuerst
+    assert card["text"] == "Bezugsregel: ab 36 Stück oder Lagerware → Nordic Lights, sonst → Riedfeld"
     assert not any(i["text"].startswith("Mindestbestellmenge:") for i in info[nid])  # zusammengefasst
     back = next(i for i in info[rid] if i.get("target") == nid)
-    assert back["text"] == "Für Nordic Lights: Anfragen unter 36 Stück kommen hierher"
+    assert back["text"] == "Für Nordic Lights: unter 36 Stück und keine Lagerware → hier bestellen"
+    node = {n["id"]: n for n in d["nodes"]}[nid]
+    assert node["rule"] == {"moq": 36, "stock": True, "note": "", "via": rid}
     assert any(i["text"] == "Pflicht-Zubehör für Arbeitsscheinwerfer (2 ×)" for i in info[acc])
     assert {n["id"]: n["moq"] for n in d["nodes"]}[nid] == 36
     assert "data-map-connect" in u.get("/wissen").text

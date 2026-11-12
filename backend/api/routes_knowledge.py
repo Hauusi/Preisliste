@@ -66,8 +66,8 @@ def _incoming_text(db: Session, f: KbFact, by_id: dict) -> str:
     """Was ein anderes Thema über dieses festlegt, aus Sicht dieses Themas."""
     src = by_id[f.topic_id].name
     if f.field == "bezug_klein":
-        moq = (kb.field_facts(db, f.topic_id).get("moq") or [None])[0]
-        return f"Für {src}: Anfragen unter {moq.number} Stück kommen hierher" if moq and moq.number else f"Für {src}: kleine Mengen kommen hierher"
+        r = kb.rule_of(kb.field_facts(db, f.topic_id), by_id)
+        return kb.reverse_rule_text(by_id[f.topic_id], r) if r else f"Für {src}: kleine Mengen kommen hierher"
     if f.field == "pflicht":
         return f"Pflicht-Zubehör für {src} ({f.number or 1} × je Artikel)"
     return f"{src}: {f.label}"
@@ -187,7 +187,8 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
     return render(request, "knowledge.html", {
         **ctx, "topic": t, "grouped": grouped, "entries": entries, "facts": facts, "by_id": by_id,
         "fields": fields, "field_defs": kb.FIELDS, "field_keys": kb.FIELDS_BY_KIND[t.kind], "lager_choices": kb.LAGER_CHOICES,
-        "describe": kb.describe, "fact_stale": kb.fact_stale, "flow": kb.flow(t, fields, by_id), "due_date": kb.due_date,
+        "describe": kb.describe, "fact_stale": kb.fact_stale, "due_date": kb.due_date,
+        "rule": kb.rule_of(fields, by_id) if t.kind == "hersteller" else None, "rule_conditions": kb.rule_conditions,
         "users": [u for u in db.scalars(select(User).where(User.active.is_(True)).order_by(User.username))],
         "referenced_by": [(by_id[f.topic_id], _incoming_text(db, f, by_id)) for f in incoming if f.topic_id in by_id],
         "graph": kb.graph(t, near) if near else None, "histories": histories, "changes": changes,
@@ -266,6 +267,22 @@ async def save_criteria(request: Request, topic_id: int, db: Session = Depends(g
     except ValueError as exc:
         return _back(t.id, str(exc), "#vergleich")
     return _back(t.id, anchor="#vergleich")
+
+
+@router.post("/wissen/{topic_id}/bezugsregel", dependencies=[Depends(check_csrf)])
+async def save_rule(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Bezugsregel in einem Schritt: ab Menge / oder Lagerware hier bestellen, sonst beim gewählten Händler."""
+    t = _topic(db, topic_id)
+    form = await request.form()
+    try:
+        if form.get("aktion") == "entfernen":
+            kb.delete_rule(db, user, t)
+        else:
+            kb.save_rule(db, user, t, str(form.get("moq") or ""), str(form.get("lagerware") or "") == "1",
+                         str(form.get("via") or ""), " ".join(str(form.get("notiz") or "").split())[:200])
+    except ValueError as exc:
+        return _back(t.id, str(exc), "#regel")
+    return _back(t.id, anchor="#regel")
 
 
 @router.post("/wissen/{topic_id}/zustaendig", dependencies=[Depends(check_csrf)])
