@@ -41,6 +41,57 @@ def _back(topic_id: int | None, error: str | None = None, anchor: str = "") -> R
     return RedirectResponse(url + anchor, status_code=303)
 
 
+def _ret(value: str, fallback_id: int | None, error: str | None = None, anchor: str = "") -> RedirectResponse:
+    """Zurück dorthin, wo gearbeitet wurde: „start:ID“ = Startseite mit Infofenster von ID, sonst Steckbrief."""
+    if value.startswith("start:") and value[6:].isdigit():
+        url = f"/wissen?t={value[6:]}" + ("&fehler=" + quote(error) if error else "")
+        return RedirectResponse(url + anchor, status_code=303)
+    return _back(int(value) if value.isdigit() else fallback_id, error, anchor)
+
+
+def _side_rows(topics: list[KbTopic]) -> list[tuple[KbTopic, int, int | None]]:
+    """Herstellerliste links: Firmengruppen zusammen (Mutter, darunter eingerückt die Töchter), Farbe wie auf der Karte."""
+    by_id = {t.id: t for t in topics}
+    groups = kb.company_groups(by_id)
+    color = {rid: i % 6 for i, rid in enumerate(groups)}
+    member = {m.id for ms in groups.values() for m in ms[1:]}
+    rows = []
+    for t in sorted((t for t in topics if t.kind == "hersteller" and t.id not in member), key=lambda x: x.name.lower()):
+        rows.append((t, 0, color.get(t.id)))
+        rows += [(m, 1, color[t.id]) for m in groups.get(t.id, [])[1:]]
+    return rows
+
+
+def _panel(db: Session, user: User, ctx: dict, t: KbTopic) -> dict:
+    """Infofenster rechts: alles Wichtige zu einem Hersteller/einer Gruppe als Liste."""
+    by_id = {x.id: x for x in ctx["topics"]}
+    entries = kb.entries_for(db, user, t.id)
+    fields = kb.field_facts(db, t.id)
+    incoming = list(db.scalars(select(KbFact).where(KbFact.ref_topic_id == t.id)))
+    groups = kb.company_groups(by_id)
+    root = kb.root_of(t, by_id)
+    rule = kb.rule_of(fields, by_id) if t.kind == "hersteller" else None
+    if t.kind == "gruppe":
+        products = kb.group_products(db, t)
+    else:
+        products = kb.maker_products(db, t, by_id)
+    return {"p_topic": t, "p_entries": entries,
+            "p_grouped": [(k, label, [e for e in entries if e.type == k]) for k, label in kb.TYPES.items()],
+            "p_fields": fields, "p_facts": kb.free_facts(db, t.id), "p_rule": rule,
+            "p_rule_text": kb.rule_conditions(rule) if rule and rule.get("via") else None,
+            "p_incoming": [(by_id[f.topic_id], _incoming_text(db, f, by_id)) for f in incoming if f.topic_id in by_id],
+            "p_company": groups.get(root.id, []), "p_root": root, "p_products": products,
+            "p_following": t.id not in ctx["hidden"], "field_defs": kb.FIELDS, "describe": kb.describe,
+            "fact_stale": kb.fact_stale, "by_id": by_id, "p_keys": kb.FIELDS_BY_KIND[t.kind]}
+
+
+def _overview(db: Session, user: User, ctx: dict) -> dict:
+    hidden, by_id = ctx["hidden"], {t.id: t for t in ctx["topics"]}
+    followed = [e for e in db.scalars(kb.visible_entries(db, user).order_by(KbEntry.updated_at.desc()))
+                if any(t not in hidden for t in e.topic_ids or [])]
+    return {"recent": followed[:15], "attention": kb.attention(db, user), "by_id": by_id}
+
+
 def _context(db: Session, user: User, error: str | None) -> dict:
     kb.sync_manufacturers(db)
     all_topics = kb.topics(db)
@@ -56,7 +107,7 @@ def _context(db: Session, user: User, error: str | None) -> dict:
         for t in (g_id, m_id):
             if t:
                 pcounts[t] = pcounts.get(t, 0) + 1
-    return {"portal": True, "topics": all_topics, "hidden": hidden, "names": names, "counts": counts, "pcounts": pcounts,
+    return {"portal": True, "wide": True, "full": True, "topics": all_topics, "hidden": hidden, "names": names, "counts": counts, "pcounts": pcounts,
             "types": kb.TYPES, "kinds": kb.KINDS, "error": error, "is_stale": kb.is_stale, "due_date": kb.due_date,
             "topic_json": json.dumps([{"id": t.id, "name": t.name, "kind": kb.KINDS[t.kind]} for t in all_topics],
                                      ensure_ascii=False)}
@@ -74,15 +125,22 @@ def _incoming_text(db: Session, f: KbFact, by_id: dict) -> str:
 
 
 @router.get("/wissen")
-def overview(request: Request, fehler: str | None = None, neu: str | None = None, db: Session = Depends(get_db),
-             user: User = Depends(current_user)):
+def overview(request: Request, fehler: str | None = None, neu: str | None = None, t: int | None = None,
+             db: Session = Depends(get_db), user: User = Depends(current_user)):
     ctx = _context(db, user, fehler)
-    hidden, by_id = ctx["hidden"], {t.id: t for t in ctx["topics"]}
-    followed = [e for e in db.scalars(kb.visible_entries(db, user).order_by(KbEntry.updated_at.desc()))
-                if any(t not in hidden for t in e.topic_ids or [])]
-    return render(request, "knowledge.html", {**ctx, "topic": None, "recent": followed[:12],
-                                              "attention": kb.attention(db, user), "by_id": by_id,
+    sel = db.get(KbTopic, t) if t else None
+    att = kb.attention(db, user)
+    flagged = {i for e in att["mine"] + att["other"] for i in e.topic_ids or []}
+    extra = _panel(db, user, ctx, sel) if sel else {}
+    return render(request, "knowledge.html", {**ctx, **_overview(db, user, ctx), **extra, "topic": None, "sel": sel,
+                                              "side_rows": _side_rows(ctx["topics"]), "flagged": flagged,
                                               "prefill": (neu or "")[:200]})
+
+
+@router.get("/wissen/ueberblick")
+def overview_panel(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    ctx = _context(db, user, None)
+    return render(request, "knowledge_panel.html", {**ctx, **_overview(db, user, ctx), "sel": None})
 
 
 @router.get("/wissen/suche")
@@ -203,6 +261,13 @@ def topic_page(request: Request, topic_id: int, fehler: str | None = None, db: S
     })
 
 
+@router.get("/wissen/{topic_id}/kurz")
+def topic_panel(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    ctx = _context(db, user, None)
+    t = _topic(db, topic_id)
+    return render(request, "knowledge_panel.html", {**ctx, **_panel(db, user, ctx, t), "sel": t})
+
+
 @router.post("/wissen/{topic_id}/bearbeiten", dependencies=[Depends(check_csrf)])
 async def edit_topic(request: Request, topic_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     t = _topic(db, topic_id)
@@ -227,7 +292,8 @@ async def follow(request: Request, topic_id: int, db: Session = Depends(get_db),
     form = await request.form()
     kb.set_follow(db, user, t, str(form.get("aktiv") or "") == "1")
     back = str(form.get("zurueck") or "")
-    return RedirectResponse(back if back in ("/wissen", f"/wissen/{t.id}") else f"/wissen/{t.id}", status_code=303)
+    ok = back in ("/wissen", f"/wissen/{t.id}") or (back.startswith("/wissen?t=") and back[10:].isdigit())
+    return RedirectResponse(back if ok else f"/wissen/{t.id}", status_code=303)
 
 
 @router.post("/wissen/{topic_id}/feld/{field}", dependencies=[Depends(check_csrf)])
@@ -343,9 +409,13 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
     try:
         e = kb.create_entry(db, user, text, kind or None, ids, str(form.get("privat") or "") == "1")
     except ValueError as exc:
+        if form.get("ziel") == "start" and fallback.isdigit():
+            return _ret("start:" + fallback, None, str(exc))
         return _back(int(fallback) if fallback.isdigit() else None, str(exc))
     kb.apply_suggestions(db, user, e, form)  # angehakt: „als Angabe übernehmen“
     target = int(fallback) if fallback.isdigit() and int(fallback) in e.topic_ids else e.topic_ids[0]
+    if form.get("ziel") == "start":  # aus dem Infofenster der Startseite
+        return _ret(f"start:{target}", None, anchor=f"#e{e.id}")
     return _back(target, anchor=f"#e{e.id}")
 
 
@@ -368,7 +438,7 @@ async def checked(request: Request, entry_id: int, db: Session = Depends(get_db)
     e = _entry(db, entry_id, user)
     kb.mark_checked(db, user, e)
     back = str((await request.form()).get("zurueck") or "")
-    return _back(int(back) if back.isdigit() else None, anchor=f"#e{e.id}")
+    return _ret(back, None, anchor=f"#e{e.id}")
 
 
 @router.post("/wissen/eintrag/{entry_id}/melden", dependencies=[Depends(check_csrf)])
@@ -377,7 +447,7 @@ async def flag(request: Request, entry_id: int, db: Session = Depends(get_db), u
     form = await request.form()
     kb.flag_entry(db, user, e, str(form.get("bemerkung") or ""))
     back = str(form.get("zurueck") or "")
-    return _back(int(back) if back.isdigit() else None, anchor=f"#e{e.id}")
+    return _ret(back, None, anchor=f"#e{e.id}")
 
 
 @router.get("/wissen/eintrag/{entry_id}/loeschen")

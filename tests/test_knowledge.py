@@ -130,7 +130,7 @@ def test_shared_manufacturer_list_from_price_lists(admin_client, user_client):
         db.add(Manufacturer(owner_id=admin.id, name="nordic-lights", code="NO"))
         db.add(Manufacturer(owner_id=admin.id, name="Hella", code="HE"))
     page = user_client.get("/wissen").text
-    assert page.count(">Nordic Lights</b>") == 1 and ">Hella</b>" in page
+    assert page.count("<span>Nordic Lights</span>") == 1 and "<span>Hella</span>" in page
     with session_scope() as db:
         t = db.query(KbTopic).filter_by(key="nordiclights").one()
         assert t.aliases == ["Nordic"]
@@ -205,7 +205,7 @@ def test_stale_by_type_flag_and_owner(admin_client, user_client):
     assert r.status_code == 303
     page = a.get("/wissen").text
     assert "Du bist zuständig" in page and "Gemeldet „stimmt nicht mehr“ von anna" in page and "Katalog kommt erst im Herbst" in page
-    assert page.index("Gemeldet „") < page.index('class="kb-stale">Prüffrist abgelaufen')  # gemeldete zuerst
+    assert page.index("Gemeldet „") < page.index('">Prüffrist abgelaufen</span>')  # gemeldete zuerst
     topic_page = u.get(f"/wissen/{nid}").text
     assert "Zuständig: admin" in topic_page and "gemeldet: Katalog kommt erst im Herbst" in topic_page
     # Bearbeiten erledigt die Meldung
@@ -463,3 +463,47 @@ def test_company_groups_parent_child_map_and_search(admin_client, user_client):
     # Tochter lösen
     u.post(f"/wissen/{ecco}/firmengruppe", data={"csrf_token": u.csrf, "tochter": str(vis), "loesen": "1"})
     assert u.get("/api/wissen/karte").json()["groups"][0]["members"] == [ecco, led]
+
+
+def test_start_page_list_map_and_info_panel(user_client):
+    """Startseite: Liste links (Firmengruppen eingerückt), Karte, Infofenster rechts; Infofenster per ?t= und als
+    Baustein nachladbar; Eintragen/Prüfen aus dem Fenster springt zurück auf die Startseite mit offenem Fenster."""
+    u = user_client
+    ecco, led = _topic(u, "EccoESG"), _topic(u, "LED Autolamps")
+    nordic, ried = _topic(u, "Nordic Lights"), _topic(u, "Riedfeld")
+    u.post(f"/wissen/{led}/firmengruppe", data={"csrf_token": u.csrf, "mutter": ecco})
+    u.post(f"/wissen/{nordic}/bezugsregel", data={"csrf_token": u.csrf, "moq": "36", "lagerware": "1", "via": ried})
+    u.post(f"/wissen/{nordic}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "4-6 Wochen"})
+
+    page = u.get("/wissen").text
+    assert 'class="kb-work"' in page and "Überblick" in page and "data-kb-map" in page
+    assert re.search(r'<li class="child grp c\d"[^>]*>\s*<a href="/wissen\?t=%d" data-pick="%d"><span>LED Autolamps' % (led, led), page)
+
+    # Infofenster per Link (ohne Script) und als Baustein
+    page = u.get(f"/wissen?t={nordic}").text
+    assert 'data-panel="%d"' % nordic in page and "Ab 36 Stück oder Lagerware" in page and "4-6 Wochen" in page
+    frag = u.get(f"/wissen/{nordic}/kurz").text
+    assert "<html" not in frag and "Unter 36 Stück und keine Lagerware" in frag and "Riedfeld" in frag
+    assert "Fehlt: Ansprechpartner, Pflicht-Zubehör" in frag
+    assert "Firmengruppe" in u.get(f"/wissen/{led}/kurz").text
+    ried_frag = u.get(f"/wissen/{ried}/kurz").text
+    assert "Nordic Lights</a>: Für Nordic Lights" in ried_frag  # Gegenrichtung der Bezugsregel
+    assert "Überblick" in u.get("/wissen/ueberblick").text
+
+    # Schnell ergänzen aus dem Fenster: landet beim Thema, zurück auf die Startseite mit offenem Fenster
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "Garantie 5 Jahre", "vorgabe": nordic,
+                                         "themen": nordic, "ziel": "start"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith(f"/wissen?t={nordic}#e")
+    eid = int(r.headers["location"].split("#e")[1])
+    assert "Garantie 5 Jahre." in u.get(f"/wissen/{nordic}/kurz").text
+    r = u.post(f"/wissen/eintrag/{eid}/melden", data={"csrf_token": u.csrf, "zurueck": f"start:{nordic}",
+                                                      "bemerkung": "jetzt 3 Jahre"}, follow_redirects=False)
+    assert r.headers["location"] == f"/wissen?t={nordic}#e{eid}"
+    assert "von anna: jetzt 3 Jahre" in u.get(f"/wissen/{nordic}/kurz").text
+    r = u.post(f"/wissen/{nordic}/folgen", data={"csrf_token": u.csrf, "zurueck": f"/wissen?t={nordic}"},
+               follow_redirects=False)
+    assert r.headers["location"] == f"/wissen?t={nordic}"
+    # leerer Text: Fehler zurück ins Fenster
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": " ", "vorgabe": nordic, "themen": nordic,
+                                         "ziel": "start"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/wissen?t={nordic}&fehler=")

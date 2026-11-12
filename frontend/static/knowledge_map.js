@@ -4,9 +4,9 @@
 (function () {
   var box = document.querySelector("[data-kb-map]");
   if (!box) { return; }
-  var svg = box.querySelector("svg"), info = box.querySelector("[data-map-info]"), empty = box.querySelector("[data-map-empty]");
+  var svg = box.querySelector("svg"), empty = box.querySelector("[data-map-empty]");
   var NS = "http://www.w3.org/2000/svg";
-  var data = null, nodes = [], edges = [], byId = {}, selected = null, infoLayer = null, groups = [], groupLayer = null;
+  var data = null, nodes = [], edges = [], byId = {}, selected = null, groups = [], groupLayer = null;
   var view = { x: -400, y: -260, w: 800, h: 520 };
   var LABEL = { artikel: "Artikel", bezug: "Bezug über", pflicht: "Pflicht-Zubehör", eintrag: "gemeinsame Einträge" };
   var STAGE = { erste: "erste Wahl", gut: "gut", notfalls: "nur wenn nötig", abraten: "abraten", offen: "noch nicht bewertet" };
@@ -49,6 +49,15 @@
       var a = (i / Math.max(fresh.length, 1)) * Math.PI * 2;
       var r = n.deg ? 140 : 300;
       n.x = Math.cos(a) * r + (i % 3) * 7; n.y = Math.sin(a) * r * 0.7 + (i % 5) * 5;
+    });
+    groups.forEach(function (g) {  // Firmengruppen starten beisammen, sonst verhaken sich die Gruppen ineinander
+      var root = byId[g.id] || byId[g.members[0]];
+      g.members.forEach(function (id, k) {
+        var n = byId[id];
+        if (n === root || fresh.indexOf(n) < 0) { return; }
+        var a = k / g.members.length * Math.PI * 2;
+        n.x = root.x + Math.cos(a) * 70; n.y = root.y + Math.sin(a) * 50;
+      });
     });
     for (var step = 0; step < 320; step++) {
       var t = 1 - step / 320;
@@ -114,7 +123,6 @@
     svg.insertBefore(defs, gEdges);
     var gLabels = el("g", { "class": "m-elabels" }, svg);
     svg.insertBefore(gLabels, gNodes);
-    infoLayer = el("g", { "class": "m-infos" }, svg);
     edges.forEach(function (e) {
       var cls = "m-edge e-" + e.type + (e.stage ? " s-" + e.stage : "");
       e.line = el("line", { "class": cls, "stroke-width": Math.min(1.5 + e.n * 0.8, 6) }, gEdges);
@@ -139,7 +147,7 @@
       g.addEventListener("pointerdown", function (ev) { startDrag(ev, n); });
     });
     place();
-    if (selected && byId[selected.id]) { select(byId[selected.id], true); } else { select(null); }
+    if (selected && byId[selected.id]) { select(byId[selected.id], true); } else { select(null, true); }
   }
 
   function place() {
@@ -154,71 +162,9 @@
     });
     nodes.forEach(function (n) { n.g.setAttribute("transform", "translate(" + n.x.toFixed(1) + "," + n.y.toFixed(1) + ")"); });
     groups.forEach(drawGroup);
-    if (selected) { drawInfos(selected); }
   }
 
-  // ---------- Info-Kärtchen rund um das gewählte Thema ----------
   function fontSize() { return Math.max(9, Math.min(13 * view.w / Math.max(box.clientWidth, 1), 34)); }
-  function wrap(text, max) {
-    var words = text.split(/\s+/), lines = [""];
-    words.forEach(function (w) {
-      var cur = lines[lines.length - 1];
-      if ((cur + " " + w).trim().length > max && cur) { lines.push(w); } else { lines[lines.length - 1] = (cur + " " + w).trim(); }
-    });
-    if (lines.length > 3) { lines = lines.slice(0, 3); lines[2] = lines[2].replace(/.{0,2}$/, "…"); }
-    return lines;
-  }
-  function drawInfos(n) {
-    infoLayer.textContent = "";
-    if (!n || !n.info || !n.info.length || box.clientWidth < 500) { return null; }  // schmal: Liste im Kasten
-    var bb = { x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r + 20 };
-    var fs = fontSize(), items = n.info, count = items.length, narrow = box.clientWidth < 500;
-    var R = n.r + fs * (count > 4 ? 13 : 10);
-    // Kärtchen gleichmäßig im Kreis, mit Lücke dort, wo die meisten Verbindungen hingehen
-    var ax = 0, ay = 0;
-    n.links.forEach(function (e) { var o = byId[e.a === n.id ? e.b : e.a]; ax += o.x - n.x; ay += o.y - n.y; });
-    var start = (ax || ay) ? Math.atan2(ay, ax) + Math.PI / Math.max(count, 1) : -Math.PI / 2;
-    items.forEach(function (it, i) {
-      var a = start + i * 2 * Math.PI / count, x = n.x + Math.cos(a) * R * (narrow ? 0.85 : 1.35), y = n.y + Math.sin(a) * R * (narrow ? 1.25 : 1);
-      var lines = wrap(it.text, narrow ? 20 : 30), w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.4;
-      var h = lines.length * fs * 1.3 + fs * 0.9;
-      bb.x0 = Math.min(bb.x0, x - w / 2); bb.x1 = Math.max(bb.x1, x + w / 2);
-      bb.y0 = Math.min(bb.y0, y - h / 2); bb.y1 = Math.max(bb.y1, y + h / 2);
-      el("line", { x1: n.x, y1: n.y, x2: x, y2: y, "class": "m-info-link t-" + it.type }, infoLayer);
-      var g = el("g", { "class": "m-info t-" + it.type + (it.stale ? " stale" : ""), transform: "translate(" + (x - w / 2).toFixed(1) + "," + (y - h / 2).toFixed(1) + ")",
-                        role: "link", tabindex: "0" }, infoLayer);
-      el("rect", { width: w.toFixed(1), height: h.toFixed(1), rx: (fs * 0.5).toFixed(1) }, g);
-      el("rect", { width: (fs * 0.3).toFixed(1), height: h.toFixed(1), "class": "bar" }, g);
-      lines.forEach(function (l, k) {
-        var t = el("text", { x: (fs * 0.85).toFixed(1), y: (fs * (1.25 + k * 1.3)).toFixed(1) }, g);
-        t.textContent = l;
-      });
-      var title = el("title", {}, g); title.textContent = it.text + (it.stale ? " (bitte prüfen)" : "");
-      var url = "/wissen/" + n.id + (it.entry ? "#e" + it.entry : it.type === "artikel" ? "#vergleich" : "#angaben");
-      var target = it.target && byId[it.target];
-      if (target) {
-        el("line", { x1: x, y1: y, x2: target.x, y2: target.y, "class": "m-info-target t-" + it.type }, infoLayer).parentNode.insertBefore(
-          infoLayer.lastChild, infoLayer.firstChild);
-        el("text", { x: (w - fs * 0.6).toFixed(1), y: (fs * 1.25).toFixed(1), "text-anchor": "end", "class": "m-info-go" }, g).textContent = "→";
-      }
-      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = target ? { jump: target } : { link: url }; moved = false; });
-      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { location.href = url; } });
-    });
-    return bb;
-  }
-  // Kärtchen sichtbar halten: Ansicht so weit verschieben, dass alles drin ist (Kärtchen wachsen mit dem Zoom mit,
-  // deshalb hilft nur Verschieben; passt es nicht, wird das Thema mittig gesetzt)
-  function reveal(bb, n) {
-    if (!bb) { return; }
-    var m = fontSize(), nx = view.x, ny = view.y;
-    if (bb.x1 - bb.x0 + 2 * m > view.w) { nx = n.x - view.w / 2; }
-    else if (bb.x0 - m < view.x) { nx = bb.x0 - m; }
-    else if (bb.x1 + m > view.x + view.w) { nx = bb.x1 + m - view.w; }
-    if (bb.y1 - bb.y0 + 2 * m > view.h) { ny = n.y - view.h / 2; }
-    else if (bb.y0 - m < view.y) { ny = bb.y0 - m; }
-    else if (bb.y1 + m > view.y + view.h) { ny = bb.y1 + m - view.h; }
-    if (nx !== view.x || ny !== view.y) { view.x = nx; view.y = ny; applyView(); }
-  }
 
   // ---------- Firmengruppen: weiche Blase um alle Firmen der Gruppe, folgt beim Verschieben ----------
   function showGroups() { var c = document.querySelector("[data-map-groups]"); return !c || c.checked; }
@@ -320,7 +266,7 @@
   }
   function drawGroup(g) {
     if (!g.path) { return; }
-    var fs = fontSize(), pad = fs * 2.2, mine = {};
+    var fs = Math.min(fontSize(), 16), pad = fs * 2.2, mine = {};  // stark herausgezoomt (Handy): Abstände begrenzen
     g.members.forEach(function (id) { mine[id] = true; });
     var members = g.members.map(function (id) { return byId[id]; });
     var mBoxes = members.map(function (n) { return nodeBox(n, fs); });
@@ -356,6 +302,19 @@
       }
     }
     var loops = contours(f, cols, rows, x0, y0, cell, 0.3), d = "", top = null;
+    function inside(poly, x, y) {  // Punkt im Linienzug (Strahlverfahren)
+      var c = false;
+      for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        var a = poly[i], b = poly[j];
+        if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) { c = !c; }
+      }
+      return c;
+    }
+    // Nur Teile behalten, die eine Firma der Gruppe enthalten (Reste von Umweg-Linien fallen weg); Löcher bleiben
+    var keep = loops.filter(function (l) { return members.some(function (n) { return inside(l, n.x, n.y); }); });
+    loops = keep.concat(loops.filter(function (l) {
+      return keep.indexOf(l) < 0 && keep.some(function (k) { return inside(k, l[0][0], l[0][1]); });
+    }));
     loops.forEach(function (loop) {
       var pts = loop.filter(function (p, idx) { return idx % 2 === 0; });  // ausdünnen, dann weich verbinden
       if (pts.length < 3) { return; }
@@ -375,9 +334,9 @@
     g.label.setAttribute("y", (top[1] - fs * 0.35).toFixed(1));
     g.label.setAttribute("text-anchor", "middle");
   }
-  function select(n, keep) {
+  // Auswahl: Nachbarn hervorheben und der Seite Bescheid geben (Infofenster rechts lädt die Infos)
+  function select(n, quiet) {
     selected = n;
-    reveal(drawInfos(n), n);
     svg.classList.toggle("focus", !!n);
     var near = {};
     if (n) { near[n.id] = true; n.links.forEach(function (e) { near[e.a] = near[e.b] = true; }); }
@@ -387,45 +346,14 @@
       e.line.classList.toggle("hi", on);
       if (e.text) { e.text.classList.toggle("hi", on); }
     });
-    if (!n) { info.hidden = true; return; }
-    info.textContent = "";
-    var h = document.createElement("b"); h.textContent = n.name; info.appendChild(h);
-    var sub = document.createElement("span");
-    sub.textContent = (n.kind === "gruppe" ? "Artikelgruppe" : "Hersteller") + " · " + n.entries + (n.entries === 1 ? " Eintrag" : " Einträge") +
-      (n.products ? " · " + n.products + " Artikel" : "");
-    info.appendChild(sub);
-    var ul = document.createElement("ul");
-    n.links.slice().sort(function (a, b) { return a.type < b.type ? -1 : 1; }).forEach(function (e) {
-      var other = byId[e.a === n.id ? e.b : e.a], li = document.createElement("li"), a = document.createElement("a");
-      a.href = "/wissen/" + other.id; a.textContent = other.name;
-      li.className = "e-" + e.type + (e.stage ? " s-" + e.stage : "");
-      li.appendChild(a);
-      li.appendChild(document.createTextNode(" · " + LABEL[e.type] + (e.stage ? ": " + STAGE[e.stage] : "")));
-      ul.appendChild(li);
-    });
-    if (!n.links.length) { var none = document.createElement("li"); none.textContent = "noch keine Verbindung"; ul.appendChild(none); }
-    info.appendChild(ul);
-    var open = document.createElement("a"); open.className = "button"; open.href = "/wissen/" + n.id; open.textContent = "Steckbrief öffnen";
-    info.appendChild(open);
-    if (n.kind === "hersteller") {
-      var ruleBtn = document.createElement("button"); ruleBtn.type = "button"; ruleBtn.className = "secondary";
-      ruleBtn.textContent = n.rule && n.rule.via ? "Bezugsregel ändern" : "Bezugsregel festlegen";
-      ruleBtn.addEventListener("click", function () { openDialog(n, null); });
-      info.appendChild(ruleBtn);
+    if (!quiet) { document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: n ? n.id : null, from: "map" } })); }
+  }
+  // Ins Bild holen, wenn das Thema außerhalb der Ansicht liegt
+  function show(n) {
+    var m = 60;
+    if (n.x < view.x + m || n.x > view.x + view.w - m || n.y < view.y + m || n.y > view.y + view.h - m) {
+      view.x = n.x - view.w / 2; view.y = n.y - view.h / 2; applyView();
     }
-    // Auf schmalen Bildschirmen stehen die Infos als Liste im Kasten statt als Kärtchen rund um den Kreis
-    var narrowList = document.createElement("ol");
-    narrowList.className = "kb-map-infolist";
-    (n.info || []).forEach(function (it) {
-      var li = document.createElement("li"), a = document.createElement("a");
-      li.className = "t-" + it.type + (it.stale ? " stale" : "");
-      a.href = "/wissen/" + n.id + (it.entry ? "#e" + it.entry : it.type === "artikel" ? "#vergleich" : "#angaben");
-      a.textContent = it.text;
-      li.appendChild(a);
-      narrowList.appendChild(li);
-    });
-    if (n.info && n.info.length) { info.appendChild(narrowList); }
-    info.hidden = false;
   }
 
   // ---------- Ansicht: Zoom, Verschieben, Knoten ziehen ----------
@@ -434,7 +362,6 @@
     // Schrift auf dem Bildschirm etwa gleich groß halten (sonst winzig auf dem Handy, riesig beim Hineinzoomen)
     var k = view.w / Math.max(box.clientWidth, 1);
     svg.style.setProperty("--fs", Math.max(9, Math.min(13 * k, 34)).toFixed(1) + "px");
-    if (selected && infoLayer) { drawInfos(selected); }
     groups.forEach(drawGroup);  // Abstand der Blase hängt vom Zoom ab
   }
   function fit() {
@@ -485,16 +412,13 @@
   var lastTap = { node: null, t: 0 };
   function endDrag() {
     if (drag && !moved) {
-      if (drag.link) { location.href = drag.link; return; }
-      if (drag.jump) { var j = drag.jump; drag = null; lastTap = { node: j, t: 0 }; select(j); return; }  // zur Gegenseite springen
-      if (drag.pan) { if (connect.on) { setConnect(true); } else { select(null); } }
+      if (drag.pan) { if (connect.on) { setConnect(true); } }
       else if (connect.on) { connectTap(drag.node); }
       else {
         var now = Date.now();
         if (lastTap.node === drag.node && now - lastTap.t < 400) { location.href = "/wissen/" + drag.node.id; return; }
-        var again = selected === drag.node && now - lastTap.t >= 400;
         lastTap = { node: drag.node, t: now };
-        select(again ? null : drag.node);  // nochmal anklicken = abwählen, Karte zeigt wieder nur die Themen
+        if (selected !== drag.node) { select(drag.node); }
       }
     }
     drag = null;
@@ -512,7 +436,7 @@
     hint.hidden = !on; hint.textContent = "Verbinden: erstes Thema antippen (z. B. Nordic Lights)";
     dialog.hidden = true;
     nodes.forEach(function (x) { x.g.classList.remove("from"); });
-    if (on) { select(null); }
+    if (on) { select(null, true); }
   }
   if (connectBtn) { connectBtn.addEventListener("click", function () { setConnect(!connect.on); }); }
   function connectTap(n) {
@@ -606,7 +530,10 @@
         req = send("/wissen/eintrag", { text: note.value, themen: [a.id, b.id] });
       } else { return; }
       ok.disabled = true;
-      req.then(function () { setConnect(false); dialog.hidden = true; reload(a.id); })
+      req.then(function () {
+        setConnect(false); dialog.hidden = true; reload(a.id);
+        document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: a.id, from: "map" } }));  // Infofenster aktualisieren
+      })
         .catch(function (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; });
     };
     dialog.hidden = false;
@@ -643,7 +570,7 @@
         data = d;
         selected = null;
         build();
-        if (byId[selectId]) { select(byId[selectId]); }
+        if (byId[selectId]) { select(byId[selectId], true); }
       });
   }
 
@@ -663,9 +590,17 @@
   var groupBox = document.querySelector("[data-map-groups]");
   if (groupBox) { groupBox.addEventListener("change", function () { if (groupLayer) { groupLayer.style.display = showGroups() ? "" : "none"; } }); }
   window.addEventListener("resize", fit);
+  window.kbMap = {
+    select: function (id) { var n = byId[id]; select(n || null, true); if (n) { show(n); } },
+    reload: function (id) { if (data) { reload(id); } }
+  };
 
   fetch("/api/wissen/karte", { credentials: "same-origin", headers: { Accept: "application/json" } })
     .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
-    .then(function (d) { data = d; build(); })
+    .then(function (d) {
+      data = d; build();
+      var pre = document.querySelector("[data-kb-detail] [data-panel]");  // per Link geöffnet (?t=…): gleich markieren
+      if (pre && byId[pre.getAttribute("data-panel")]) { window.kbMap.select(+pre.getAttribute("data-panel")); }
+    })
     .catch(function () { empty.textContent = "Karte konnte nicht geladen werden. Seite neu laden."; empty.hidden = false; });
 })();

@@ -468,22 +468,34 @@ Startseite → **Vertriebswissen**. Gemeinsames Wissen, das sonst nur in Köpfen
 Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
-**Karte (Startseite):** Alle Hersteller (Kreise) und Artikelgruppen (Quadrate) mit ihren Verbindungen. Linien bedeuten
-etwas: **Artikel** (Hersteller hat einen Artikel im Vergleich der Gruppe; Farbe = beste Bewertung: grün erste Wahl,
-hellgrün gut, grau nur wenn nötig, rot gestrichelt abraten), **Bezugsregel** (blauer Pfeil zum Händler, beschriftet z. B. „unter 36 Stk / keine Lagerware“),
-**Pflicht-Zubehör** (orange gestrichelt), **gemeinsame Einträge** (grau, ein Eintrag nennt beide). Je mehr Einträge und
-Artikel, desto größer der Kreis; Themen ohne Verbindung sind blass. **Klick auf einen Kreis** hebt seine
-Verbindungen hervor und klappt rund um den Kreis **Info-Kärtchen** auf: zuerst die **Bezugsregel** (blau umrandet),
-dann feste Angaben (z. B. Pflicht-Zubehör, Lieferzeit), erste Wahl im Artikelvergleich und die Einträge (Pflicht-Zubehör, Bezug, Kalkulation
-zuerst; höchstens 8). Die Ansicht schiebt sich so, dass alle Kärtchen sichtbar sind; Klick auf ein Kärtchen öffnet die
-Stelle im Steckbrief. **Nochmal auf den Kreis oder auf den Hintergrund klicken** blendet die Kärtchen wieder aus –
-dann zeigt die Karte wieder nur Hersteller und Gruppen. Auf dem Handy stehen die Infos als Liste unten in der Karte.
-Oben links: Name, „Steckbrief öffnen“ und bei Herstellern **„Bezugsregel festlegen“** bzw. „ändern“; Doppelklick auf
-den Kreis öffnet direkt.
+**Startseite – drei Spalten, volle Bildschirmbreite:**
+
+- **Links: Liste** aller Hersteller und Artikelgruppen. Firmengruppen stehen zusammen (Mutter, darunter eingerückt die
+  Töchter, farbiger Strich in der Farbe der Blase auf der Karte). Zahl rechts = Einträge, oranger Punkt = etwas ist zu
+  prüfen. Feld **„Liste filtern“** grenzt beim Tippen ein, Enter öffnet den ersten Treffer. Grau = nicht gefolgt.
+- **Mitte: Karte** mit Hersteller (Kreise), Artikelgruppen (Quadrate) und ihren Verbindungen: **Bezugsregel** (blauer
+  Pfeil zum Händler, beschriftet z. B. „unter 36 Stk / keine Lagerware“), **Pflicht-Zubehör** (orange gestrichelt),
+  **Artikel** (Hersteller im Artikelvergleich einer Gruppe; grün erste Wahl, hellgrün gut, grau nur wenn nötig, rot
+  gestrichelt abraten), **Firmengruppen** (farbige Blasen). „Anzeigen“ blendet Linienarten ein/aus; „gemeinsame
+  Einträge“ (grau) und „nicht gefolgte“ sind anfangs aus, damit die Karte übersichtlich bleibt. Klick auf einen Kreis
+  hebt seine Verbindungen hervor und öffnet rechts seine Infos; Doppelklick öffnet den Steckbrief.
+- **Rechts: Infofenster.** Ohne Auswahl: **Überblick** mit „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt
+  geändert“ und „Ohne Zuständigen“. Mit Auswahl (in der Liste oder auf der Karte) alles zum Hersteller als Liste:
+  Firmengruppe, **Bezug** (Bezugsregel als zwei Zeilen „Ab 36 Stück oder Lagerware → bei Nordic Lights“ / „Unter 36
+  Stück und keine Lagerware → bei Riedfeld“, beim Händler die Gegenrichtung), **Angaben** (Lieferzeit, Ansprechpartner,
+  Pflicht-Zubehör, freie Angaben; darunter „Fehlt: …“), **Artikel** (Artikelvergleich bzw. in welchen Gruppen) und
+  **Einträge nach Art**. Dort direkt **neu eintragen** (Feld + „Eintragen“, Strg+Enter), bei Einträgen **„stimmt noch“**
+  (nach Prüffrist) und **„stimmt nicht mehr“** melden – ohne Seitenwechsel. Ändern, Löschen, Bezugsregel, Firmengruppe
+  und Angaben: **„Steckbrief bearbeiten“**. × schließt zurück zum Überblick. Die Adresse (`/wissen?t=…`) lässt sich
+  als Link weitergeben und öffnet das Fenster direkt.
+- **Handy/schmal:** Liste, Infofenster und Karte untereinander.
+
+Am Kartenhintergrund ziehen = verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt
+die Ansicht an.
 
 **Bezugsregel (Beispiel Nordic Lights / Riedfeld):** Eine Bedingung, wann beim Hersteller und wann woanders bestellt
-wird. Festlegen auf der Karte (Nordic Lights antippen → „Bezugsregel festlegen“) oder im Steckbrief oben im Kasten
-„Bezugsregel“ – beides ist derselbe Satz zum Ausfüllen:
+wird. Festlegen im Steckbrief im Kasten „Bezugsregel“ (im Infofenster „Festlegen“) oder auf der Karte über „Verbinden“ –
+beides ist derselbe Satz zum Ausfüllen:
 
 > Bei **Nordic Lights** bestellen ab **[36]** Stück **[✓] oder wenn Lagerware**. Sonst bestellen bei **[Riedfeld ▾]**.
 > Bemerkung (optional), z. B. „dort andere Kalkulation“.
@@ -493,11 +505,10 @@ Mindestmenge, Lagerware oder beides (mindestens eins). Danach:
 - **Steckbrief Nordic Lights:** Kasten „Bezugsregel“ mit Frage „Ab 36 Stück oder Lagerware?“ und zwei Ästen –
   grün „ja → Bei Nordic Lights bestellen“, blau „nein · unter 36 Stück und keine Lagerware → Bei Riedfeld bestellen →“
   (Klick öffnet Riedfeld). „Regel ändern“ öffnet den Satz, dort auch „Regel entfernen“ (die Mindestmenge bleibt).
-- **Karte:** blauer Pfeil Nordic Lights → Riedfeld mit „unter 36 Stk / keine Lagerware“. Klick auf Nordic Lights:
-  Kärtchen „Bezugsregel: ab 36 Stück oder Lagerware → Nordic Lights, sonst → Riedfeld →“; Klick darauf springt zu
-  Riedfeld.
-- **Umgekehrt bei Riedfeld:** Kärtchen auf der Karte und oben im Steckbrief „Für Nordic Lights: unter 36 Stück und
-  keine Lagerware → hier bestellen“.
+- **Karte:** blauer Pfeil Nordic Lights → Riedfeld mit „unter 36 Stk / keine Lagerware“; Infofenster von Nordic
+  Lights unter „Bezug“ die beiden Zeilen, Klick auf Riedfeld öffnet dessen Infos.
+- **Umgekehrt bei Riedfeld:** im Infofenster unter „Bezug“ und oben im Steckbrief „Für Nordic Lights: unter 36 Stück
+  und keine Lagerware → hier bestellen“.
 - **Hinweise bei der Arbeit** (Preisliste, Jahresabgleich, Datenblatt): „Ab 36 Stück oder Lagerware → bei Nordic
   Lights bestellen, sonst (unter 36 Stück und keine Lagerware) → bei Riedfeld“.
 
@@ -511,10 +522,7 @@ welche Verbindung (mit „⇄ umdrehen“ für die Richtung):
 
 „Verbinden“ speichert (mit Name und Zeit wie im Steckbrief), die Karte zeigt sofort die neue Linie. Bezug und
 Pflicht-Zubehör erscheinen als **Pfeil mit Beschriftung** („unter 36 Stk / keine Lagerware“, „2 ×“). Ändern oder
-löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Angaben (Bleistift, leer speichern entfernt). Am Hintergrund ziehen =
-verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt die Ansicht an. Häkchen oben
-blenden Linienarten aus; „nicht gefolgte“ zeigt auch Themen, denen man nicht folgt. Darunter „Bitte prüfen“ und
-„Zuletzt geändert“.
+löschen: Bezugsregel im Kasten „Bezugsregel“, Pflicht-Zubehör bei den Angaben (Bleistift, leer speichern entfernt).
 
 **Firmengruppen (Beispiel EccoESG mit LED Autolamps und Vision Alert):** Hersteller können eine
 **Muttergesellschaft** haben. Festlegen im Steckbrief im Kasten **„Firmengruppe“** (nur Hersteller): „Gehört zu
@@ -527,8 +535,8 @@ Danach:
   eigener Farbe. Töchter werden zur Mutter gezogen. Zieht man eine Firma weg, **verformt sich die Blase mit** und
   umschließt weiter alle Mitglieder. **Fremde Firmen liegen nie in der Blase:** sie macht einen Bogen um sie herum
   (Verbindungsstück auf der freien, kürzeren Seite). Ist rundherum kein Platz, zerfällt sie in mehrere Teile in derselben
-  Farbe. Schon beim Aufbau der Karte werden fremde Firmen aus Gruppen herausgeschoben. Häkchen „Firmengruppen“ blendet die Blasen aus. Info-Kärtchen: bei der Mutter
-  „Firmengruppe EccoESG: LED Autolamps, Vision Alert“, bei der Tochter „Gehört zur Firmengruppe EccoESG“.
+  Farbe. Schon beim Aufbau der Karte werden fremde Firmen aus Gruppen herausgeschoben. „Anzeigen → Firmengruppen“ blendet die Blasen aus. Im Infofenster
+  stehen alle Firmen der Gruppe unter „Firmengruppe“; in der Liste links stehen sie zusammen.
 - **Steckbrief:** oben die Mitglieder der Gruppe als Chips (Mutter markiert, Klick öffnet).
 - **Suche:** „ecco“ findet auch alle Töchter.
 
@@ -538,7 +546,7 @@ Hersteller, Schreibweise wie „Nordic-Lights“/„nordic lights“ egal). Im S
 Nordic Lights (NL)“ mit Link. Weitere Hersteller und Artikelgruppen links über „+ Hersteller oder Artikelgruppe“
 anlegen, mit **anderen Schreibweisen** (z. B. Lichtbalken, Warnbalken), damit sie im Text erkannt werden.
 
-**Folgen:** Schalter neben jedem Thema. Standard: allem folgen. Was man ausschaltet, verschwindet aus der eigenen
+**Folgen:** Schalter „Folge ich“ im Infofenster und im Steckbrief (dort links auch neben jedem Thema). Standard: allem folgen. Was man ausschaltet, verschwindet aus der eigenen
 Übersicht und Suche; für die anderen bleibt alles da. Beispiel: Michi verkauft nur Fahrzeugtechnik und schaltet alle
 anderen Hersteller aus.
 
