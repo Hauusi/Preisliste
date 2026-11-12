@@ -157,7 +157,8 @@ def test_suggest_endpoint_and_portal_tile(user_client):
     c = user_client
     nid = _topic(c, "Nordic Lights", aliase="Nordic")
     r = c.post("/wissen/vorschlag", json={"text": "nordic moq 36 stk"}, headers={"X-CSRF-Token": c.csrf})
-    assert r.json() == {"art": "bezug", "themen": [nid], "text": "Nordic Lights Mindestbestellmenge 36 Stück."}
+    assert r.json() == {"art": "bezug", "themen": [nid], "text": "Nordic Lights Mindestbestellmenge 36 Stück.",
+                        "angaben": [{"field": "moq", "value": "36", "label": "Mindestbestellmenge 36 Stück"}]}
     assert c.post("/wissen/vorschlag", json={"text": "x"}).status_code == 403  # ohne Token
     _entry(c, "nordic moq 36 stk")
     home = c.get("/").text
@@ -325,7 +326,7 @@ def test_product_comparison_ranking_and_hints(admin_client, user_client):
         g, d = db.get(KbTopic, gid), db.get(KbTopic, durite)
         texts = [h["text"] for h in kb.hints(db, user, [g, d])]
     assert "Blue-Spot-Scheinwerfer: erste Wahl Durite 0-420-01 (4,5)" in texts
-    assert "Erste wahl bei Blue-Spot-Scheinwerfer: Durite 0-420-01" in texts
+    assert "Erste Wahl bei Blue-Spot-Scheinwerfer: Durite 0-420-01" in texts
     # Kriterien umbenennen: Punkte bleiben (nach Position)
     u.post(f"/wissen/{gid}/kriterien", data={"csrf_token": u.csrf, "kriterien": "Leuchtkraft, Qualität, Preis, Lieferbarkeit"})
     with session_scope() as db:
@@ -362,3 +363,32 @@ def test_map_data(admin_client, user_client):
     page = u.get("/wissen").text
     assert "data-kb-map" in page and "/static/knowledge_map.js" in page
     assert "data-kb-map" not in u.get(f"/wissen/{gid}").text  # Karte nur auf der Startseite
+
+
+def test_map_infos_and_field_suggestions(admin_client, user_client):
+    """Karte: beim Anklicken gehen Kärtchen mit Angaben, Einträgen und erster Wahl auf. Eintippen erkennt
+    Mindestbestellmenge/Lieferzeit und übernimmt sie nur mit Häkchen als Angabe."""
+    a, u = admin_client, user_client
+    nid, gid = _topic(a, "Nordic Lights", aliase="Nordic"), _topic(a, "Blue-Spot-Scheinwerfer", art="gruppe")
+    _product(a, gid, nid, "NL-1", [5, 5, 5, 4])
+    r = u.post("/wissen/vorschlag", json={"text": "nordic Mindestbestellmenge auf den meisten Artikel = 36 Stück"},
+               headers={"X-CSRF-Token": u.csrf})
+    assert r.json()["angaben"] == [{"field": "moq", "value": "36", "label": "Mindestbestellmenge 36 Stück"}]
+    # ohne Häkchen: nur Eintrag
+    _entry(u, "nordic Mindestbestellmenge auf den meisten Artikel = 36 Stück")
+    with session_scope() as db:
+        assert not kb.field_facts(db, nid).get("moq")
+    # mit Häkchen: zusätzlich Angabe; falsches Thema oder anderer Wert wird ignoriert
+    _entry(u, "nordic lieferzeit 6 wochen", **{"angabe_lieferzeit": f"{gid}|6 Wochen"})
+    _entry(u, "nordic moq 24 stk", **{"angabe_moq": f"{nid}|24"})
+    with session_scope() as db:
+        f = kb.field_facts(db, nid)
+        assert f["moq"][0].number == 24 and not f.get("lieferzeit")
+    d = u.get("/api/wissen/karte").json()
+    info = {n["id"]: n["info"] for n in d["nodes"]}
+    texts = [i["text"] for i in info[nid]]
+    assert "Mindestbestellmenge: 24 Stück" in texts
+    assert any("Mindestbestellmenge auf den meisten Artikel" in t for t in texts)
+    assert any(t.startswith("Erste Wahl bei Blue-Spot-Scheinwerfer") for t in texts)
+    assert any(i["text"].startswith("Blue-Spot-Scheinwerfer: erste Wahl Nordic Lights NL-1") for i in info[gid])
+    assert len(info[nid]) <= kb.MAP_INFO_MAX

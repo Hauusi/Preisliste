@@ -753,7 +753,7 @@ def best_in_groups(db: Session, topic: KbTopic, by_id: dict[int, KbTopic]) -> li
         rows = [r for r in group_products(db, topic) if r["rank"]]
         avg = f"{rows[0]['avg']:.1f}".replace(".", ",") if rows else ""
         return [f"{topic.name}: {rows[0]['stage_label']} {label(rows[0])} ({avg})"] if rows else []
-    return [f"{r['stage_label'].capitalize()} bei {r['group'].name}: {label(r)}" for r in maker_products(db, topic, by_id)
+    return [f"{r['stage_label'][:1].upper()}{r['stage_label'][1:]} bei {r['group'].name}: {label(r)}" for r in maker_products(db, topic, by_id)
             if r["rank"] == 1]
 
 
@@ -842,7 +842,71 @@ def map_data(db: Session, user: User) -> dict:
     for e in edges.values():
         if e["type"] == "artikel":
             e["stage"] = stage_of(e.get("score"))[0]
+    infos = map_infos(db, tops, entries)
     nodes = [{"id": t.id, "name": t.name, "kind": t.kind, "n": counts.get(t.id, 0) + pcounts.get(t.id, 0),
               "entries": counts.get(t.id, 0), "products": pcounts.get(t.id, 0), "off": t.id in hidden,
-              "owner": t.owner_id == user.id} for t in tops.values()]
+              "owner": t.owner_id == user.id, "info": infos.get(t.id, [])} for t in tops.values()]
     return {"nodes": nodes, "edges": list(edges.values())}
+
+
+MAP_INFO_MAX = 8
+
+
+def map_infos(db: Session, tops: dict[int, KbTopic], entries: list[KbEntry]) -> dict[int, list[dict]]:
+    """Kärtchen, die auf der Karte beim Anklicken eines Themas aufgehen: feste Angaben, erste Wahl im Artikelvergleich,
+    Einträge (Pflicht-Zubehör, Bezug, Kalkulation zuerst). Höchstens MAP_INFO_MAX je Thema."""
+    out: dict[int, list[dict]] = {}
+    for f in db.scalars(select(KbFact).order_by(KbFact.position, KbFact.id)):
+        if f.topic_id not in tops:
+            continue
+        kind = "pflicht" if f.field == "pflicht" else "liefer" if f.field in ("lieferzeit", "kontakt") else "bezug" if f.field else "angabe"
+        out.setdefault(f.topic_id, []).append({"type": kind, "text": f"{f.label}: {describe(f, tops) if f.field else f.value}",
+                                               "stale": fact_stale(f)})
+    for t in tops.values():
+        for line in best_in_groups(db, t, tops):
+            out.setdefault(t.id, []).append({"type": "artikel", "text": line, "stale": False})
+    order = {"pflicht": 0, "bezug": 1, "kalk": 2, "liefer": 3, "hinweis": 4}
+    for e in sorted(entries, key=lambda e: (order.get(e.type, 9), -e.updated_at.timestamp())):
+        for t in e.topic_ids or []:
+            if t in tops:
+                out.setdefault(t, []).append({"type": e.type, "text": e.text, "stale": is_stale(e), "entry": e.id})
+    return {k: v[:MAP_INFO_MAX] for k, v in out.items()}
+
+
+
+# ---------- Beim Eintippen: Angaben erkennen und zum Übernehmen anbieten ----------
+
+_MOQ_RX = re.compile(r"(?:mindestbestellmenge|mindestmenge|mindestabnahme|\bmoq\b)\D{0,45}?(?<!\d)(\d{1,5})(?![\d,.]?\d)(?!\s*(?:%|€|eur|wochen|tage|m\b|mm|cm))",
+                     re.IGNORECASE)
+_LEAD_RX = re.compile(r"lieferzeit\D{0,15}?(\d{1,3}(?:\s*(?:-|–|bis)\s*\d{1,3})?)\s*(wochen|woche|wo\.?|werktage|tage|tagen|kw)\b",
+                      re.IGNORECASE)
+
+
+def field_suggestions(text: str) -> list[dict]:
+    """Mindestbestellmenge und Lieferzeit im Freitext finden. Nur Vorschlag: übernommen wird erst per Häkchen,
+    weil Einschränkungen wie „bei den meisten Artikeln“ im Feld verloren gehen."""
+    out = []
+    m = _MOQ_RX.search(text or "")
+    if m and int(m.group(1)) > 0:
+        out.append({"field": "moq", "value": str(int(m.group(1))), "label": f"Mindestbestellmenge {int(m.group(1))} Stück"})
+    m = _LEAD_RX.search(text or "")
+    if m:
+        unit = {"wo": "Wochen", "wo.": "Wochen", "woche": "Wochen", "wochen": "Wochen", "werktage": "Werktage",
+                "tage": "Tage", "tagen": "Tage", "kw": "KW"}[m.group(2).lower()]
+        value = f"{re.sub(r'\s+', ' ', m.group(1))} {unit}"
+        out.append({"field": "lieferzeit", "value": value, "label": f"Lieferzeit {value}"})
+    return out
+
+
+def apply_suggestions(db: Session, user: User, e: KbEntry, form) -> list[str]:
+    """Angehakte Vorschläge (Feld „angabe_<feld>“ = „<Thema-ID>|<Wert>“) als feste Angabe beim Thema speichern."""
+    done = []
+    for s in field_suggestions(e.original or e.text):
+        raw = str(form.get(f"angabe_{s['field']}") or "")
+        tid, _, value = raw.partition("|")
+        topic = db.get(KbTopic, int(tid)) if tid.isdigit() else None
+        if not topic or topic.id not in (e.topic_ids or []) or value != s["value"]:
+            continue
+        save_field(db, user, topic, s["field"], {"wert": value})
+        done.append(f"{s['label']} bei {topic.name}")
+    return done

@@ -1006,7 +1006,7 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
 .m-node.lonely text { fill: var(--muted); font-weight: 500; }
 .m-node:focus-visible circle, .m-node:focus-visible rect, .m-node.sel circle, .m-node.sel rect { stroke: var(--fg); }
 .kb-map-svg.focus .m-node:not(.hi), .kb-map-svg.focus .m-edge:not(.hi) { opacity: .15; }
-.kb-map-info { position: absolute; top: 10px; right: 10px; width: min(280px, calc(100% - 20px)); max-height: calc(100% - 20px); overflow: auto;
+.kb-map-info { position: absolute; left: 10px; top: 10px; width: auto; max-width: calc(100% - 20px); grid-template-columns: auto auto; align-items: center; overflow: hidden;
   background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 12px 14px;
   display: grid; gap: 6px; font-size: .9rem; }
 .kb-map-info > span { color: var(--muted); font-size: .82rem; }
@@ -1019,7 +1019,17 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
 .kb-map-empty { position: absolute; left: 16px; right: 16px; bottom: 12px; margin: 0; padding: 8px 12px; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .kb-map-help { margin: 6px 2px 0; font-size: .8rem; }
-@media (max-width: 600px) { .kb-map { height: 60vh; } .kb-map-info { top: auto; bottom: 10px; max-height: 45%; } }
+.kb-map-info ul, .kb-map-info > span { display: none; }  /* Verbindungen und Infos zeigt die Karte selbst */
+.kb-map-info { padding: 8px 10px; gap: 12px; }
+.kb-map-infolist { display: none; }
+@media (max-width: 600px) {
+  .kb-map { height: 60vh; }
+  .kb-map-info:has(.kb-map-infolist) { top: auto; bottom: 10px; right: 10px; max-height: 55%; overflow: auto; grid-template-columns: 1fr auto; }
+  .kb-map-infolist { display: grid; grid-column: 1 / -1; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .kb-map-infolist li { padding: 4px 8px; border-left: 3px solid var(--t, var(--line-2)); background: var(--surface-2); font-size: .86rem; }
+  .kb-map-infolist li a { color: var(--fg); text-decoration: none; }
+  .kb-map-infolist li.stale { border-left-style: dashed; }
+}
 
 /* Artikelvergleich */
 .kb-compare th, .kb-compare td { vertical-align: middle; }
@@ -1068,3 +1078,17 @@ a.kb-node.end:hover { border-color: var(--accent); color: var(--accent); }
   .kb-compare-wrap { overflow-x: auto; }
   .kb-pop { position: static; width: 80vw; margin-top: 6px; }
 }
+
+/* Karte: Info-Kärtchen am gewählten Thema */
+.m-info { cursor: pointer; animation: m-pop .18s ease-out; }
+@keyframes m-pop { from { opacity: 0; } to { opacity: 1; } }
+.m-info rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+.m-info rect.bar { fill: var(--t, var(--muted)); stroke: none; }
+.m-info text { fill: var(--fg); font-family: var(--font); font-size: var(--fs, 12.5px); font-weight: 500; }
+.m-info:hover rect:not(.bar), .m-info:focus-visible rect:not(.bar) { stroke: var(--accent); stroke-width: 2; }
+.m-info.stale rect:not(.bar) { stroke: var(--signal); stroke-dasharray: 4 3; }
+.m-info-link { stroke: var(--t, var(--line-2)); stroke-width: 1.2; stroke-dasharray: 2 3; opacity: .8; }
+.m-info.t-angabe, .m-info-link.t-angabe { --t: var(--fg-2); }
+@media (prefers-reduced-motion: reduce) { .m-info { animation: none; } }
+.kb-suggest-fields { padding: 6px 10px; background: var(--info-soft); border-radius: var(--radius-sm); }
+.kb-field-check { margin: 0 12px 0 0; font-size: .88rem; color: var(--fg); }

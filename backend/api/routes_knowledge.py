@@ -132,7 +132,8 @@ async def suggest(request: Request, db: Session = Depends(get_db), _user: User =
     text = str((data or {}).get("text") or "")[:kb.MAX_TEXT]
     all_topics = kb.topics(db)
     found = kb.detect(text, all_topics)
-    return {"art": found["type"], "themen": found["topic_ids"], "text": kb.tidy(text, all_topics)}
+    return {"art": found["type"], "themen": found["topic_ids"], "text": kb.tidy(text, all_topics),
+            "angaben": kb.field_suggestions(text)}
 
 
 @router.post("/wissen/thema", dependencies=[Depends(check_csrf)])
@@ -291,6 +292,7 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
         e = kb.create_entry(db, user, text, kind or None, ids, str(form.get("privat") or "") == "1")
     except ValueError as exc:
         return _back(int(fallback) if fallback.isdigit() else None, str(exc))
+    kb.apply_suggestions(db, user, e, form)  # angehakt: „als Angabe übernehmen“
     target = int(fallback) if fallback.isdigit() and int(fallback) in e.topic_ids else e.topic_ids[0]
     return _back(target, anchor=f"#e{e.id}")
 
