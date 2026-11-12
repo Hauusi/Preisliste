@@ -88,7 +88,7 @@ templates.env.globals["color_word"] = _color_word
 
 
 def _fromjson(value):
-    """JSON-Text (z. B. Verlauf im Herstellerwissen) lesen; Ungültiges ergibt ein leeres Objekt."""
+    """JSON-Text (z. B. Verlauf im Vertriebswissen) lesen; Ungültiges ergibt ein leeres Objekt."""
     import json
 
     try:

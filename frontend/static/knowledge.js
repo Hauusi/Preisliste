@@ -1,4 +1,4 @@
-// Herstellerwissen: Vorschlag beim Tippen (Art, Zuordnung, Schreibweise – vom Server, gleiche Regeln wie beim
+// Vertriebswissen: Vorschlag beim Tippen (Art, Zuordnung, Schreibweise – vom Server, gleiche Regeln wie beim
 // Speichern), Zuordnungs-Chips, Suche mit Strg+K. Ohne Script funktioniert alles über die normalen Formulare.
 (function () {
   var root = document.querySelector("[data-kb]");

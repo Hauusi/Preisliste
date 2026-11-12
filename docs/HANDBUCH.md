@@ -21,7 +21,7 @@ zuletzt die Technik für Entwickler (Teil C). Wer nur damit arbeitet, braucht Te
   - [9. Regeln, Kalkulationen, Vergleiche](#9-regeln-kalkulationen-vergleiche)
   - [10. KI-Funktionen](#10-ki-funktionen)
   - [11. Modul Datenblatt erstellen](#11-modul-datenblatt-erstellen)
-  - [12. Modul Herstellerwissen](#12-modul-herstellerwissen)
+  - [12. Modul Vertriebswissen](#12-modul-vertriebswissen)
   - [13. Verwaltung (Administratoren)](#13-verwaltung-administratoren)
   - [14. Häufige Fragen und Fehlerbilder](#14-häufige-fragen-und-fehlerbilder)
 - [Teil B – Betrieb](#teil-b--betrieb)
@@ -41,7 +41,7 @@ Nach der Anmeldung erscheint die Startseite mit Kacheln:
 |---|---|
 | **Preisliste** | Herstellerlisten einspielen, EK/VK kalkulieren, Jahresabgleich prüfen, Excel exportieren |
 | **Datenblatt erstellen** | Produktdatenblätter im festen Firmenlayout Schritt für Schritt erstellen, als PDF speichern |
-| **Herstellerwissen** | Wissen zu Herstellern und Artikelgruppen (Mindestmengen, Bezugswege, Kalkulationshinweise, Pflicht-Zubehör) für alle eintragen und schnell finden |
+| **Vertriebswissen** | Wissen zu Herstellern und Artikelgruppen (Mindestmengen, Bezugswege, Kalkulationshinweise, Pflicht-Zubehör) für alle eintragen und schnell finden |
 | **Weitere Tools** | Platzhalter für künftige Module |
 | **Verwaltung** | nur Administratoren: Benutzer, Passwörter, Protokoll |
 
@@ -462,9 +462,9 @@ automatisch in Bausteine übernommen. **Schrift:** Myriad Pro, falls auf dem Rec
 **Source Sans 3** (Adobe, gleiche Schriftfamilie, freie Lizenz SIL OFL 1.1) – damit sieht das Blatt auf jedem Rechner
 gleich aus und die Seitenaufteilung stimmt.
 
-## 12. Modul Herstellerwissen
+## 12. Modul Vertriebswissen
 
-Startseite → **Herstellerwissen**. Gemeinsames Wissen, das sonst nur in Köpfen steckt: „Nordic Lights hat eine
+Startseite → **Vertriebswissen**. Gemeinsames Wissen, das sonst nur in Köpfen steckt: „Nordic Lights hat eine
 Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
@@ -615,7 +615,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
-| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes` | Herstellerwissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen), Angaben im Steckbrief, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
+| `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes` | Vertriebswissen: gemeinsame Themen (Hersteller, Artikelgruppen; Name, Schlüssel, andere Schreibweisen), Angaben im Steckbrief, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |
 
 Beträge liegen als exakter Dezimaltext (`DecimalText`), nie als float.

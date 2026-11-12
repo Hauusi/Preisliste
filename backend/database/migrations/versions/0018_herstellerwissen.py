@@ -1,4 +1,4 @@
-"""Herstellerwissen: gemeinsame Themen (Hersteller, Artikelgruppen), Angaben, Einträge, Folgen, Verlauf
+"""Vertriebswissen: gemeinsame Themen (Hersteller, Artikelgruppen), Angaben, Einträge, Folgen, Verlauf
 
 Revision ID: 0018
 Revises: 0017
