@@ -534,7 +534,7 @@ def test_maker_times_group_panel(user_client):
     assert "RT-120 · Balken 120" in frag and "Platz 1 von 2" in frag and "erste Wahl" in frag
     assert "Andere Hersteller in Leuchtbalken (1)" in frag
     assert "über 1,80 m mehr kalkulieren" in frag and "Gilt für alle Leuchtbalken" in frag and "Kabelsatz" in frag
-    assert "Lieferzeit 3 Wochen" not in frag  # nur Redtronic, nicht Leuchtbalken
+    assert frag.index("Gilt für alles von Redtronic") < frag.index("Lieferzeit 3 Wochen")  # allgemein Redtronic: eigener Abschnitt
     assert "Pflicht-Zubehör" not in frag  # Montageadapter betrifft nicht Leuchtbalken
     page = u.get(f"/wissen?f={red}&g={balken}").text
     assert 'data-f="%d" data-g="%d"' % (red, balken) in page
@@ -546,3 +546,43 @@ def test_maker_times_group_panel(user_client):
     assert r.headers["location"].startswith(f"/wissen?f={red}&g={balken}#e")
     with session_scope() as db:
         assert sorted(db.query(KbEntry).filter(KbEntry.text.like("%24 V%")).one().topic_ids) == sorted([red, balken])
+
+
+def test_assortment_assign_groups_to_maker(user_client):
+    """Artikelgruppen beim Hersteller fest zuordnen (und von der Gruppe aus): bestimmt Hervorhebung und Kombination;
+    Kombi-Ansicht zeigt auch, was für alles vom Hersteller gilt."""
+    u = user_client
+    red, balken, rund = _topic(u, "Redtronic"), _topic(u, "Leuchtbalken", "gruppe"), _topic(u, "Rundumleuchten", "gruppe")
+    frag = u.get(f"/wissen/{red}/kurz").text
+    assert "Welche Artikelgruppen führt Redtronic?" in frag and "Artikelgruppe hinzufügen …" in frag
+
+    r = u.post("/wissen/sortiment", data={"csrf_token": u.csrf, "hersteller": red, "gruppe": balken,
+                                          "zurueck": f"start:{red}"}, follow_redirects=False)
+    assert r.headers["location"] == f"/wissen?t={red}"
+    u.post("/wissen/sortiment", data={"csrf_token": u.csrf, "hersteller": red, "gruppe": balken})  # doppelt: egal
+    frag = u.get(f"/wissen/{red}/kurz").text
+    assert re.search(r'data-asg-f="%d"' % balken, frag) and str(balken) in re.search(r'data-rel-f="([\d,]*)"', frag).group(1)
+    assert 'data-combine="%d"' % balken in frag
+    assert re.search(r'data-asg-g="%d"' % red, u.get(f"/wissen/{balken}/kurz").text)  # Gegenseite
+
+    # Kombi: zugeordnet, plus „Gilt für alles von Redtronic“
+    u.post(f"/wissen/{red}/feld/lieferzeit", data={"csrf_token": u.csrf, "wert": "3 Wochen"})
+    _entry(u, "Redtronic Preise netto ab Werk", themen=[red])
+    frag = u.get(f"/wissen/kombi?f={red}&g={balken}").text
+    assert "Redtronic führt Leuchtbalken" in frag and "Zuordnung lösen" in frag
+    assert "Gilt für alles von Redtronic" in frag and "3 Wochen" in frag and "netto ab Werk" in frag
+    assert "Rundumleuchten zu Redtronic hinzufügen" in u.get(f"/wissen/kombi?f={red}&g={rund}").text
+
+    # Karte: Linie Hersteller–Gruppe auch ohne Artikel im Vergleich
+    edges = u.get("/api/wissen/karte").json()["edges"]
+    assert any(e["type"] == "artikel" and {e["a"], e["b"]} == {red, balken} for e in edges)
+
+    # Lösen, Verlauf, falsche Art
+    u.post("/wissen/sortiment", data={"csrf_token": u.csrf, "hersteller": red, "gruppe": balken, "aktion": "entfernen"})
+    assert 'data-asg-f=""' in u.get(f"/wissen/{red}/kurz").text
+    r = u.post("/wissen/sortiment", data={"csrf_token": u.csrf, "hersteller": balken, "gruppe": red,
+                                          "zurueck": f"start:{red}"}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]
+    with session_scope() as db:
+        actions = [c.action for c in db.query(kb.KbChange).filter_by(topic_id=red)]
+    assert actions.count("Artikelgruppe") == 2

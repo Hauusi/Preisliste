@@ -63,8 +63,9 @@ Artikelnummer). Details: `docs/HANDBUCH.md`, Abschnitt 11.
 ## Vertriebswissen (Sales Assistant → Vertriebswissen)
 
 Startseite über die volle Breite: links Hersteller (Firmengruppen zusammen), rechts Artikelgruppen, Mitte Infos
-oder Karte. Hersteller wählen hebt die passenden Artikelgruppen hervor; Hersteller + Gruppe zeigt nur das Gemeinsame
-(z. B. „Redtronic × Leuchtbalken“: Artikel, Einträge zu beiden, Allgemeines der Gruppe); direkt ergänzen und prüfen. Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
+oder Karte. Beim Hersteller die Artikelgruppen zuordnen, die er führt; Hersteller wählen zeigt alle seine Infos und
+hebt seine Gruppen hervor; Hersteller + Gruppe zeigt alles dazu (z. B. „Redtronic × Leuchtbalken“: Artikel, Einträge
+zu beiden, was für alle Leuchtbalken und alles von Redtronic gilt); direkt ergänzen und prüfen. Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
 Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen
 Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
 Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.

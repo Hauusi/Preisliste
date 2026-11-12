@@ -626,6 +626,19 @@ class KbSearchMiss(Base):
     last_user: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_search_misses_user"))
 
 
+class KbAssortment(Base):
+    """Welche Artikelgruppen ein Hersteller führt (z. B. Redtronic → Leuchtbalken); von Hand zugeordnet."""
+
+    __tablename__ = "kb_assortment"
+    __table_args__ = (UniqueConstraint("maker_id", "group_id", name="uq_kb_assortment"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    maker_id: Mapped[int] = mapped_column(ForeignKey("kb_topics.id", ondelete="CASCADE", name="fk_kb_assortment_maker"), index=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("kb_topics.id", ondelete="CASCADE", name="fk_kb_assortment_group"), index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_assortment_created_by"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class KbProduct(Base):
     """Artikel im Vergleich einer Artikelgruppe: Hersteller, Artikel, Punkte je Kriterium (1–5), Begründung."""
 

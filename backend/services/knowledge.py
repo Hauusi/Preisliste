@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from backend.models.entities import (KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow,
+from backend.models.entities import (KbAssortment, KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbSynonym, KbTopic, KbUnfollow,
                                      Manufacturer, User, utcnow)
 
 KINDS = {"hersteller": "Hersteller", "gruppe": "Artikelgruppe"}
@@ -901,6 +901,9 @@ def map_data(db: Session, user: User) -> dict:
                 pcounts[g.id] = pcounts.get(g.id, 0) + 1
                 pcounts[r["p"].maker_id] = pcounts.get(r["p"].maker_id, 0) + 1
                 edge(r["p"].maker_id, g.id, "artikel", score=r["avg"])
+    for a in db.scalars(select(KbAssortment)):  # Sortiment ohne Artikel im Vergleich: graue Artikel-Linie
+        if (min(a.maker_id, a.group_id), max(a.maker_id, a.group_id), "artikel") not in edges:
+            edge(a.maker_id, a.group_id, "artikel")
     for e in edges.values():
         if e["type"] == "artikel":
             e["stage"] = stage_of(e.get("score"))[0]
@@ -1083,7 +1086,31 @@ def relations(db: Session, user: User, t: KbTopic, by_id: dict[int, KbTopic]) ->
             add(i)
     for f in db.scalars(select(KbFact).where(KbFact.field == "pflicht", or_(KbFact.topic_id == t.id, KbFact.ref_topic_id == t.id))):
         add(f.ref_topic_id if f.topic_id == t.id else f.topic_id)
+    for i in assortment_of(db, t):
+        add(i)
     return out
+
+
+def assortment_of(db: Session, t: KbTopic) -> list[int]:
+    """Fest zugeordnete Gegenseite: zu einem Hersteller seine Artikelgruppen, zu einer Gruppe ihre Hersteller."""
+    if t.kind == "hersteller":
+        return list(db.scalars(select(KbAssortment.group_id).where(KbAssortment.maker_id == t.id)))
+    return list(db.scalars(select(KbAssortment.maker_id).where(KbAssortment.group_id == t.id)))
+
+
+def set_assortment(db: Session, user: User, maker: KbTopic, group: KbTopic, on: bool) -> None:
+    """Artikelgruppe einem Hersteller zuordnen (on) oder die Zuordnung lösen."""
+    if maker.kind != "hersteller" or group.kind != "gruppe":
+        raise ValueError("Bitte einen Hersteller und eine Artikelgruppe wählen.")
+    row = db.scalar(select(KbAssortment).where(KbAssortment.maker_id == maker.id, KbAssortment.group_id == group.id))
+    if on and not row:
+        db.add(KbAssortment(maker_id=maker.id, group_id=group.id, created_by=user.id))
+        log(db, user, "thema", maker.id, maker.id, "Artikelgruppe", None, group.name)
+        log(db, user, "thema", group.id, group.id, "Hersteller", None, maker.name)
+    elif not on and row:
+        db.delete(row)
+        log(db, user, "thema", maker.id, maker.id, "Artikelgruppe", group.name, None)
+        log(db, user, "thema", group.id, group.id, "Hersteller", maker.name, None)
 
 
 def pair_info(db: Session, user: User, maker: KbTopic, group: KbTopic, by_id: dict[int, KbTopic]) -> dict:
@@ -1098,6 +1125,12 @@ def pair_info(db: Session, user: User, maker: KbTopic, group: KbTopic, by_id: di
                if {f.topic_id, f.ref_topic_id} == {maker.id, group.id}
                or (f.topic_id == group.id and f.ref_topic_id in by_id)]
     fields = field_facts(db, maker.id)
-    return {"mine": [r for r in rows if r["p"].maker_id == maker.id], "others": [r for r in rows if r["p"].maker_id != maker.id],
-            "rated": rated, "entries": entries, "general": general, "pflicht": pflicht, "rule": rule_of(fields, by_id),
+    maker_general = [e for e in entries_for(db, user, maker.id)
+                     if not any(by_id.get(i) and by_id[i].kind == "gruppe" for i in e.topic_ids or [])]
+    rule = rule_of(fields, by_id)
+    keys = FIELDS_BY_KIND["hersteller"] + ([] if rule and rule.get("via") else ["moq"])  # Mindestmenge steht sonst in der Regel
+    facts = [(FIELDS[k][0], describe(f, by_id)) for k in keys if k != "pflicht"
+             for f in fields.get(k, [])[:1]] + [(f.label, f.value) for f in free_facts(db, maker.id)]
+    return {"maker_general": maker_general, "maker_facts": facts, "mine": [r for r in rows if r["p"].maker_id == maker.id], "others": [r for r in rows if r["p"].maker_id != maker.id],
+            "rated": rated, "entries": entries, "general": general, "pflicht": pflicht, "rule": rule,
             "criteria": criteria_of(group)}
