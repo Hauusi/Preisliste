@@ -468,27 +468,34 @@ Startseite → **Vertriebswissen**. Gemeinsames Wissen, das sonst nur in Köpfen
 Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtbalken über 1,80 m mehr kalkulieren“,
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
-**Startseite – drei Spalten, volle Bildschirmbreite:**
+**Startseite – drei Spalten, volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen**, in der Mitte
+die **Infos** (Umschalter „Infos | Karte“).
 
-- **Links: Liste** aller Hersteller und Artikelgruppen. Firmengruppen stehen zusammen (Mutter, darunter eingerückt die
-  Töchter, farbiger Strich in der Farbe der Blase auf der Karte). Zahl rechts = Einträge, oranger Punkt = etwas ist zu
-  prüfen. Feld **„Liste filtern“** grenzt beim Tippen ein, Enter öffnet den ersten Treffer. Grau = nicht gefolgt.
-- **Mitte: Karte** mit Hersteller (Kreise), Artikelgruppen (Quadrate) und ihren Verbindungen: **Bezugsregel** (blauer
-  Pfeil zum Händler, beschriftet z. B. „unter 36 Stk / keine Lagerware“), **Pflicht-Zubehör** (orange gestrichelt),
-  **Artikel** (Hersteller im Artikelvergleich einer Gruppe; grün erste Wahl, hellgrün gut, grau nur wenn nötig, rot
-  gestrichelt abraten), **Firmengruppen** (farbige Blasen). „Anzeigen“ blendet Linienarten ein/aus; „gemeinsame
-  Einträge“ (grau) und „nicht gefolgte“ sind anfangs aus, damit die Karte übersichtlich bleibt. Klick auf einen Kreis
-  hebt seine Verbindungen hervor und öffnet rechts seine Infos; Doppelklick öffnet den Steckbrief.
-- **Rechts: Infofenster.** Ohne Auswahl: **Überblick** mit „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt
-  geändert“ und „Ohne Zuständigen“. Mit Auswahl (in der Liste oder auf der Karte) alles zum Hersteller als Liste:
-  Firmengruppe, **Bezug** (Bezugsregel als zwei Zeilen „Ab 36 Stück oder Lagerware → bei Nordic Lights“ / „Unter 36
-  Stück und keine Lagerware → bei Riedfeld“, beim Händler die Gegenrichtung), **Angaben** (Lieferzeit, Ansprechpartner,
-  Pflicht-Zubehör, freie Angaben; darunter „Fehlt: …“), **Artikel** (Artikelvergleich bzw. in welchen Gruppen) und
-  **Einträge nach Art**. Dort direkt **neu eintragen** (Feld + „Eintragen“, Strg+Enter), bei Einträgen **„stimmt noch“**
-  (nach Prüffrist) und **„stimmt nicht mehr“** melden – ohne Seitenwechsel. Ändern, Löschen, Bezugsregel, Firmengruppe
-  und Angaben: **„Steckbrief bearbeiten“**. × schließt zurück zum Überblick. Die Adresse (`/wissen?t=…`) lässt sich
-  als Link weitergeben und öffnet das Fenster direkt.
-- **Handy/schmal:** Liste, Infofenster und Karte untereinander.
+- **Listen:** Firmengruppen stehen links zusammen (Mutter, darunter eingerückt die Töchter, farbiger Strich wie die
+  Blase auf der Karte). Zahl = Einträge, oranger Punkt = etwas ist zu prüfen, grau = nicht gefolgt. Jede Liste hat ein
+  eigenes Filterfeld; Enter wählt den ersten Treffer.
+- **Hersteller wählen** (z. B. Redtronic): in der Mitte alles zu Redtronic; **rechts werden die Artikelgruppen
+  hervorgehoben und nach oben geholt, zu denen es bei Redtronic etwas gibt** (Artikel im Vergleich, Einträge zu
+  beiden, Pflicht-Zubehör). Die übrigen bleiben wählbar (grau).
+- **Dazu eine Artikelgruppe wählen** (z. B. Leuchtbalken): die Mitte zeigt nur **„Redtronic × Leuchtbalken“** –
+  Redtronic-Artikel in der Gruppe mit Platz im Vergleich (aufklappbar die anderen Hersteller), Pflicht-Zubehör
+  zwischen beiden, **Einträge zu beiden** (dort direkt neu eintragen – der Eintrag gehört dann zu beiden), „Gilt für
+  alle Leuchtbalken“ (Einträge der Gruppe ohne Hersteller) und die Bezugsregel von Redtronic. Knöpfe „Alles zu
+  Redtronic“ / „Alles zu Leuchtbalken“ wechseln zu einem der beiden.
+- Umgekehrt geht genauso: Gruppe zuerst wählen, links werden die passenden Hersteller hervorgehoben.
+- Nochmal auf den gewählten Eintrag klicken = abwählen; × in der Mitte hebt alles auf (Überblick).
+- **Überblick** (nichts gewählt): „Bitte prüfen“ (zuerst „Du bist zuständig“), „Zuletzt geändert“, „Ohne Zuständigen“.
+- **Einzelner Hersteller/Gruppe:** Firmengruppe, **Bezug** (Bezugsregel als zwei Zeilen „Ab 36 Stück oder Lagerware →
+  bei Nordic Lights“ / „Unter 36 Stück und keine Lagerware → bei Riedfeld“, beim Händler die Gegenrichtung),
+  **Angaben** (darunter „Fehlt: …“), **Artikel**, **Einträge nach Art**. Überall direkt **neu eintragen** (Strg+Enter),
+  **„stimmt noch“** und **„stimmt nicht mehr“** ohne Seitenwechsel. Ändern, Löschen, Bezugsregel, Firmengruppe und
+  Angaben über **„Steckbrief bearbeiten“**.
+- **Karte** (Reiter): Hersteller (Kreise), Artikelgruppen (Quadrate), **Bezugsregel** (blauer Pfeil zum Händler),
+  **Pflicht-Zubehör** (orange gestrichelt), **Artikel** (grün erste Wahl … rot gestrichelt abraten),
+  **Firmengruppen** (Blasen). „Anzeigen“ blendet Linienarten ein/aus. Klick wählt wie in den Listen, Doppelklick öffnet
+  den Steckbrief.
+- **Links weitergeben:** `/wissen?t=…` (ein Thema) bzw. `/wissen?f=…&g=…` (Hersteller × Gruppe) öffnen die Ansicht direkt.
+- **Handy/schmal:** Listen oben, darunter Infos/Karte.
 
 Am Kartenhintergrund ziehen = verschieben, Mausrad oder +/− = zoomen, Kreise lassen sich ziehen, „Alles zeigen“ passt
 die Ansicht an.

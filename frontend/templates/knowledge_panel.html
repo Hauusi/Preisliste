@@ -4,7 +4,7 @@
 {% macro who(uid) -%}{{ names.get(uid, "–") }}{%- endmacro %}
 {% macro pick(t, cls="") -%}<a class="{{ cls }}" href="/wissen?t={{ t.id }}" data-pick="{{ t.id }}">{{ t.name }}</a>{%- endmacro %}
 
-{% macro entry_row(e, here=None, show_topics=false) -%}
+{% macro entry_row(e, here=None, show_topics=false, back=None) -%}
 {% set stale = is_stale(e) %}
 <li class="kb-d-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
   {% if show_topics %}<div class="kb-d-topics">{% for t in e.topic_ids if t in by_id %}{{ pick(by_id[t]) }}{{ " · " if not loop.last }}{% endfor %}<span class="kb-typetag t-{{ e.type }}">{{ types[e.type] }}</span></div>{% endif %}
@@ -17,12 +17,12 @@
   </div>
   <div class="kb-d-acts">
     {% if stale %}<form method="post" action="/wissen/eintrag/{{ e.id }}/geprueft" class="inline" data-panel-form>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ 'start:%d' % here if here else '' }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ back or ('start:%d' % here if here else '') }}">
       <button type="submit" class="link">{{ icon("check", 14) }} stimmt noch</button></form>{% endif %}
     {% if not e.flagged_at %}
     <details class="kb-d-flag"><summary class="link">stimmt nicht mehr</summary>
       <form method="post" action="/wissen/eintrag/{{ e.id }}/melden" class="kb-d-flagform" data-panel-form>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ 'start:%d' % here if here else '' }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ back or ('start:%d' % here if here else '') }}">
         <input name="bemerkung" maxlength="300" placeholder="Was stimmt nicht? (optional)" aria-label="Was stimmt nicht?">
         <button type="submit" class="secondary">Melden</button>
       </form></details>
@@ -32,8 +32,81 @@
 </li>
 {%- endmacro %}
 
-{% if sel %}{% set t = p_topic %}
-<div class="kb-d" data-panel="{{ t.id }}" data-panel-name="{{ t.name }}">
+{% if pair is defined %}{% set f, g, P = pf, pg, pair %}{% set back = "kombi:%d:%d" % (f.id, g.id) %}
+<div class="kb-d" data-panel="{{ f.id }}" data-f="{{ f.id }}" data-g="{{ g.id }}"
+     data-rel-f="{{ rel_f.keys() | join(',') }}" data-rel-g="{{ rel_g.keys() | join(',') }}">
+  <header class="kb-d-head">
+    <div class="kb-d-title">
+      <span class="kb-d-kind">Hersteller × Artikelgruppe</span>
+      <h2>{{ f.name }} <span class="kb-d-x">×</span> {{ g.name }}</h2>
+    </div>
+    <a class="icon-btn" href="/wissen" data-panel-close title="Schließen" aria-label="Auswahl aufheben">{{ icon("x", 18) }}</a>
+  </header>
+  <div class="kb-d-bar">
+    <a class="button secondary" href="/wissen?t={{ f.id }}" data-only="{{ f.id }}">Alles zu {{ f.name }}</a>
+    <a class="button secondary" href="/wissen?t={{ g.id }}" data-only="{{ g.id }}">Alles zu {{ g.name }}</a>
+  </div>
+
+  <section class="kb-d-sec">
+    <h3>Artikel von {{ f.name }} in {{ g.name }}</h3>
+    {% if P.mine %}
+    <ol class="kb-d-products">{% for r in P.mine %}
+      <li class="stage-{{ r.stage }}"><b>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</b>
+        <span>{{ ("Platz %d von %d" % (r.rank, P.rated)) if r.rank else "nicht bewertet" }}{% if r.p.note %} · {{ r.p.note }}{% endif %}</span>
+        <span class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</span></li>{% endfor %}</ol>
+    {% else %}<p class="kb-d-empty">Kein Artikel im Vergleich. <a href="/wissen/{{ g.id }}#vergleich">Im Artikelvergleich eintragen</a></p>{% endif %}
+    {% if P.others %}
+    <details class="kb-d-others"><summary>Andere Hersteller in {{ g.name }} ({{ P.others | length }})</summary>
+      <ol class="kb-d-products">{% for r in P.others[:8] %}
+        <li class="stage-{{ r.stage }}"><b>{% if r.p.maker_id in by_id %}{{ pick(by_id[r.p.maker_id]) }}{% else %}–{% endif %}</b>
+          <span>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</span>
+          <span class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</span></li>{% endfor %}</ol>
+    </details>
+    {% endif %}
+  </section>
+
+  {% if P.pflicht %}
+  <section class="kb-d-sec">
+    <h3>Pflicht-Zubehör</h3>
+    <ul class="kb-d-list">{% for x in P.pflicht %}<li>{{ by_id[x.topic_id].name if x.topic_id in by_id else "?" }} braucht
+      <b>{{ x.number or 1 }} × {% if x.ref_topic_id in by_id %}{{ pick(by_id[x.ref_topic_id]) }}{% else %}?{% endif %}</b>{% if x.value %} <small>{{ x.value }}</small>{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  <section class="kb-d-sec">
+    <h3>Einträge zu {{ f.name }} und {{ g.name }} <small>{{ P.entries | length }}</small></h3>
+    <form method="post" action="/wissen/eintrag" class="kb-d-add" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="vorgabe" value="{{ f.id }}"><input type="hidden" name="themen" value="{{ f.id }}"><input type="hidden" name="themen" value="{{ g.id }}">
+      <input type="hidden" name="ziel" value="{{ back }}">
+      <textarea name="text" rows="2" maxlength="1000" required placeholder="Neu zu {{ f.name }} × {{ g.name }}, z. B. über 1,80 m mehr kalkulieren" aria-label="Neuer Eintrag zu {{ f.name }} und {{ g.name }}"></textarea>
+      <button type="submit">{{ icon("plus", 15) }} Eintragen</button>
+    </form>
+    {% if P.entries %}<ul class="kb-d-entries">{% for e in P.entries %}{{ entry_row(e, f.id, back=back) }}{% endfor %}</ul>
+    {% else %}<p class="kb-d-empty">Noch nichts, das beide betrifft.</p>{% endif %}
+  </section>
+
+  {% if P.general %}
+  <section class="kb-d-sec">
+    <h3>Gilt für alle {{ g.name }} <small>{{ P.general | length }}</small></h3>
+    <ul class="kb-d-entries">{% for e in P.general[:8] %}{{ entry_row(e, g.id, back=back) }}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if P.rule and P.rule.via %}{% set pos, neg = rule_conditions(P.rule) %}
+  <section class="kb-d-sec">
+    <h3>Bezug {{ f.name }}</h3>
+    <ul class="kb-d-rule">
+      <li class="yes"><span>{{ pos[:1].upper() ~ pos[1:] }}</span><b>bei {{ f.name }}</b></li>
+      <li class="no"><span>{{ neg[:1].upper() ~ neg[1:] }}</span><b>bei {{ pick(P.rule.via) }}</b></li>
+    </ul>
+  </section>
+  {% endif %}
+</div>
+
+{% elif sel %}{% set t = p_topic %}
+<div class="kb-d" data-panel="{{ t.id }}" data-panel-name="{{ t.name }}"
+     data-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ t.id }}" data-rel-{{ 'f' if t.kind == 'hersteller' else 'g' }}="{{ p_rel.keys() | join(',') }}">
   <header class="kb-d-head">
     <div class="kb-d-title">
       <span class="kb-d-kind">{{ kinds[t.kind] }}{% if t.aliases %} · auch {{ t.aliases | join(", ") }}{% endif %}</span>

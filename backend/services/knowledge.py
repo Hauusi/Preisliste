@@ -1061,3 +1061,43 @@ def _is_below(t: KbTopic, ancestor: KbTopic, tops: dict[int, KbTopic]) -> bool:
             return True
         cur, seen = tops[cur.parent_id], seen + 1
     return False
+
+
+# ---------- Firma × Artikelgruppe (Startseite: Firmen links, Artikelgruppen rechts) ----------
+
+def relations(db: Session, user: User, t: KbTopic, by_id: dict[int, KbTopic]) -> dict[int, int]:
+    """Themen der anderen Art (zu einer Firma die Artikelgruppen, zu einer Gruppe die Firmen), mit denen es etwas
+    gibt: Artikel im Vergleich, gemeinsame Einträge, Pflicht-Zubehör. Wert = Anzahl dieser Dinge."""
+    other = "gruppe" if t.kind == "hersteller" else "hersteller"
+    out: dict[int, int] = {}
+
+    def add(i):
+        if i in by_id and by_id[i].kind == other and i != t.id:
+            out[i] = out.get(i, 0) + 1
+
+    col, ref = (KbProduct.maker_id, KbProduct.group_id) if t.kind == "hersteller" else (KbProduct.group_id, KbProduct.maker_id)
+    for (i,) in db.execute(select(ref).where(col == t.id)):
+        add(i)
+    for e in entries_for(db, user, t.id):
+        for i in set(e.topic_ids or []):
+            add(i)
+    for f in db.scalars(select(KbFact).where(KbFact.field == "pflicht", or_(KbFact.topic_id == t.id, KbFact.ref_topic_id == t.id))):
+        add(f.ref_topic_id if f.topic_id == t.id else f.topic_id)
+    return out
+
+
+def pair_info(db: Session, user: User, maker: KbTopic, group: KbTopic, by_id: dict[int, KbTopic]) -> dict:
+    """Alles zu „Firma × Artikelgruppe“: ihre Artikel in der Gruppe (mit Platz), die Konkurrenz in der Gruppe,
+    Einträge zu beiden, Pflicht-Zubehör zwischen beiden, allgemeine Einträge der Gruppe und die Bezugsregel der Firma."""
+    rows = group_products(db, group)
+    rated = len([r for r in rows if r["rank"]])
+    entries = [e for e in entries_for(db, user, maker.id) if group.id in (e.topic_ids or [])]
+    general = [e for e in entries_for(db, user, group.id)
+               if not any(by_id.get(i) and by_id[i].kind == "hersteller" for i in e.topic_ids or [])]
+    pflicht = [f for f in db.scalars(select(KbFact).where(KbFact.field == "pflicht"))
+               if {f.topic_id, f.ref_topic_id} == {maker.id, group.id}
+               or (f.topic_id == group.id and f.ref_topic_id in by_id)]
+    fields = field_facts(db, maker.id)
+    return {"mine": [r for r in rows if r["p"].maker_id == maker.id], "others": [r for r in rows if r["p"].maker_id != maker.id],
+            "rated": rated, "entries": entries, "general": general, "pflicht": pflicht, "rule": rule_of(fields, by_id),
+            "criteria": criteria_of(group)}

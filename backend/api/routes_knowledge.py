@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -46,6 +47,10 @@ def _ret(value: str, fallback_id: int | None, error: str | None = None, anchor: 
     if value.startswith("start:") and value[6:].isdigit():
         url = f"/wissen?t={value[6:]}" + ("&fehler=" + quote(error) if error else "")
         return RedirectResponse(url + anchor, status_code=303)
+    m = re.fullmatch(r"kombi:(\d+):(\d+)", value)
+    if m:
+        url = f"/wissen?f={m.group(1)}&g={m.group(2)}" + ("&fehler=" + quote(error) if error else "")
+        return RedirectResponse(url + anchor, status_code=303)
     return _back(int(value) if value.isdigit() else fallback_id, error, anchor)
 
 
@@ -82,7 +87,28 @@ def _panel(db: Session, user: User, ctx: dict, t: KbTopic) -> dict:
             "p_incoming": [(by_id[f.topic_id], _incoming_text(db, f, by_id)) for f in incoming if f.topic_id in by_id],
             "p_company": groups.get(root.id, []), "p_root": root, "p_products": products,
             "p_following": t.id not in ctx["hidden"], "field_defs": kb.FIELDS, "describe": kb.describe,
-            "fact_stale": kb.fact_stale, "by_id": by_id, "p_keys": kb.FIELDS_BY_KIND[t.kind]}
+            "fact_stale": kb.fact_stale, "by_id": by_id, "p_keys": kb.FIELDS_BY_KIND[t.kind],
+            "p_rel": kb.relations(db, user, t, by_id)}
+
+
+def _pair(db: Session, user: User, ctx: dict, f: KbTopic, g: KbTopic) -> dict:
+    by_id = {x.id: x for x in ctx["topics"]}
+    info = kb.pair_info(db, user, f, g, by_id)
+    return {"pair": info, "pf": f, "pg": g, "by_id": by_id, "describe": kb.describe,
+            "rel_f": kb.relations(db, user, f, by_id), "rel_g": kb.relations(db, user, g, by_id),
+            "rule_conditions": kb.rule_conditions}
+
+
+def _selection(db: Session, t: int | None, f: int | None, g: int | None) -> tuple:
+    """(Firma, Artikelgruppe) aus den Adressparametern; t = einzelnes Thema beliebiger Art."""
+    def get(i, kind):
+        x = db.get(KbTopic, i) if i else None
+        return x if x and (kind is None or x.kind == kind) else None
+    one = get(t, None)
+    fx, gx = get(f, "hersteller"), get(g, "gruppe")
+    if one:
+        fx, gx = (one, gx) if one.kind == "hersteller" else (fx, one)
+    return fx, gx
 
 
 def _overview(db: Session, user: User, ctx: dict) -> dict:
@@ -126,15 +152,30 @@ def _incoming_text(db: Session, f: KbFact, by_id: dict) -> str:
 
 @router.get("/wissen")
 def overview(request: Request, fehler: str | None = None, neu: str | None = None, t: int | None = None,
-             db: Session = Depends(get_db), user: User = Depends(current_user)):
+             f: int | None = None, g: int | None = None, db: Session = Depends(get_db), user: User = Depends(current_user)):
     ctx = _context(db, user, fehler)
-    sel = db.get(KbTopic, t) if t else None
+    fx, gx = _selection(db, t, f, g)
     att = kb.attention(db, user)
     flagged = {i for e in att["mine"] + att["other"] for i in e.topic_ids or []}
-    extra = _panel(db, user, ctx, sel) if sel else {}
-    return render(request, "knowledge.html", {**ctx, **_overview(db, user, ctx), **extra, "topic": None, "sel": sel,
+    if fx and gx:
+        extra = _pair(db, user, ctx, fx, gx)
+    elif fx or gx:
+        extra = _panel(db, user, ctx, fx or gx)
+    else:
+        extra = {}
+    return render(request, "knowledge.html", {**ctx, **_overview(db, user, ctx), **extra, "topic": None,
+                                              "sel": fx or gx, "sel_f": fx, "sel_g": gx,
                                               "side_rows": _side_rows(ctx["topics"]), "flagged": flagged,
                                               "prefill": (neu or "")[:200]})
+
+
+@router.get("/wissen/kombi")
+def pair_panel(request: Request, f: int, g: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    ctx = _context(db, user, None)
+    fx, gx = _selection(db, None, f, g)
+    if not (fx and gx):
+        raise HTTPException(404, "Nicht gefunden")
+    return render(request, "knowledge_panel.html", {**ctx, **_pair(db, user, ctx, fx, gx), "sel": fx, "sel_f": fx, "sel_g": gx})
 
 
 @router.get("/wissen/ueberblick")
@@ -409,11 +450,15 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
     try:
         e = kb.create_entry(db, user, text, kind or None, ids, str(form.get("privat") or "") == "1")
     except ValueError as exc:
+        if str(form.get("ziel") or "").startswith("kombi:"):
+            return _ret(str(form.get("ziel")), None, str(exc))
         if form.get("ziel") == "start" and fallback.isdigit():
             return _ret("start:" + fallback, None, str(exc))
         return _back(int(fallback) if fallback.isdigit() else None, str(exc))
     kb.apply_suggestions(db, user, e, form)  # angehakt: „als Angabe übernehmen“
     target = int(fallback) if fallback.isdigit() and int(fallback) in e.topic_ids else e.topic_ids[0]
+    if str(form.get("ziel") or "").startswith("kombi:"):  # aus dem Fenster „Firma × Artikelgruppe“
+        return _ret(str(form.get("ziel")), None, anchor=f"#e{e.id}")
     if form.get("ziel") == "start":  # aus dem Infofenster der Startseite
         return _ret(f"start:{target}", None, anchor=f"#e{e.id}")
     return _back(target, anchor=f"#e{e.id}")

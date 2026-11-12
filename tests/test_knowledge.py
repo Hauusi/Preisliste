@@ -477,7 +477,7 @@ def test_start_page_list_map_and_info_panel(user_client):
 
     page = u.get("/wissen").text
     assert 'class="kb-work"' in page and "Überblick" in page and "data-kb-map" in page
-    assert re.search(r'<li class="child grp c\d"[^>]*>\s*<a href="/wissen\?t=%d" data-pick="%d"><span>LED Autolamps' % (led, led), page)
+    assert re.search(r'<li class="child grp c\d"[^>]*>\s*<a href="/wissen\?f=%d" data-pick="%d" data-kind="hersteller"><span>LED Autolamps' % (led, led), page)
 
     # Infofenster per Link (ohne Script) und als Baustein
     page = u.get(f"/wissen?t={nordic}").text
@@ -507,3 +507,42 @@ def test_start_page_list_map_and_info_panel(user_client):
     r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": " ", "vorgabe": nordic, "themen": nordic,
                                          "ziel": "start"}, follow_redirects=False)
     assert r.headers["location"].startswith(f"/wissen?t={nordic}&fehler=")
+
+
+def test_maker_times_group_panel(user_client):
+    """Firmen links, Artikelgruppen rechts: Hersteller wählen nennt die Gruppen, zu denen es etwas gibt;
+    Hersteller × Gruppe zeigt nur das Gemeinsame (Artikel, Einträge zu beiden, Pflicht-Zubehör, Allgemeines der Gruppe)."""
+    u = user_client
+    red, other = _topic(u, "Redtronic"), _topic(u, "Hella")
+    balken, rund, adapter = _topic(u, "Leuchtbalken", "gruppe"), _topic(u, "Rundumleuchten", "gruppe"), _topic(u, "Montageadapter", "gruppe")
+    u.post(f"/wissen/{balken}/artikel", data={"csrf_token": u.csrf, "hersteller": red, "artnr": "RT-120", "name": "Balken 120",
+                                              "k0": "5", "k1": "5", "k2": "4"})
+    u.post(f"/wissen/{balken}/artikel", data={"csrf_token": u.csrf, "hersteller": other, "artnr": "H-1", "name": "Hella Balken",
+                                              "k0": "3", "k1": "3", "k2": "3"})
+    u.post(f"/wissen/{red}/feld/pflicht", data={"csrf_token": u.csrf, "wert": adapter, "menge": "2"})
+    _entry(u, "Redtronic Leuchtbalken über 1,80 m mehr kalkulieren", themen=[red, balken])
+    _entry(u, "Leuchtbalken immer mit Kabelsatz anbieten", themen=[balken])
+    _entry(u, "Redtronic Lieferzeit 3 Wochen", themen=[red])
+
+    frag = u.get(f"/wissen/{red}/kurz").text
+    rel = re.search(r'data-rel-f="([\d,]*)"', frag).group(1).split(",")
+    assert sorted(map(int, rel)) == sorted([balken, adapter])  # Rundumleuchten: nichts → nicht hervorgehoben
+    assert str(red) in re.search(r'data-rel-g="([\d,]*)"', u.get(f"/wissen/{balken}/kurz").text).group(1).split(",")
+
+    frag = u.get(f"/wissen/kombi?f={red}&g={balken}").text
+    assert "Redtronic <span class=\"kb-d-x\">×</span> Leuchtbalken" in frag
+    assert "RT-120 · Balken 120" in frag and "Platz 1 von 2" in frag and "erste Wahl" in frag
+    assert "Andere Hersteller in Leuchtbalken (1)" in frag
+    assert "über 1,80 m mehr kalkulieren" in frag and "Gilt für alle Leuchtbalken" in frag and "Kabelsatz" in frag
+    assert "Lieferzeit 3 Wochen" not in frag  # nur Redtronic, nicht Leuchtbalken
+    assert "Pflicht-Zubehör" not in frag  # Montageadapter betrifft nicht Leuchtbalken
+    page = u.get(f"/wissen?f={red}&g={balken}").text
+    assert 'data-f="%d" data-g="%d"' % (red, balken) in page
+    assert u.get(f"/wissen/kombi?f={balken}&g={red}").status_code == 404  # Art vertauscht
+
+    # Eintrag aus der Kombi-Ansicht: gehört zu beiden, zurück in die Kombi-Ansicht
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "nur in 24 V", "vorgabe": red,
+                                         "themen": [red, balken], "ziel": f"kombi:{red}:{balken}"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/wissen?f={red}&g={balken}#e")
+    with session_scope() as db:
+        assert sorted(db.query(KbEntry).filter(KbEntry.text.like("%24 V%")).one().topic_ids) == sorted([red, balken])
