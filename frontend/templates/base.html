@@ -10,7 +10,7 @@
   <link rel="preload" href="/static/fonts/Barlow-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="{{ ('portal' if portal else 'app') if user else 'public' }}{{ ' wide' if wide }}">
+<body class="{{ ('portal' if portal else 'app') if user else 'public' }}{{ ' wide' if wide }}{{ ' full' if full }}">
 {% if user and portal %}
 <header class="topbar">
   <a href="/" class="brand" title="Alle Tools">

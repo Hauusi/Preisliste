@@ -62,7 +62,9 @@ Artikelnummer). Details: `docs/HANDBUCH.md`, Abschnitt 11.
 
 ## Vertriebswissen (Sales Assistant → Vertriebswissen)
 
-Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
+Startseite in drei Spalten über die volle Breite: links durchsuchbare Herstellerliste (Firmengruppen zusammen),
+Mitte Karte, rechts Infofenster des gewählten Herstellers als Liste (Bezug, Angaben, Artikel, Einträge; direkt
+ergänzen und prüfen). Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
 Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen
 Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
 Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.

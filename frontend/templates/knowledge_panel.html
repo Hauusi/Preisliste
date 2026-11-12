@@ -1,0 +1,158 @@
+{# Infofenster rechts auf der Vertriebswissen-Startseite. Wird beim Laden der Seite eingebunden und beim Anklicken
+   eines Herstellers per Script nachgeladen (/wissen/{id}/kurz bzw. /wissen/ueberblick). #}
+{% from "_icons.html" import icon %}
+{% macro who(uid) -%}{{ names.get(uid, "–") }}{%- endmacro %}
+{% macro pick(t, cls="") -%}<a class="{{ cls }}" href="/wissen?t={{ t.id }}" data-pick="{{ t.id }}">{{ t.name }}</a>{%- endmacro %}
+
+{% macro entry_row(e, here=None, show_topics=false) -%}
+{% set stale = is_stale(e) %}
+<li class="kb-d-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
+  {% if show_topics %}<div class="kb-d-topics">{% for t in e.topic_ids if t in by_id %}{{ pick(by_id[t]) }}{{ " · " if not loop.last }}{% endfor %}<span class="kb-typetag t-{{ e.type }}">{{ types[e.type] }}</span></div>{% endif %}
+  <p>{{ e.text }}</p>
+  <div class="kb-d-meta">
+    <span>{{ who(e.updated_by or e.author_id) }}, {{ e.updated_at | dt }}</span>
+    {% if e.private %}<span class="kb-private">nur für mich</span>{% endif %}
+    {% if e.flagged_at %}<span class="kb-d-tag flag" title="{{ e.flagged_at | dt }}">Gemeldet „stimmt nicht mehr“ von {{ who(e.flagged_by) }}{{ ": " ~ e.flag_note if e.flag_note }}</span>
+    {% elif stale %}<span class="kb-d-tag" title="Prüffrist: {{ due_date(e) | dt }}">Prüffrist abgelaufen</span>{% endif %}
+  </div>
+  <div class="kb-d-acts">
+    {% if stale %}<form method="post" action="/wissen/eintrag/{{ e.id }}/geprueft" class="inline" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ 'start:%d' % here if here else '' }}">
+      <button type="submit" class="link">{{ icon("check", 14) }} stimmt noch</button></form>{% endif %}
+    {% if not e.flagged_at %}
+    <details class="kb-d-flag"><summary class="link">stimmt nicht mehr</summary>
+      <form method="post" action="/wissen/eintrag/{{ e.id }}/melden" class="kb-d-flagform" data-panel-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ 'start:%d' % here if here else '' }}">
+        <input name="bemerkung" maxlength="300" placeholder="Was stimmt nicht? (optional)" aria-label="Was stimmt nicht?">
+        <button type="submit" class="secondary">Melden</button>
+      </form></details>
+    {% endif %}
+    <a class="link" href="/wissen/{{ here or (e.topic_ids or [''])[0] }}#e{{ e.id }}">bearbeiten</a>
+  </div>
+</li>
+{%- endmacro %}
+
+{% if sel %}{% set t = p_topic %}
+<div class="kb-d" data-panel="{{ t.id }}" data-panel-name="{{ t.name }}">
+  <header class="kb-d-head">
+    <div class="kb-d-title">
+      <span class="kb-d-kind">{{ kinds[t.kind] }}{% if t.aliases %} · auch {{ t.aliases | join(", ") }}{% endif %}</span>
+      <h2>{{ t.name }}</h2>
+      {% if t.owner_id %}<span class="kb-d-kind">Zuständig: {{ who(t.owner_id) }}</span>{% endif %}
+    </div>
+    <a class="icon-btn" href="/wissen" data-panel-close title="Schließen" aria-label="Infofenster schließen">{{ icon("x", 18) }}</a>
+  </header>
+  <div class="kb-d-bar">
+    <a class="button secondary" href="/wissen/{{ t.id }}">{{ icon("pencil", 15) }} Steckbrief bearbeiten</a>
+    <form method="post" action="/wissen/{{ t.id }}/folgen" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="/wissen?t={{ t.id }}">
+      {% if not p_following %}<input type="hidden" name="aktiv" value="1">{% endif %}
+      <button type="submit" class="kb-follow labeled" aria-pressed="{{ 'true' if p_following else 'false' }}"><span class="kb-switch"></span> Folge ich</button>
+    </form>
+  </div>
+
+  {% if p_company | length > 1 %}
+  <section class="kb-d-sec">
+    <h3>Firmengruppe</h3>
+    <div class="kb-d-chips">{% for m in p_company %}{{ pick(m, "kb-company-chip" ~ (" root" if m.id == p_root.id else "") ~ (" here" if m.id == t.id else "")) }}{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  {% if t.kind == "hersteller" or p_incoming %}
+  <section class="kb-d-sec">
+    <h3>Bezug</h3>
+    {% if p_rule_text %}{% set pos, neg = p_rule_text %}
+    <ul class="kb-d-rule">
+      <li class="yes"><span>{{ pos[:1].upper() ~ pos[1:] }}</span><b>bei {{ t.name }}</b></li>
+      <li class="no"><span>{{ neg[:1].upper() ~ neg[1:] }}</span><b>bei {{ pick(p_rule.via) }}</b></li>
+    </ul>
+    {% if p_rule.note %}<p class="kb-d-note">{{ p_rule.note }}</p>{% endif %}
+    {% if p_rule.stale %}<span class="kb-d-tag">bitte prüfen</span>{% endif %}
+    {% endif %}
+    {% for src, text in p_incoming %}<p class="kb-d-in">{{ pick(src) }}: {{ text }}</p>{% endfor %}
+    {% if not p_rule_text and not p_incoming %}<p class="kb-d-empty">Keine Bezugsregel. <a href="/wissen/{{ t.id }}#regel">Festlegen</a></p>{% endif %}
+  </section>
+  {% endif %}
+
+  <section class="kb-d-sec">
+    <h3>Angaben</h3>
+    {% set missing = [] %}
+    <dl class="kb-d-facts">
+      {% for key in p_keys + (["lager"] if p_fields.get("lager") else []) %}{% set label = field_defs[key][0] %}{% set items = p_fields.get(key, []) %}
+      {% if items %}
+      <div{% if key == "moq" %} class="alert"{% endif %}><dt>{{ label }}</dt><dd>
+        {% if key == "pflicht" %}{% for f in items %}{{ f.number or 1 }} × {% if f.ref_topic_id in by_id %}{{ pick(by_id[f.ref_topic_id]) }}{% else %}?{% endif %}{% if f.value %} <small>{{ f.value }}</small>{% endif %}{{ "<br>" | safe if not loop.last }}{% endfor %}
+        {% else %}{{ describe(items[0], by_id) }}{% endif %}
+        {% for f in items if fact_stale(f) %}{% if loop.first %} <span class="kb-d-tag">bitte prüfen</span>{% endif %}{% endfor %}
+      </dd></div>
+      {% else %}{% set _ = missing.append(label) %}{% endif %}
+      {% endfor %}
+      {% for f in p_facts %}<div><dt>{{ f.label }}</dt><dd>{{ f.value }}</dd></div>{% endfor %}
+    </dl>
+    {% if missing %}<p class="kb-d-empty">Fehlt: {{ missing | join(", ") }} · <a href="/wissen/{{ t.id }}#angaben">ergänzen</a></p>{% endif %}
+  </section>
+
+  {% if p_products %}
+  <section class="kb-d-sec">
+    <h3>{{ "Artikelvergleich" if t.kind == "gruppe" else "In Artikelgruppen" }}</h3>
+    <ol class="kb-d-products">
+      {% for r in p_products[:8] %}
+      <li class="stage-{{ r.stage }}">
+        {% if t.kind == "gruppe" %}<b>{% if r.p.maker_id in by_id %}{{ pick(by_id[r.p.maker_id]) }}{% else %}–{% endif %}</b>
+        {% else %}<b>{{ pick(r.group) }}</b>{% endif %}
+        <span>{{ r.p.artnr }}{% if r.p.artnr and r.p.name %} · {% endif %}{{ r.p.name }}</span>
+        <span class="kb-stage stage-{{ r.stage }}">{{ r.stage_label }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% if p_products | length > 8 %}<a class="kb-d-more" href="/wissen/{{ t.id }}#vergleich">alle {{ p_products | length }} ansehen</a>{% endif %}
+  </section>
+  {% endif %}
+
+  <section class="kb-d-sec">
+    <h3>Einträge <small>{{ p_entries | length }}</small></h3>
+    <form method="post" action="/wissen/eintrag" class="kb-d-add" data-panel-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="vorgabe" value="{{ t.id }}"><input type="hidden" name="themen" value="{{ t.id }}"><input type="hidden" name="ziel" value="start">
+      <textarea name="text" rows="2" maxlength="1000" required placeholder="Neu zu {{ t.name }}, z. B. Lieferzeit 6 Wochen" aria-label="Neuer Eintrag zu {{ t.name }}"></textarea>
+      <button type="submit">{{ icon("plus", 15) }} Eintragen</button>
+    </form>
+    {% for k, label, items in p_grouped if items %}
+    <div class="kb-d-group t-{{ k }}">
+      <h4><i></i>{{ label }} <small>{{ items | length }}</small></h4>
+      <ul class="kb-d-entries">{% for e in items %}{{ entry_row(e, t.id) }}{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% if not p_entries %}<p class="kb-d-empty">Noch nichts eingetragen.</p>{% endif %}
+  </section>
+</div>
+
+{% else %}
+<div class="kb-d" data-panel="">
+  <header class="kb-d-head"><div class="kb-d-title"><h2>Überblick</h2>
+    <span class="kb-d-kind">Hersteller links oder auf der Karte wählen – hier stehen dann seine Infos.</span></div></header>
+  {% set a = attention %}
+  {% set todo = a.mine + a.other %}
+  {% if todo %}
+  <section class="kb-d-sec kb-d-todo">
+    <h3>Bitte prüfen <small>{{ todo | length }}</small></h3>
+    {% if a.mine %}<h4 class="kb-d-sub">Du bist zuständig</h4>
+    <ul class="kb-d-entries">{% for e in a.mine[:10] %}{{ entry_row(e, none, true) }}{% endfor %}</ul>{% endif %}
+    {% if a.other %}{% if a.mine %}<h4 class="kb-d-sub">Weitere</h4>{% endif %}
+    <ul class="kb-d-entries">{% for e in a.other[:10] %}{{ entry_row(e, none, true) }}{% endfor %}</ul>{% endif %}
+    {% if todo | length > (a.mine[:10] | length) + (a.other[:10] | length) %}<p class="kb-d-empty">und {{ todo | length - (a.mine[:10] | length) - (a.other[:10] | length) }} weitere</p>{% endif %}
+  </section>
+  {% endif %}
+  <section class="kb-d-sec">
+    <h3>Zuletzt geändert</h3>
+    {% if recent %}<ul class="kb-d-entries">{% for e in recent %}{{ entry_row(e, none, true) }}{% endfor %}</ul>
+    {% else %}<p class="kb-d-empty">Noch keine Einträge. Oben einfach reinschreiben, z. B. „Nordic Lights Mindestbestellmenge 36 Stück“.</p>{% endif %}
+  </section>
+  {% if a.unowned %}
+  <section class="kb-d-sec">
+    <h3>Ohne Zuständigen <small>{{ a.unowned | length }}</small></h3>
+    <p class="kb-d-in">{% for x in a.unowned[:15] %}{{ pick(x) }}{{ ", " if not loop.last }}{% endfor %}{% if a.unowned | length > 15 %} und {{ a.unowned | length - 15 }} weitere{% endif %}</p>
+  </section>
+  {% endif %}
+</div>
+{% endif %}
