@@ -67,6 +67,7 @@
         markLists(d.lit || [], d.info_g || {}, d.info_f || {});
         setSay();
         var anchor = anchorOf(), from = state.f && state.g ? state.f : null;
+        if (kinds[state.g] === "serie") { return showSeries(d, anchor); }
         var list = items(d), narrow = mapBox.clientWidth < 600;  // Handy: Blasen als Liste unter der Karte
         lastList = list;
         if (window.kbMap) {
@@ -77,6 +78,22 @@
         if (openSub && list.some(function (x) { return x.key === openSub.key; })) { loadSub(openSub, true); } else { openSub = null; subItems = null; }
       })
       .catch(function () { if (my === seq) { state.f = state.g = null; refresh(); } });
+  }
+  // Serie gewählt (rechts in der Liste): Hersteller → Artikelgruppe → Serien-Blase, daran ihre Infos
+  function showSeries(d, anchor) {
+    var sid = state.g, nm = names[sid] || "", from = state.f || d.series_maker || null;
+    var head = /^serie/i.test(nm) ? nm : "Serie " + nm;
+    var item = { kind: "serie", type: "serie", key: "s" + sid, series: sid, name: nm,
+                 label: (names[anchor] ? names[anchor] + " · " : "") + head, text: head + (names[anchor] ? " (" + names[anchor] + ")" : "") };
+    var subs = d.bubbles.concat([{ kind: "add", type: "add", key: "add-" + sid, label: "+ Info zu " + nm,
+                                   text: "Neue Info zur Serie " + nm, target: sid, targetName: nm }]);
+    openSub = { series: sid, key: item.key, name: nm }; subItems = subs; lastList = [item];
+    if (window.kbMap) {
+      window.kbMap.select(from || anchor, from ? anchor : null);
+      if (mapBox.clientWidth < 600) { window.kbMap.bubbles(anchor, from, []); }
+      else { window.kbMap.bubbles(anchor, from, [item]); window.kbMap.subBubbles(item.key, subs); }
+    }
+    renderList(mapBox.clientWidth < 600 ? [item] : null);
   }
   // Serie aufklappen: ihre Infos als Unter-Blasen an der Serien-Blase, dazu „+ Info zu …“
   function loadSub(sub, again) {
@@ -115,6 +132,12 @@
   function setSay() {
     if (!say) { return; }
     var f = state.f, g = state.g;
+    var serie = g && kinds[g] === "serie", grp = serie && current && current.anchor ? names[current.anchor] : "";
+    if (serie) {
+      var mk = names[f || (current && current.series_maker)] || "";
+      say.textContent = (mk ? mk + " → " : "") + (grp ? grp + " → " : "") + (/^serie/i.test(names[g]) ? "" : "Serie ") + names[g] + ": alle Infos zur Serie.";
+      return;
+    }
     say.textContent = f && g ? names[f] + " → " + names[g] + ": nur die Infos dieser Artikelgruppe bei " + names[f] + "."
       : g ? names[g] + ": alle Infos, alle Hersteller." + (kinds[g] === "serie" ? "" : "")
       : f ? names[f] + ": Standard-Infos. Rechts eine Artikelgruppe wählen für " + names[f] + " × Gruppe."
@@ -206,7 +229,7 @@
   document.addEventListener("kb:bubble", function (ev) {
     var it = ev.detail.item, x = ev.detail.x, y = ev.detail.y;
     if (it.kind === "link") { location.href = it.link; return; }
-    if (it.kind === "serie") { closePop(); toggleSub(it); return; }
+    if (it.kind === "serie") { closePop(); if (kinds[state.g] !== "serie") { toggleSub(it); } return; }
     if (it.kind === "zuordnen") {
       send("/wissen/sortiment", { hersteller: state.f, gruppe: state.g }).then(function () { if (window.kbMap) { window.kbMap.reload(anchorOf()); } refresh(); });
       return;

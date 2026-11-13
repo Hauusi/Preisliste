@@ -729,6 +729,8 @@ def test_bubbles_maker_group_pair(user_client):
     sp = next(b for b in k["bubbles"] if b["kind"] == "serie")
     sub = [b["label"] for b in u.get(f"/api/wissen/blasen?g={sp['series']}").json()["bubbles"]]
     assert any("1,50 m" in x for x in sub)  # aufgeklappte Serie
+    sd = u.get(f"/api/wissen/blasen?g={sp['series']}").json()
+    assert sd["anchor"] == balken and sd["series_maker"] == red  # Serie gewählt: Hersteller → Gruppe → Serie
     # Serie heißt schon „Serie …“: kein doppeltes „Serie Serie“
     u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Serie Nova", "gruppe": balken, "hersteller": red})
     assert any(x.startswith("Serie Nova (") for x in labels(f"f={red}&g={balken}"))
