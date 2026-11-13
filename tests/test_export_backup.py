@@ -85,12 +85,15 @@ def test_export_requires_login(client):
 
 def test_backup_consistent_and_rotates(admin_client, tmp_path, settings):
     _flow(admin_client, tmp_path)
+    (settings.data_dir / "wissen").mkdir(parents=True, exist_ok=True)  # PDF-Anhänge im Vertriebswissen
+    (settings.data_dir / "wissen" / "abc.pdf").write_bytes(b"%PDF-1.4\n")
     paths = [create_backup(settings, keep=2)[0] for _ in range(3)]
     remaining = sorted((settings.data_dir / "backups").glob("preisliste-*.tar.gz"))
     assert len(remaining) <= 2 and paths[-1] in remaining
     with tarfile.open(paths[-1]) as tar:
         names = tar.getnames()
         assert "preisliste.sqlite3" in names and any(n.startswith("uploads/") for n in names)
+        assert "wissen/abc.pdf" in names
         tar.extract("preisliste.sqlite3", tmp_path / "restore", filter="data")
     import sqlite3
     con = sqlite3.connect(tmp_path / "restore" / "preisliste.sqlite3")

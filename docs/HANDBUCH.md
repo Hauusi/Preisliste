@@ -490,6 +490,12 @@ in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Bla
   Steckbrief).
 - **„+ Info“** (blaue Blase): direkt eintragen – der Eintrag gehört zum Gewählten (bei Hersteller + Gruppe zu beiden).
   Strg+Enter speichert. Das große Feld oben bleibt zum schnellen Eintragen mit automatischer Erkennung.
+- **PDF anhängen:** Im Fenster von „+ Info“ unter „PDF anhängen (optional)“ eine PDF wählen (z. B. Datenblatt,
+  Montageanleitung). Ohne Text wird der Dateiname als Text genommen. Die Blase zeigt den kurzen Text und darunter den
+  **Dateinamen als Link** („PDF · Spartan Datenblatt.pdf“) – Klick öffnet die PDF in einem neuen Tab. Ersetzen oder
+  entfernen: Blase anklicken → „Bearbeiten“ (oder im Steckbrief beim Eintrag). Nur echte PDF-Dateien, höchstens so groß
+  wie beim Listen-Upload (Standard 25 MB). Gespeichert im Datenordner unter `wissen/` (in der nächtlichen Sicherung enthalten); wird
+  der Eintrag gelöscht, ist auch die Datei weg. Private Einträge: PDF nur für den Ersteller.
 - **„Steckbrief bearbeiten ›“**: alles Weitere (Bezugsregel, Firmengruppe, Artikelgruppen zuordnen, Serien, Angaben,
   Artikelvergleich, Verlauf). Doppelklick auf einen Punkt öffnet ihn ebenfalls.
 - **Farben der Blasen:** blau Bezug, dunkelblau Kalkulation, orange Pflicht-Zubehör, lila Lieferzeit/Serie, grün
@@ -705,7 +711,7 @@ Datenbank-Migrationen laufen beim Start automatisch. Danach im Browser Strg+F5.
 | `reset-data --ja` | **alles** löschen (App vorher stoppen, siehe betrieb.md), danach `create-admin` |
 
 **Sicherung:** täglich 02:17 Uhr, die letzten 14 bleiben in `deploy/data/backups/`. Inhalt: Datenbank (konsistente
-Kopie mit Integritätsprüfung) und der Ordner `uploads/` (Excel-Dateien und Datenblatt-Bilder). Die Sicherungen
+Kopie mit Integritätsprüfung) und die Ordner `uploads/` (Excel-Dateien und Datenblatt-Bilder) und `wissen/` (PDF-Anhänge im Vertriebswissen). Die Sicherungen
 liegen auf demselben Server – regelmäßig woandershin kopieren. Wiederherstellen: siehe betrieb.md.
 
 **Logs:** `docker compose logs --tail 100 app`. **Status:** `docker compose ps`. **Health:** `/health`.
@@ -745,6 +751,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
+| `kb_entries.file_name`, `file_key` | Vertriebswissen: PDF-Anhang je Eintrag (Datei `data/wissen/<file_key>.pdf`) |
 | `kb_assortment` | Vertriebswissen: welche Artikelgruppen ein Hersteller führt (Hersteller, Gruppe, wer, wann) |
 | `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen, Serien; Name, Schlüssel, Muttergesellschaft bzw. bei Serien Artikelgruppe `parent_id`, Hersteller einer Serie `maker_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |
 | `audit_log`, `settings` | Protokoll, Einstellungen |

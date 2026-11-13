@@ -7,12 +7,13 @@ import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.api.deps import check_csrf, client_ip, current_user
 from backend.api.render import render
+from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbTopic, User, utcnow
 from backend.services import knowledge as kb
@@ -549,13 +550,25 @@ async def save_fact(request: Request, topic_id: int, db: Session = Depends(get_d
     return _back(t.id, anchor="#angaben")
 
 
+async def _pdf_upload(form) -> tuple[bytes, str] | None:
+    """Hochgeladene PDF aus dem Formular (Feld „datei“), sonst None."""
+    f = form.get("datei")
+    if f is None or isinstance(f, str) or not getattr(f, "filename", ""):
+        return None
+    return await f.read(), f.filename
+
+
 @router.post("/wissen/eintrag", dependencies=[Depends(check_csrf)])
-async def create_entry(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+async def create_entry(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user),
+                       settings: Settings = Depends(get_settings)):
     form = await request.form()
     chosen = form.getlist("themen")
     fallback = str(form.get("vorgabe") or "")
     kind = str(form.get("art") or "")
     text = str(form.get("text") or "")
+    pdf = await _pdf_upload(form)
+    if pdf and not text.strip():  # nur PDF: Dateiname als kurzer Text
+        text = kb.clean_file_name(pdf[1])[:-4]
     ids = chosen if chosen else None
     if ids is None and fallback.isdigit() and not kb.detect(text, kb.topics(db))["topic_ids"]:
         ids = [fallback]  # nichts erkannt: Eintrag gehört zum geöffneten Steckbrief
@@ -567,6 +580,14 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
         if form.get("ziel") == "start" and fallback.isdigit():
             return _ret("start:" + fallback, None, str(exc))
         return _back(int(fallback) if fallback.isdigit() else None, str(exc))
+    if pdf:
+        try:
+            kb.attach_pdf(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
+        except ValueError as exc:
+            db.rollback()
+            back = str(form.get("ziel") or "")
+            return _ret(back if back.startswith("kombi:") else (f"start:{fallback}" if back == "start" and fallback.isdigit() else ""),
+                        int(fallback) if fallback.isdigit() else None, str(exc))
     kb.apply_suggestions(db, user, e, form)  # angehakt: „als Angabe übernehmen“
     target = int(fallback) if fallback.isdigit() and int(fallback) in e.topic_ids else e.topic_ids[0]
     if str(form.get("ziel") or "").startswith("kombi:"):  # aus dem Fenster „Firma × Artikelgruppe“
@@ -626,7 +647,42 @@ async def delete_topic(request: Request, topic_id: int, db: Session = Depends(ge
         return RedirectResponse(f"/wissen/{t.id}/loeschen", status_code=303)
     audit(db, user, "wissen_thema_geloescht", "kb_topic", t.id, {"art": t.kind, "name": t.name}, client_ip(request))
     kb.delete_topic(db, user, t)
+    kb.cleanup_files(db, request.app.dependency_overrides.get(get_settings, get_settings)().data_dir)
     return RedirectResponse("/wissen", status_code=303)
+
+
+@router.post("/wissen/eintrag/{entry_id}/datei", dependencies=[Depends(check_csrf)])
+async def entry_file(request: Request, entry_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
+                     settings: Settings = Depends(get_settings)):
+    """PDF an einen vorhandenen Eintrag hängen, ersetzen (Feld „datei“) oder entfernen (entfernen=1)."""
+    e = _entry(db, entry_id, user)
+    form = await request.form()
+    back = str(form.get("zurueck") or "")
+    if form.get("entfernen") == "1":
+        kb.detach_pdf(db, user, e, settings.data_dir)
+        return _ret(back, (e.topic_ids or [None])[0], anchor=f"#e{e.id}")
+    pdf = await _pdf_upload(form)
+    try:
+        if not pdf:
+            raise ValueError("Bitte eine PDF-Datei wählen.")
+        kb.attach_pdf(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
+    except ValueError as exc:
+        return _ret(back, (e.topic_ids or [None])[0], str(exc))
+    return _ret(back, (e.topic_ids or [None])[0], anchor=f"#e{e.id}")
+
+
+@router.get("/wissen/datei/{entry_id}")
+def entry_file_open(entry_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
+                    settings: Settings = Depends(get_settings)):
+    """PDF eines Eintrags öffnen (im Browser, nicht als Download)."""
+    e = _entry(db, entry_id, user)
+    path = kb.file_dir(settings.data_dir) / f"{e.file_key}.pdf" if e.file_key else None
+    if path is None or not path.is_file():
+        raise HTTPException(404, "Datei nicht gefunden")
+    name = quote(e.file_name or "Dokument.pdf")
+    return FileResponse(path, media_type="application/pdf",
+                        headers={"Content-Disposition": f"inline; filename*=UTF-8''{name}", "X-Content-Type-Options": "nosniff",
+                                 "Cache-Control": "private, no-store"})
 
 
 @router.get("/wissen/eintrag/{entry_id}/loeschen")
@@ -647,4 +703,6 @@ async def delete_entry(request: Request, entry_id: int, db: Session = Depends(ge
         return RedirectResponse(f"/wissen/eintrag/{e.id}/loeschen", status_code=303)
     audit(db, user, "wissen_eintrag_geloescht", "kb_entry", e.id, {"text": e.text[:200]}, client_ip(request))
     kb.delete_entry(db, user, e)
+    db.flush()
+    kb.cleanup_files(db, request.app.dependency_overrides.get(get_settings, get_settings)().data_dir)
     return _back(first)

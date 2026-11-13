@@ -23,7 +23,8 @@
     if (parent) { parent.appendChild(n); } return n;
   }
   function send(url, values) {
-    var body = new URLSearchParams(); body.append("csrf_token", csrf);
+    var hasFile = values.datei instanceof File, body = hasFile ? new FormData() : new URLSearchParams();
+    body.append("csrf_token", csrf);
     Object.keys(values).forEach(function (k) { [].concat(values[k]).forEach(function (v) { if (v != null) { body.append(k, v); } }); });
     return fetch(url, { method: "POST", credentials: "same-origin", body: body, headers: { "X-CSRF-Token": csrf } })
       .then(function (r) {
@@ -160,7 +161,19 @@
         document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: it, x: mapBox.clientWidth / 2, y: Math.min(r.top - o.top, mapBox.clientHeight - 40) } }));
         mapBox.scrollIntoView({ block: "nearest" });
       });
+      if (it.file) { fileLink(it.file, bubList, "kb-bub-file" + (it._sub ? " sub" : "")); }
     });
+  }
+  function fileLink(file, parent, cls) {
+    var a = el("a", cls || "kb-pop-file", "PDF · " + file.name, parent);
+    a.href = file.url; a.target = "_blank"; a.rel = "noopener"; a.title = file.name + " öffnen";
+    return a;
+  }
+  function fileInput(form) {
+    var lab = el("label", "kb-pop-filelabel", null, form);
+    el("span", null, "PDF anhängen (optional)", lab);
+    var inp = el("input", null, null, lab); inp.type = "file"; inp.name = "datei"; inp.accept = "application/pdf,.pdf";
+    return inp;
   }
   // ---------- Fenster an der Blase ----------
   function closePop() { if (pop) { pop.hidden = true; pop.textContent = ""; } }
@@ -196,6 +209,7 @@
       }
       if (it.type_label) { el("span", "kb-pop-kind t-" + it.type, it.type_label, box); }
       el("p", "kb-pop-text", it.text, box);
+      if (it.file) { fileLink(it.file, box); }
       if (it.kind === "eintrag") {
         el("p", "kb-pop-meta", it.who + ", " + it.when + (it.flag ? " · gemeldet: " + it.flag : it.stale ? " · Prüffrist abgelaufen" : ""), box);
         var row = el("div", "kb-pop-actions", null, box);
@@ -227,14 +241,23 @@
     var form = el("form", "kb-pop-form", null, box);
     var ta = el("textarea", null, null, form); ta.value = it.text; ta.rows = 3; ta.maxLength = 1000; ta.required = true; ta.setAttribute("aria-label", "Text");
     var sel = typeSelect(it.type); form.appendChild(sel);
+    var file = fileInput(form), drop = null;
+    if (it.file) {
+      file.previousSibling.textContent = "PDF ersetzen (jetzt: " + it.file.name + ")";
+      var dl = el("label", "inline-label kb-pop-check", null, form);
+      drop = el("input", null, null, dl); drop.type = "checkbox";
+      dl.appendChild(document.createTextNode(" PDF entfernen"));
+    }
     var row = el("div", "kb-pop-actions", null, form);
     var save = el("button", null, "Speichern", row); save.type = "submit";
     var cancel = el("button", "secondary", "Abbrechen", row); cancel.type = "button"; cancel.addEventListener("click", closePop);
     ta.focus();
     form.addEventListener("submit", function (ev) {
       ev.preventDefault(); save.disabled = true;
-      after(send("/wissen/eintrag/" + it.entry, { text: ta.value, art: sel.value || it.type, themen: it.topics }))
-        .catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
+      var req = send("/wissen/eintrag/" + it.entry, { text: ta.value, art: sel.value || it.type, themen: it.topics });
+      if (file.files[0]) { req = req.then(function () { return send("/wissen/eintrag/" + it.entry + "/datei", { datei: file.files[0] }); }); }
+      else if (drop && drop.checked) { req = req.then(function () { return send("/wissen/eintrag/" + it.entry + "/datei", { entfernen: "1" }); }); }
+      after(req).catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
     });
   }
   function addForm(box, serie) {
@@ -248,6 +271,8 @@
       var ta = el("textarea", null, null, form); ta.rows = 3; ta.maxLength = 1000; ta.required = true;
       ta.placeholder = "Einfach reinschreiben, z. B. Lieferzeit 6 Wochen"; ta.setAttribute("aria-label", "Neue Info");
       var sel = typeSelect(""); form.appendChild(sel);
+      var file = fileInput(form);
+      file.addEventListener("change", function () { ta.required = !file.files[0]; });  // nur PDF: Text darf leer sein (Dateiname)
       ta.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); form.requestSubmit(); } });
     }
     var row = el("div", "kb-pop-actions", null, form);
@@ -256,7 +281,7 @@
       ev.preventDefault(); save.disabled = true;
       var req = serie ? send("/wissen/serie", { name: name.value, gruppe: g, hersteller: f })
         : send("/wissen/eintrag", { text: ta.value, art: sel.value, themen: target ? [target.id] : [f, g].filter(Boolean),
-                                    vorgabe: target ? target.id : g || f });
+                                    vorgabe: target ? target.id : g || f, datei: file.files[0] || null });
       req.then(function () {
         if (serie) { location.href = "/wissen?f=" + f + "&g=" + g; return; }  // neue Serie: Listen neu aufbauen
         refresh();

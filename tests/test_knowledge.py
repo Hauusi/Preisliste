@@ -740,3 +740,51 @@ def test_bubbles_maker_group_pair(user_client):
     # Steckbrief: Artikelgruppen zuordnen und Serien anlegen
     page = u.get(f"/wissen/{red}").text
     assert 'id="sortiment"' in page and "Spartan" in page and "Serie anlegen" in page
+
+
+PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+
+
+def test_pdf_attachment_on_entries(user_client, settings):
+    """PDF an Einträgen: beim Eintragen oder später hochladen, in der Blase mit Dateinamen, öffnen, ersetzen,
+    entfernen; nur echte PDFs; Datei verschwindet mit dem Eintrag."""
+    u = user_client
+    red = _topic(u, "Redtronic")
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "Spartan Datenblatt", "vorgabe": red, "themen": red,
+                                         "ziel": "start"},
+               files={"datei": ("Spartan Datenblatt.pdf", PDF, "application/pdf")}, follow_redirects=False)
+    assert r.status_code == 303 and "fehler" not in r.headers["location"], r.headers["location"]
+    eid = int(r.headers["location"].split("#e")[1])
+    b = next(x for x in u.get(f"/api/wissen/blasen?f={red}").json()["bubbles"] if x.get("entry") == eid)
+    assert b["file"] == {"name": "Spartan Datenblatt.pdf", "url": f"/wissen/datei/{eid}"}
+    f = u.get(f"/wissen/datei/{eid}")
+    assert f.status_code == 200 and f.content == PDF and f.headers["content-type"] == "application/pdf"
+    assert f.headers["content-disposition"].startswith("inline;")
+    files = list((settings.data_dir / "wissen").glob("*.pdf"))
+    assert len(files) == 1
+    assert "PDF · Spartan Datenblatt.pdf" in u.get(f"/wissen/{red}").text  # Steckbrief
+
+    # Kein PDF: abgelehnt, nichts angelegt
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "Bild", "vorgabe": red, "themen": red, "ziel": "start"},
+               files={"datei": ("bild.pdf", b"GIF89a....", "application/pdf")}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"]
+    with session_scope() as db:
+        assert db.query(KbEntry).filter(KbEntry.text.like("Bild%")).count() == 0
+    # Nur PDF ohne Text: Dateiname als Text
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "", "vorgabe": red, "themen": red, "ziel": "start"},
+               files={"datei": ("Preisliste 2027.pdf", PDF, "application/pdf")}, follow_redirects=False)
+    with session_scope() as db:
+        assert db.query(KbEntry).filter(KbEntry.file_name == "Preisliste 2027.pdf").one().text.startswith("Preisliste 2027")
+
+    # Ersetzen, entfernen, löschen räumt auf
+    u.post(f"/wissen/eintrag/{eid}/datei", data={"csrf_token": u.csrf}, files={"datei": ("neu.pdf", PDF, "application/pdf")})
+    assert u.get(f"/wissen/datei/{eid}").headers["content-disposition"].endswith("neu.pdf")
+    assert len(list((settings.data_dir / "wissen").glob("*.pdf"))) == 2  # alte Datei weg, plus „Preisliste 2027“
+    u.post(f"/wissen/eintrag/{eid}/datei", data={"csrf_token": u.csrf, "entfernen": "1"})
+    assert u.get(f"/wissen/datei/{eid}").status_code == 404
+    u.post(f"/wissen/eintrag/{eid}/datei", data={"csrf_token": u.csrf}, files={"datei": ("x.pdf", PDF, "application/pdf")})
+    u.post(f"/wissen/eintrag/{eid}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"})
+    assert len(list((settings.data_dir / "wissen").glob("*.pdf"))) == 1
+    with session_scope() as db:
+        actions = [c.action for c in db.query(kb.KbChange).filter_by(object="eintrag", object_id=eid)]
+    assert "PDF angehängt" in actions and "PDF entfernt" in actions

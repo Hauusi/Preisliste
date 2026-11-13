@@ -181,8 +181,10 @@
   }
   function measure(it, fs) {
     var lines = wrapText(it.label, it.kind === "add" || it.kind === "link" ? 30 : 26, 3);
-    var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.8;
-    return { lines: lines, w: w, h: lines.length * fs * 1.3 + fs * 1.0 };
+    var file = it.file ? (it.file.name.length > 32 ? it.file.name.slice(0, 22) + "…" + it.file.name.slice(-8) : it.file.name) : null;
+    var widest = Math.max.apply(null, lines.map(function (l) { return l.length; }).concat(file ? [file.length + 4] : []));
+    var w = widest * fs * 0.56 + fs * 1.8;
+    return { lines: lines, file: file, w: w, h: (lines.length + (file ? 1.15 : 0)) * fs * 1.3 + fs * 1.0 };
   }
   // Blasen im Ring um center, Lücke in Richtung gapDir (wenn gap > 0)
   function ring(center, cr, sizes, fs, dir, gap) {
@@ -262,6 +264,16 @@
         t.style.fontSize = fs.toFixed(2) + "px";  // passend zur Blasengröße (CSSOM, kein style-Attribut wegen CSP)
         t.textContent = l;
       });
+      if (z.file) {  // PDF: Dateiname als eigene, klickbare Zeile unter dem Text
+        var fy = fs * (1.35 + z.lines.length * 1.3);
+        el("line", { x1: (fs * 0.8).toFixed(1), x2: (z.w - fs * 0.8).toFixed(1), y1: (fy - fs * 1.05).toFixed(1), y2: (fy - fs * 1.05).toFixed(1), "class": "m-bub-sep" }, g);
+        var ft = el("text", { x: (z.w / 2).toFixed(1), y: fy.toFixed(1), "text-anchor": "middle", "class": "m-bub-file", role: "link", tabindex: "0" }, g);
+        ft.style.fontSize = (fs * 0.95).toFixed(2) + "px";
+        ft.textContent = "PDF · " + z.file;
+        var ftt = el("title", {}, ft); ftt.textContent = it.file.name + " öffnen";
+        ft.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { file: it.file.url }; moved = false; });
+        ft.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.stopPropagation(); window.open(it.file.url, "_blank", "noopener"); } });
+      }
       var title = el("title", {}, g); title.textContent = it.text || it.label;
       g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { bubble: it, g: g }; moved = false; });
       g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); bubbleEvent(it, g); } });
@@ -536,7 +548,7 @@
     svg.setPointerCapture(ev.pointerId);
   });
   svg.addEventListener("pointermove", function (ev) {
-    if (!drag || drag.bubble !== undefined) { return; }
+    if (!drag || drag.bubble !== undefined || drag.file) { return; }
     if (drag.pan) {
       var r = svg.getBoundingClientRect(), dx = (ev.clientX - drag.cx) / r.width * view.w, dy = (ev.clientY - drag.cy) / r.height * view.h;
       if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
@@ -552,6 +564,7 @@
   var lastTap = { node: null, t: 0 };
   function pickEvent(id, keep) { document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: id, from: "map", keep: !!keep } })); }
   function endDrag() {
+    if (drag && drag.file) { var url = drag.file; drag = null; if (!moved) { window.open(url, "_blank", "noopener"); } return; }
     if (drag && !moved && drag.bubble !== undefined) {
       var hit = drag; drag = null; bubbleEvent(hit.bubble, hit.g); return;
     }
