@@ -7,7 +7,7 @@ import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from backend.config import Settings, get_settings
 from backend.database.engine import get_db
 from backend.models.entities import KbChange, KbEntry, KbFact, KbProduct, KbSearchMiss, KbTopic, User, utcnow
 from backend.services import knowledge as kb
+from backend.services import msgfile
 from backend.services.audit import audit
 
 router = APIRouter()
@@ -568,7 +569,7 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
     text = str(form.get("text") or "")
     pdf = await _pdf_upload(form)
     if pdf and not text.strip():  # nur PDF: Dateiname als kurzer Text
-        text = kb.clean_file_name(pdf[1])[:-4]
+        text = re.sub(r"\.(pdf|msg)$", "", kb.clean_file_name(pdf[1], ".msg" if pdf[1].lower().endswith(".msg") else ".pdf"), flags=re.I)
     ids = chosen if chosen else None
     if ids is None and fallback.isdigit() and not kb.detect(text, kb.topics(db))["topic_ids"]:
         ids = [fallback]  # nichts erkannt: Eintrag gehört zum geöffneten Steckbrief
@@ -582,7 +583,7 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
         return _back(int(fallback) if fallback.isdigit() else None, str(exc))
     if pdf:
         try:
-            kb.attach_pdf(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
+            kb.attach_file(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
         except ValueError as exc:
             db.rollback()
             back = str(form.get("ziel") or "")
@@ -664,25 +665,60 @@ async def entry_file(request: Request, entry_id: int, db: Session = Depends(get_
     pdf = await _pdf_upload(form)
     try:
         if not pdf:
-            raise ValueError("Bitte eine PDF-Datei wählen.")
-        kb.attach_pdf(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
+            raise ValueError("Bitte eine PDF- oder .msg-Datei wählen.")
+        kb.attach_file(db, user, e, pdf[0], pdf[1], settings.data_dir, settings.max_upload_mb)
     except ValueError as exc:
         return _ret(back, (e.topic_ids or [None])[0], str(exc))
     return _ret(back, (e.topic_ids or [None])[0], anchor=f"#e{e.id}")
 
 
 @router.get("/wissen/datei/{entry_id}")
-def entry_file_open(entry_id: int, db: Session = Depends(get_db), user: User = Depends(current_user),
-                    settings: Settings = Depends(get_settings)):
-    """PDF eines Eintrags öffnen (im Browser, nicht als Download)."""
+def entry_file_open(request: Request, entry_id: int, original: int = 0, db: Session = Depends(get_db),
+                    user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
+    """Anhang öffnen: PDF im Browser; Outlook-E-Mail (.msg) als Seite in der App (Absender, Betreff, Text, Anhänge),
+    mit original=1 die .msg-Datei selbst zum Herunterladen."""
     e = _entry(db, entry_id, user)
-    path = kb.file_dir(settings.data_dir) / f"{e.file_key}.pdf" if e.file_key else None
+    path = kb.file_path(settings.data_dir, e) if e.file_key else None
     if path is None or not path.is_file():
         raise HTTPException(404, "Datei nicht gefunden")
-    name = quote(e.file_name or "Dokument.pdf")
+    name = quote(e.file_name or "Dokument")
+    if kb.file_kind(e) == "msg":
+        if original:
+            return FileResponse(path, media_type="application/vnd.ms-outlook",
+                                headers={"Content-Disposition": f"attachment; filename*=UTF-8''{name}",
+                                         "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
+        try:
+            mail = msgfile.read(path.read_bytes())
+        except Exception:  # noqa: BLE001 – beschädigte Datei
+            mail = None
+        return render(request, "knowledge_msg.html", {"portal": True, "e": e, "mail": mail,
+                                                      "topics": {t.id: t for t in kb.topics(db)}})
     return FileResponse(path, media_type="application/pdf",
                         headers={"Content-Disposition": f"inline; filename*=UTF-8''{name}", "X-Content-Type-Options": "nosniff",
                                  "Cache-Control": "private, no-store"})
+
+
+SAFE_INLINE = {"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+@router.get("/wissen/datei/{entry_id}/anhang/{index}")
+def entry_mail_attachment(entry_id: int, index: int, db: Session = Depends(get_db), user: User = Depends(current_user),
+                          settings: Settings = Depends(get_settings)):
+    """Anhang einer gespeicherten E-Mail. Nur PDF und Bilder im Browser, alles andere als Download."""
+    e = _entry(db, entry_id, user)
+    if not e.file_key or kb.file_kind(e) != "msg":
+        raise HTTPException(404, "Datei nicht gefunden")
+    atts = msgfile.read(kb.file_path(settings.data_dir, e).read_bytes())["attachments"]
+    if not 0 <= index < len(atts) or atts[index]["data"] is None:
+        raise HTTPException(404, "Anhang nicht gefunden")
+    a = atts[index]
+    mime = (a["mime"] or "").lower()
+    if not mime and a["name"].lower().endswith(".pdf"):
+        mime = "application/pdf"
+    inline = mime in SAFE_INLINE
+    return Response(a["data"], media_type=mime if inline else "application/octet-stream",
+                    headers={"Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(a['name'])}",
+                             "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
 
 
 @router.get("/wissen/eintrag/{entry_id}/loeschen")

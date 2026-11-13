@@ -66,7 +66,8 @@ Startseite als Mindmap über die volle Breite: links Hersteller (Firmengruppen z
 Serien, Mitte Karte. Anklicken lässt die Infos als Blasen um den Punkt erscheinen: Hersteller = Standard-Infos (seine
 hinterlegten Artikelgruppen leuchten auf), danach Gruppe = Pfeil und nur die Infos dieser Gruppe beim Hersteller, nur
 Gruppe = alle Infos der Gruppe (alle Hersteller). Blase anklicken = lesen, bearbeiten, löschen; „+ Info“ trägt direkt
-ein, auf Wunsch mit PDF (Dateiname in der Blase öffnet sie). Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
+ein, auf Wunsch mit PDF oder Outlook-E-Mail (.msg; Dateiname in der Blase öffnet sie, E-Mails werden direkt in der
+App angezeigt). Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
 Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen
 Regeln (keine KI). Steckbrief je Hersteller/Gruppe mit Angaben, Einträgen nach Art, Verknüpfungsbild und Verlauf.
 Gemeinsame Herstellerliste (Hersteller aus allen Preislisten automatisch), jeder folgt nur dem, was ihn interessiert.

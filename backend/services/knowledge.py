@@ -1312,7 +1312,7 @@ def _entry_bubble(e: KbEntry, names: dict[int, str], prefix: str = "") -> dict:
             "text": e.text, "type_label": TYPES.get(e.type, ""), "who": names.get(e.updated_by or e.author_id, "–"),
             "when": (e.updated_at or e.created_at).strftime("%d.%m.%Y"), "stale": is_stale(e), "flag": e.flag_note or (
                 "gemeldet" if e.flagged_at else ""), "topics": list(e.topic_ids or []),
-            "file": {"name": e.file_name, "url": f"/wissen/datei/{e.id}"} if e.file_key else None}
+            "file": {"name": e.file_name, "url": f"/wissen/datei/{e.id}", "kind": file_kind(e)} if e.file_key else None}
 
 
 def _fact_bubbles(db: Session, t: KbTopic, by_id: dict[int, KbTopic], skip_moq: bool = False) -> list[dict]:
@@ -1401,38 +1401,57 @@ def file_dir(data_dir) -> "Path":
     return d
 
 
-def clean_file_name(name: str) -> str:
+def clean_file_name(name: str, ext: str = ".pdf") -> str:
     base = re.split(r"[\\/]", str(name or ""))[-1]
-    base = re.sub(r'[\x00-\x1f"<>|:*?]', "", base).strip() or "Dokument.pdf"
-    if not base.lower().endswith(".pdf"):
-        base += ".pdf"
+    base = re.sub(r'[\x00-\x1f"<>|:*?]', "", base).strip() or ("E-Mail" if ext == ".msg" else "Dokument") + ext
+    if not base.lower().endswith(ext):
+        base += ext
     return base[-200:]
 
 
-def attach_pdf(db: Session, user: User, e: KbEntry, data: bytes, name: str, data_dir, max_mb: int) -> None:
-    """PDF an einen Eintrag hängen (ersetzt einen vorhandenen Anhang). Nur echte PDFs, Größe begrenzt."""
+def file_kind(e: KbEntry) -> str:
+    """„msg“ (Outlook-E-Mail) oder „pdf“ – nach der gespeicherten Endung."""
+    return "msg" if (e.file_name or "").lower().endswith(".msg") else "pdf"
+
+
+def file_path(data_dir, e: KbEntry):
+    return file_dir(data_dir) / f"{e.file_key}.{file_kind(e)}"
+
+
+def attach_file(db: Session, user: User, e: KbEntry, data: bytes, name: str, data_dir, max_mb: int) -> None:
+    """PDF oder Outlook-E-Mail (.msg) an einen Eintrag hängen (ersetzt einen vorhandenen Anhang). Art wird am Inhalt
+    erkannt, nicht am Namen; Größe begrenzt."""
     import uuid
+    from backend.services import msgfile
     if not data:
         raise ValueError("Die Datei ist leer.")
     if len(data) > max_mb * 1024 * 1024:
         raise ValueError(f"Die Datei ist zu groß (höchstens {max_mb} MB).")
-    if not data[:1024].lstrip().startswith(b"%PDF-"):
-        raise ValueError("Nur PDF-Dateien sind erlaubt.")
-    d = file_dir(data_dir)
+    if data[:1024].lstrip().startswith(b"%PDF-"):
+        ext = ".pdf"
+    elif msgfile.is_msg(data):
+        ext = ".msg"
+    else:
+        raise ValueError("Nur PDF-Dateien oder Outlook-E-Mails (.msg) sind erlaubt.")
+    old = file_path(data_dir, e) if e.file_key else None
     key = uuid.uuid4().hex
-    (d / f"{key}.pdf").write_bytes(data)
-    old = e.file_key
-    e.file_key, e.file_name = key, clean_file_name(name)
-    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF angehängt", None, e.file_name)
+    (file_dir(data_dir) / f"{key}{ext}").write_bytes(data)
+    e.file_key, e.file_name = key, clean_file_name(name, ext)
+    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF angehängt" if ext == ".pdf" else "E-Mail angehängt",
+        None, e.file_name)
     if old:
-        (d / f"{old}.pdf").unlink(missing_ok=True)
+        old.unlink(missing_ok=True)
+
+
+attach_pdf = attach_file  # alter Name
 
 
 def detach_pdf(db: Session, user: User, e: KbEntry, data_dir) -> None:
     if not e.file_key:
         return
-    (file_dir(data_dir) / f"{e.file_key}.pdf").unlink(missing_ok=True)
-    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF entfernt", e.file_name, None)
+    file_path(data_dir, e).unlink(missing_ok=True)
+    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF entfernt" if file_kind(e) == "pdf" else "E-Mail entfernt",
+        e.file_name, None)
     e.file_key = e.file_name = None
 
 
@@ -1441,7 +1460,7 @@ def cleanup_files(db: Session, data_dir) -> int:
     d = file_dir(data_dir)
     used = {k for (k,) in db.execute(select(KbEntry.file_key).where(KbEntry.file_key.is_not(None)))}
     n = 0
-    for f in d.glob("*.pdf"):
+    for f in [x for x in d.iterdir() if x.suffix in (".pdf", ".msg")]:
         if f.stem not in used:
             f.unlink(missing_ok=True)
             n += 1

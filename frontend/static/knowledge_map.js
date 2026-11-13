@@ -182,7 +182,7 @@
   function measure(it, fs) {
     var lines = wrapText(it.label, it.kind === "add" || it.kind === "link" ? 30 : 26, 3);
     var file = it.file ? (it.file.name.length > 32 ? it.file.name.slice(0, 22) + "…" + it.file.name.slice(-8) : it.file.name) : null;
-    var widest = Math.max.apply(null, lines.map(function (l) { return l.length; }).concat(file ? [file.length + 4] : []));
+    var widest = Math.max.apply(null, lines.map(function (l) { return l.length; }).concat(file ? [file.length + 7] : []));
     var w = widest * fs * 0.56 + fs * 1.8;
     return { lines: lines, file: file, w: w, h: (lines.length + (file ? 1.15 : 0)) * fs * 1.3 + fs * 1.0 };
   }
@@ -269,7 +269,7 @@
         el("line", { x1: (fs * 0.8).toFixed(1), x2: (z.w - fs * 0.8).toFixed(1), y1: (fy - fs * 1.05).toFixed(1), y2: (fy - fs * 1.05).toFixed(1), "class": "m-bub-sep" }, g);
         var ft = el("text", { x: (z.w / 2).toFixed(1), y: fy.toFixed(1), "text-anchor": "middle", "class": "m-bub-file", role: "link", tabindex: "0" }, g);
         ft.style.fontSize = (fs * 0.95).toFixed(2) + "px";
-        ft.textContent = "PDF · " + z.file;
+        ft.textContent = (it.file.kind === "msg" ? "E-Mail · " : "PDF · ") + z.file;
         var ftt = el("title", {}, ft); ftt.textContent = it.file.name + " öffnen";
         ft.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { file: it.file.url }; moved = false; });
         ft.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.stopPropagation(); window.open(it.file.url, "_blank", "noopener"); } });

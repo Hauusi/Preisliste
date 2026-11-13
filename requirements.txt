@@ -16,3 +16,4 @@ Pillow==12.3.0
 pypdf==6.21.4
 cryptography==50.0.2
 fonttools==4.68.0
+olefile==0.47
