@@ -12,6 +12,7 @@
     });
   } catch (e) { /* leer */ }
   var state = { f: num(root.getAttribute("data-sel-f")), g: num(root.getAttribute("data-sel-g")) }, seq = 0, current = null;
+  var openSub = null, subItems = null, lastList = null;  // aufgeklappte Serie: { series, key, name }
   var pop = mapBox.querySelector("[data-pop]"), say = document.querySelector("[data-map-say]");
   var TYPES = { bezug: "Bezugsweg / Bedingung", kalk: "Kalkulation", pflicht: "Pflicht-Zubehör", liefer: "Lieferzeit / Kontakt", hinweis: "Hinweis" };
   if (location.search) { try { history.replaceState(null, "", "/wissen"); } catch (e) { /* egal */ } }
@@ -41,9 +42,10 @@
   function pick(id, keep) {
     var key = kinds[id] === "hersteller" ? "f" : "g";
     state[key] = state[key] === id && !keep ? null : id;  // nochmal anklicken = nur dieses abwählen
+    openSub = null; subItems = null;
     refresh();
   }
-  function clearAll() { if (state.f || state.g) { state.f = state.g = null; refresh(); } }
+  function clearAll() { if (state.f || state.g) { state.f = state.g = null; openSub = null; subItems = null; refresh(); } }
   function refresh() {
     closePop();
     markLists([]);
@@ -65,13 +67,36 @@
         setSay();
         var anchor = anchorOf(), from = state.f && state.g ? state.f : null;
         var list = items(d), narrow = mapBox.clientWidth < 600;  // Handy: Blasen als Liste unter der Karte
+        lastList = list;
         if (window.kbMap) {
           window.kbMap.select(from || anchor, from ? anchor : null);
           window.kbMap.bubbles(anchor, from, narrow ? [] : list);
         }
         renderList(narrow ? list : null);
+        if (openSub && list.some(function (x) { return x.key === openSub.key; })) { loadSub(openSub, true); } else { openSub = null; subItems = null; }
       })
       .catch(function () { if (my === seq) { state.f = state.g = null; refresh(); } });
+  }
+  // Serie aufklappen: ihre Infos als Unter-Blasen an der Serien-Blase, dazu „+ Info zu …“
+  function loadSub(sub, again) {
+    fetch("/api/wissen/blasen?g=" + sub.series, { credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+      .then(function (d) {
+        if (!again && openSub && openSub.series !== sub.series) { return; }
+        openSub = sub;
+        subItems = d.bubbles.concat([{ kind: "add", type: "add", key: "add-" + sub.series, label: "+ Info zu " + sub.name,
+                                       text: "Neue Info zur Serie " + sub.name, target: sub.series, targetName: sub.name }]);
+        if (!subItems.length) { subItems = []; }
+        if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.subBubbles(sub.key, subItems); }
+      });
+  }
+  function toggleSub(it) {
+    if (openSub && openSub.series === it.series) {
+      openSub = null; subItems = null;
+      if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.subBubbles(null); }
+      return;
+    }
+    loadSub({ series: it.series, key: it.key, name: it.name || it.label.replace(/^Serie\s+/i, "") });
   }
   function items(d) {
     var list = d.bubbles.slice(), sel = state.f && state.g, f = state.f, g = state.g;
@@ -121,8 +146,14 @@
   function renderList(list) {
     if (!bubList) { return; }
     bubList.textContent = ""; bubList.hidden = !list;
+    var flat = [];
     (list || []).forEach(function (it) {
-      var b = el("button", "kb-bub-item b-" + it.type + (it.kind === "add" || it.kind === "add-serie" ? " act" : "") + (it.stale ? " stale" : ""), it.label, bubList);
+      flat.push(it);
+      if (openSub && subItems && it.key === openSub.key) { subItems.forEach(function (x) { flat.push(Object.assign({ _sub: true }, x)); }); }
+    });
+    flat.forEach(function (it) {
+      var b = el("button", "kb-bub-item b-" + it.type + (it.kind === "add" || it.kind === "add-serie" ? " act" : "") + (it.stale ? " stale" : "")
+                 + (it._sub ? " sub" : "") + (openSub && it.key === openSub.key ? " open" : ""), it.label, bubList);
       b.type = "button";
       b.addEventListener("click", function () {
         var r = b.getBoundingClientRect(), o = mapBox.getBoundingClientRect();
@@ -153,12 +184,16 @@
   document.addEventListener("kb:bubble", function (ev) {
     var it = ev.detail.item, x = ev.detail.x, y = ev.detail.y;
     if (it.kind === "link") { location.href = it.link; return; }
+    if (it.kind === "serie") { closePop(); toggleSub(it); return; }
     if (it.kind === "zuordnen") {
       send("/wissen/sortiment", { hersteller: state.f, gruppe: state.g }).then(function () { if (window.kbMap) { window.kbMap.reload(anchorOf()); } refresh(); });
       return;
     }
     openPop(x, y, function (box) {
-      if (it.kind === "add" || it.kind === "add-serie") { return addForm(box, it.kind === "add-serie"); }
+      if (it.kind === "add" || it.kind === "add-serie") {
+        box._target = it.target ? { id: it.target, name: it.targetName } : null;
+        return addForm(box, it.kind === "add-serie");
+      }
       if (it.type_label) { el("span", "kb-pop-kind t-" + it.type, it.type_label, box); }
       el("p", "kb-pop-text", it.text, box);
       if (it.kind === "eintrag") {
@@ -203,13 +238,13 @@
     });
   }
   function addForm(box, serie) {
-    var f = state.f, g = state.g, form = el("form", "kb-pop-form", null, box);
+    var f = state.f, g = state.g, form = el("form", "kb-pop-form", null, box), target = box._target;
     if (serie) {
       el("p", "kb-pop-head", "Neue Serie von " + names[f] + " in " + names[g], form);
       var name = el("input", null, null, form); name.name = "name"; name.required = true; name.maxLength = 120; name.placeholder = "z. B. Spartan";
     } else {
-      var target = f && g ? names[f] + " × " + names[g] : names[g || f];
-      el("p", "kb-pop-head", "Neue Info zu " + target, form);
+      var label = target ? "Serie " + target.name : f && g ? names[f] + " × " + names[g] : names[g || f];
+      el("p", "kb-pop-head", "Neue Info zu " + label, form);
       var ta = el("textarea", null, null, form); ta.rows = 3; ta.maxLength = 1000; ta.required = true;
       ta.placeholder = "Einfach reinschreiben, z. B. Lieferzeit 6 Wochen"; ta.setAttribute("aria-label", "Neue Info");
       var sel = typeSelect(""); form.appendChild(sel);
@@ -220,7 +255,8 @@
     form.addEventListener("submit", function (ev) {
       ev.preventDefault(); save.disabled = true;
       var req = serie ? send("/wissen/serie", { name: name.value, gruppe: g, hersteller: f })
-        : send("/wissen/eintrag", { text: ta.value, art: sel.value, themen: [f, g].filter(Boolean), vorgabe: g || f });
+        : send("/wissen/eintrag", { text: ta.value, art: sel.value, themen: target ? [target.id] : [f, g].filter(Boolean),
+                                    vorgabe: target ? target.id : g || f });
       req.then(function () {
         if (serie) { location.href = "/wissen?f=" + f + "&g=" + g; return; }  // neue Serie: Listen neu aufbauen
         refresh();

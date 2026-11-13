@@ -1545,3 +1545,10 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 @media (max-width: 700px) { .kb-center .kb-map-panel { height: auto; } .kb-work .kb-map { height: 55vh; flex: none; } }
 .kb-bub-item:hover, .kb-bub-item:active, .kb-bub-item:focus-visible { background: color-mix(in srgb, var(--b, var(--accent)) 14%, var(--surface)); color: var(--fg); }
 .kb-bub-item.act:hover, .kb-bub-item.act:active { background: var(--accent-hover); color: var(--accent-fg); }
+/* Aufgeklappte Serie: Unter-Blasen hängen an der Serien-Blase */
+.m-bub.open rect { stroke-width: 3.5; fill: color-mix(in srgb, var(--b) 18%, var(--surface)); }
+.m-bub.dim { opacity: .45; }
+.m-bub.sub rect { stroke-width: 1.8; }
+.m-bub-link.sub { stroke: var(--unclear); stroke-dasharray: 4 3; }
+.kb-bub-item.open { background: color-mix(in srgb, var(--b) 16%, var(--surface)); }
+.kb-bub-item.sub { margin-left: 18px; font-size: .86rem; }

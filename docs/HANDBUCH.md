@@ -469,7 +469,7 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
 **Startseite – Mindmap über die volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen** (mit Serien),
-in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Blasen** rund um den gewählten Punkt:
+in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Blasen** rund um den gewählten Punkt (die Karte zoomt dabei höchstens auf Originalgröße):
 
 - **Hersteller anklicken** (z. B. Redtronic): Blasen mit seinen **Standard-Infos** (Bezugsregel, Lieferzeit,
   Ansprechpartner, Mindestmenge, Pflicht-Zubehör, allgemeine Einträge) – ohne Artikelgruppen-Bezug. Rechts leuchten die
@@ -481,6 +481,10 @@ in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Bla
 - **Nur Artikelgruppe anklicken:** Blasen mit **allen Infos der Gruppe**, egal welcher Hersteller (jeweils mit
   Herstellername davor), samt Angaben, Artikelvergleich und Serien.
 - **Serie anklicken** (rechts eingerückt): ihre eigenen Angaben und Einträge.
+- **Serien-Blase anklicken** (z. B. „Serie Spartan (2) ›“ bei Redtronic → Leuchtbalken): die Serie klappt auf – ihre
+  Infos hängen als kleinere Blasen (gestrichelte Linien) an ihr, dazu „+ Info zu Spartan“ zum direkten Eintragen für
+  genau diese Serie. Nochmal anklicken klappt wieder zu. Die Zahl in Klammern = Infos der Serie. Serien-Einträge stehen
+  nur hinter ihrer Serien-Blase, nicht zusätzlich bei der Gruppe.
 - **Klick auf eine Blase:** kleines Fenster mit ganzem Text, Art, wer/wann; bei Einträgen **Bearbeiten** (Text, Art),
   **Löschen** (übliche Sicherheitsabfrage) und bei abgelaufener Prüffrist **„Stimmt noch“**; bei Angaben „Ändern“ (im
   Steckbrief).

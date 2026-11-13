@@ -721,11 +721,17 @@ def test_bubbles_maker_group_pair(user_client):
     assert not any("Montagesatz" in x or "1,50 m" in x for x in m)
     g = labels(f"g={balken}")
     assert any(x.startswith("Hella: ") and "12 V" in x for x in g) and any(x.startswith("Redtronic: ") and "Montagesatz" in x for x in g)
-    assert any("1,80 m" in x and ":" not in x.split("1,80")[0] for x in g) and "Serie Spartan (Redtronic)" in g
-    assert any("1,50 m" in x for x in g) and not any("Rabatt" in x for x in g)
+    assert any("1,80 m" in x and ":" not in x.split("1,80")[0] for x in g) and "Serie Spartan (Redtronic) (1) ›" in g
+    assert not any("1,50 m" in x for x in g) and not any("Rabatt" in x for x in g)  # Serien-Infos hinter der Serie
     k = u.get(f"/api/wissen/blasen?f={red}&g={balken}").json()
     kl = [b["label"] for b in k["bubbles"]]
-    assert any("Montagesatz" in x for x in kl) and "Serie Spartan" in kl and any("1,50 m" in x for x in kl)
+    assert any("Montagesatz" in x for x in kl) and "Serie Spartan (1) ›" in kl and not any("1,50 m" in x for x in kl)
+    sp = next(b for b in k["bubbles"] if b["kind"] == "serie")
+    sub = [b["label"] for b in u.get(f"/api/wissen/blasen?g={sp['series']}").json()["bubbles"]]
+    assert any("1,50 m" in x for x in sub)  # aufgeklappte Serie
+    # Serie heißt schon „Serie …“: kein doppeltes „Serie Serie“
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Serie Nova", "gruppe": balken, "hersteller": red})
+    assert any(x.startswith("Serie Nova (") for x in labels(f"f={red}&g={balken}"))
     assert not any("12 V" in x or "1,80 m" in x or "Rabatt" in x for x in kl)
     assert k["assigned"] is True and balken in u.get(f"/api/wissen/blasen?f={red}").json()["lit"]
     e = next(b for b in k["bubbles"] if b["kind"] == "eintrag")
