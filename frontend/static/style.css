@@ -1574,3 +1574,12 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .kb-mail-atts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .kb-mail-atts .kb-chip small { color: var(--muted); }
 .kb-mail-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: .98rem; }
+
+/* Wo Infos zur Auswahl stecken: Zeile leuchtet, Zahl = Anzahl Infos */
+.kb-rows li.info:not(.active) > a { background: color-mix(in srgb, var(--signal) 16%, var(--surface)); color: var(--fg); font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--signal); }
+.kb-rows li.info.lit:not(.active) > a { box-shadow: inset 3px 0 0 var(--signal), inset 6px 0 0 var(--accent); }
+.kb-info-n { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--signal); color: #1a1200; font-size: .74rem;
+  font-weight: 700; text-align: center; line-height: 1.5; }
+.kb-rows li.info > a small { display: none; }
+.kb-rows li.active .kb-info-n { background: var(--accent-fg); color: var(--accent); }

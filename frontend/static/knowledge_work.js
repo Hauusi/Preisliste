@@ -64,7 +64,7 @@
       .then(function (d) {
         if (my !== seq) { return; }
         current = d;
-        markLists(d.lit || []);
+        markLists(d.lit || [], d.info_g || {}, d.info_f || {});
         setSay();
         var anchor = anchorOf(), from = state.f && state.g ? state.f : null;
         var list = items(d), narrow = mapBox.clientWidth < 600;  // Handy: Blasen als Liste unter der Karte
@@ -121,16 +121,25 @@
       : "Hersteller oder Artikelgruppe anklicken – die Infos erscheinen als Blasen.";
   }
   // Listen: Auswahl markieren; beim gewählten Hersteller leuchten seine Artikelgruppen und Serien auf
-  function markLists(lit) {
+  function markLists(lit, infoG, infoF) {
+    infoG = infoG || {}; infoF = infoF || {};
     document.querySelectorAll("[data-list]").forEach(function (ul) {
-      var kind = ul.getAttribute("data-kind");
+      var kind = ul.getAttribute("data-kind"), info = kind === "hersteller" ? infoF : infoG;
+      ul.classList.toggle("has-info", Object.keys(info).length > 0);
       ul.querySelectorAll("li").forEach(function (li) {
-        var a = li.querySelector("[data-pick]"), id = +a.getAttribute("data-pick");
+        var a = li.querySelector("[data-pick]"), id = +a.getAttribute("data-pick"), n = info[id] || 0;
         li.classList.toggle("active", id === (kind === "hersteller" ? state.f : state.g));
         li.classList.toggle("lit", kind === "gruppe" && lit.indexOf(id) >= 0);
+        li.classList.toggle("info", n > 0);  // hier stecken Infos zur Auswahl
+        var badge = a.querySelector(".kb-info-n");
+        if (n > 0) {
+          if (!badge) { badge = el("b", "kb-info-n", null, a); }
+          badge.textContent = n; badge.title = n + (n === 1 ? " Info" : " Infos") + " dazu";
+        } else if (badge) { badge.remove(); }
       });
     });
   }
+
 
   document.addEventListener("click", function (ev) {
     var a = ev.target.closest && ev.target.closest("[data-list] [data-pick]");

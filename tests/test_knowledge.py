@@ -827,3 +827,28 @@ def test_outlook_msg_attachment_shown_in_app(user_client, settings):
     # Löschen räumt die .msg auf
     u.post(f"/wissen/eintrag/{eid}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"})
     assert not list((settings.data_dir / "wissen").glob("*.msg"))
+
+
+def test_info_links_highlight_where_infos_are(user_client):
+    """Hersteller gewählt: Artikelgruppen/Serien mit Infos zu ihm (mit Anzahl); Gruppe gewählt: Hersteller mit Infos."""
+    u = user_client
+    red, hella = _topic(u, "Redtronic"), _topic(u, "Hella")
+    balken, rund, blue = _topic(u, "Leuchtbalken", "gruppe"), _topic(u, "Rundumleuchten", "gruppe"), _topic(u, "Blue-Spot", "gruppe")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red})
+    _entry(u, "Redtronic Leuchtbalken mit Montagesatz", themen=[red, balken])
+    _entry(u, "Spartan nur bis 1,50 m")
+    _entry(u, "Hella Rundumleuchten länger", themen=[hella, rund])
+    _entry(u, "Redtronic Rabatt", themen=[red])
+    u.post(f"/wissen/{blue}/artikel", data={"csrf_token": u.csrf, "hersteller": red, "artnr": "B1", "name": "Spot", "k0": "4"})
+    with session_scope() as db:
+        sp = db.query(KbTopic).filter_by(kind="serie").one().id
+
+    d = u.get(f"/api/wissen/blasen?f={red}").json()
+    info = {int(k): v for k, v in d["info_g"].items()}
+    assert info == {balken: 2, sp: 1, blue: 1}  # Eintrag zu beiden + Serien-Eintrag; Serie; Artikel im Vergleich
+    assert rund not in info and d["info_f"] == {}
+    d = u.get(f"/api/wissen/blasen?g={balken}").json()
+    assert {int(k): v for k, v in d["info_f"].items()} == {red: 2}
+    assert {int(k): v for k, v in u.get(f"/api/wissen/blasen?g={rund}").json()["info_f"].items()} == {hella: 1}
+    both = u.get(f"/api/wissen/blasen?f={red}&g={balken}").json()
+    assert int(next(iter(both["info_f"]))) == red and str(balken) in both["info_g"]
