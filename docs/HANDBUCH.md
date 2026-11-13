@@ -469,7 +469,7 @@ Mindestbestellmenge von 36 Stück, kleinere Mengen über Riedfeld“, „Leuchtb
 „dieser Scheinwerfer braucht unbedingt den Montageadapter“.
 
 **Startseite – Mindmap über die volle Bildschirmbreite:** links **Hersteller**, rechts **Artikelgruppen** (mit Serien),
-in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Blasen** rund um den gewählten Punkt (die Karte zoomt dabei höchstens auf Originalgröße):
+in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Blasen** rund um den gewählten Punkt (die Karte zoomt dabei gemäßigt hinein, höchstens etwa 1,6-fach):
 
 - **Hersteller anklicken** (z. B. Redtronic): Blasen mit seinen **Standard-Infos** (Bezugsregel, Lieferzeit,
   Ansprechpartner, Mindestmenge, Pflicht-Zubehör, allgemeine Einträge) – ohne Artikelgruppen-Bezug. Rechts leuchten die
