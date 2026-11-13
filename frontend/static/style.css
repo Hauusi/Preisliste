@@ -1583,3 +1583,14 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
   font-weight: 700; text-align: center; line-height: 1.5; }
 .kb-rows li.info > a small { display: none; }
 .kb-rows li.active .kb-info-n { background: var(--accent-fg); color: var(--accent); }
+
+/* Überschrift-Blasen (z. B. „Kalkulation“): kräftig gefüllt, Einträge hängen dahinter */
+.m-bub.head rect { fill: color-mix(in srgb, var(--b, var(--accent)) 22%, var(--surface)); stroke-width: 2.5; }
+.m-bub.head text { font-weight: 700; }
+.m-bub.head.closed rect { stroke-dasharray: 6 3; fill: color-mix(in srgb, var(--b, var(--accent)) 10%, var(--surface)); }
+.m-bub.b-zuordnen.head rect { fill: var(--surface); }
+.kb-bub-item.head { font-weight: 700; background: color-mix(in srgb, var(--b, var(--accent)) 16%, var(--surface)); }
+.kb-bub-item.d1, .kb-bub-file.d1 { margin-left: 16px; }
+.kb-bub-item.d2, .kb-bub-file.d2 { margin-left: 32px; }
+.kb-bub-item.d3, .kb-bub-file.d3 { margin-left: 48px; }
+.kb-rows li.serie.active > a, .kb-rows li.serie.active > a > span::before { color: var(--accent-fg); }

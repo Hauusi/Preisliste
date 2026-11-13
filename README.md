@@ -65,7 +65,8 @@ Artikelnummer). Details: `docs/HANDBUCH.md`, Abschnitt 11.
 Startseite als Mindmap über die volle Breite: links Hersteller (Firmengruppen zusammen), rechts Artikelgruppen mit
 Serien, Mitte Karte. Anklicken lässt die Infos als Blasen um den Punkt erscheinen: Hersteller = Standard-Infos (seine
 hinterlegten Artikelgruppen leuchten auf), danach Gruppe = Pfeil und nur die Infos dieser Gruppe beim Hersteller, nur
-Gruppe = alle Infos der Gruppe (alle Hersteller). Blase anklicken = lesen, bearbeiten, löschen; „+ Info“ trägt direkt
+Gruppe = alle Infos der Gruppe (alle Hersteller). Einträge hängen automatisch hinter Überschrift-Blasen (z. B. „Kalkulation“; umbenennbar,
+neue Einträge gleicher Art landen darunter). Blase anklicken = lesen, bearbeiten, löschen; „+ Info“ trägt direkt
 ein, auf Wunsch mit PDF oder Outlook-E-Mail (.msg; Dateiname in der Blase öffnet sie, E-Mails werden direkt in der
 App angezeigt). Gemeinsames Wissen zu Herstellern und Artikelgruppen: Mindestmengen, Bezugswege, Kalkulationshinweise,
 Pflicht-Zubehör, Lieferzeiten. Frei eintippen; Art, Zuordnung und einheitliche Schreibweise erkennt das Tool mit festen

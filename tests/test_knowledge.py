@@ -854,3 +854,44 @@ def test_info_links_highlight_where_infos_are(user_client):
     assert {int(k): v for k, v in u.get(f"/api/wissen/blasen?g={rund}").json()["info_f"].items()} == {hella: 1}
     both = u.get(f"/api/wissen/blasen?f={red}&g={balken}").json()
     assert int(next(iter(both["info_f"]))) == red and str(balken) in both["info_g"]
+
+
+def test_headings_auto_rename_and_reuse(user_client):
+    """Überschriften: neue Einträge bekommen automatisch die Art als Überschrift; gibt es für diese Art bei denselben
+    Themen schon eine (umbenannte) Überschrift, landen sie darunter; umbenennen und verschieben jederzeit."""
+    u = user_client
+    red, balken = _topic(u, "Redtronic"), _topic(u, "Leuchtbalken", "gruppe")
+    u.post("/wissen/serie", data={"csrf_token": u.csrf, "name": "Spartan", "gruppe": balken, "hersteller": red})
+    with session_scope() as db:
+        sp = db.query(KbTopic).filter_by(kind="serie").one().id
+
+    def bubbles():
+        return [b for b in u.get(f"/api/wissen/blasen?g={sp}").json()["bubbles"] if b["kind"] == "eintrag"]
+    _entry(u, "Spartan 15 % Aufschlag kalkulieren", themen=[sp])
+    b1 = bubbles()[0]
+    assert b1["type"] == "kalk" and b1["heading"] == "Kalkulation"
+    # umbenennen: gilt für die Einträge der Blase
+    r = u.post("/wissen/ueberschrift", data={"csrf_token": u.csrf, "eintrag": [b1["entry"]], "name": "Preise Spartan",
+                                             "zurueck": f"start:{sp}"}, follow_redirects=False)
+    assert r.status_code == 303 and "fehler" not in r.headers["location"]
+    assert bubbles()[0]["heading"] == "Preise Spartan"
+    # neue Kalkulation bei derselben Serie: automatisch unter „Preise Spartan“
+    _entry(u, "Spartan Sonderlänge mehr kalkulieren", themen=[sp])
+    assert {b["heading"] for b in bubbles()} == {"Preise Spartan"}
+    # andere Art: eigene Überschrift; eigene Überschrift beim Eintragen
+    _entry(u, "Spartan Lieferzeit 8 Wochen", themen=[sp])
+    _entry(u, "Spartan Montage nur mit Halter", themen=[sp], ueberschrift="Montage")
+    heads = sorted({b["heading"] for b in bubbles()})
+    assert heads == ["Lieferzeit / Kontakt", "Montage", "Preise Spartan"]
+    # verschieben: Eintrag bearbeiten mit anderer Überschrift; leer = wieder automatisch
+    e = next(b for b in bubbles() if "Lieferzeit" in b["text"])
+    u.post(f"/wissen/eintrag/{e['entry']}", data={"csrf_token": u.csrf, "text": e["text"], "art": e["type"],
+                                                  "themen": e["topics"], "ueberschrift": "Montage"})
+    assert next(b for b in bubbles() if b["entry"] == e["entry"])["heading"] == "Montage"
+    u.post(f"/wissen/eintrag/{e['entry']}", data={"csrf_token": u.csrf, "text": e["text"], "art": e["type"],
+                                                  "themen": e["topics"], "ueberschrift": ""})
+    assert next(b for b in bubbles() if b["entry"] == e["entry"])["heading"] == "Lieferzeit / Kontakt"
+    assert u.post("/wissen/ueberschrift", data={"csrf_token": u.csrf, "eintrag": [e["entry"]], "name": " "},
+                  follow_redirects=False).headers["location"].find("fehler=") > 0
+    with session_scope() as db:
+        assert db.query(kb.KbChange).filter_by(action="Überschrift").count() >= 3
