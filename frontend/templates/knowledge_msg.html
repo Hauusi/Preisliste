@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ (mail.subject if mail and mail.subject else e.file_name) }}{% endblock %}
+{% block content %}
+<div class="kb kb-mail">
+  <div class="kb-top">
+    <div>
+      <div class="eyebrow"><a href="/">Alle Tools</a> · <a href="/wissen">Vertriebswissen</a></div>
+      <h1>{{ mail.subject if mail and mail.subject else "(ohne Betreff)" }}</h1>
+    </div>
+    <div class="row">
+      <a class="button secondary" href="/wissen/datei/{{ e.id }}?original=1">{{ icon("download", 16) }} Original (.msg) herunterladen</a>
+    </div>
+  </div>
+
+  <p class="hint">Gespeichert bei: {% for t in e.topic_ids if t in topics %}<a href="/wissen/{{ t }}">{{ topics[t].name }}</a>{{ ", " if not loop.last }}{% endfor %}
+    · Eintrag: „{{ e.text }}“</p>
+
+  {% if not mail %}
+  <p class="msg FEHLER">Die E-Mail konnte nicht gelesen werden. Das Original lässt sich oben herunterladen.</p>
+  {% else %}
+  <section class="kb-panel kb-mail-card">
+    <dl class="kb-mail-head">
+      <div><dt>Von</dt><dd>{{ mail.sender }}{% if mail.sender_mail and mail.sender_mail != mail.sender %} &lt;{{ mail.sender_mail }}&gt;{% endif %}</dd></div>
+      {% if mail.to %}<div><dt>An</dt><dd>{{ mail.to | join(", ") }}</dd></div>{% endif %}
+      {% if mail.cc %}<div><dt>Cc</dt><dd>{{ mail.cc | join(", ") }}</dd></div>{% endif %}
+      {% if mail.date %}<div><dt>Gesendet</dt><dd>{{ mail.date | dt }}</dd></div>{% endif %}
+    </dl>
+    {% if mail.attachments %}
+    <div class="kb-mail-atts">
+      <span class="hint">Anhänge</span>
+      {% for a in mail.attachments %}
+        {% if a.data is not none %}<a class="kb-chip" href="/wissen/datei/{{ e.id }}/anhang/{{ loop.index0 }}" target="_blank" rel="noopener">{{ icon("doc", 14) }} {{ a.name }} <small>{{ "%.0f" % (a.size / 1024) if a.size else 0 }} KB</small></a>
+        {% else %}<span class="kb-chip">{{ a.name }} <small>(eingebettet)</small></span>{% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="kb-mail-body">{{ mail.body or "(kein Text)" }}</div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

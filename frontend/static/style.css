@@ -1564,3 +1564,13 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .kb-pop-filelabel { display: grid; gap: 3px; margin: 0; font-size: .84rem; color: var(--fg-2); }
 .kb-pop-filelabel input { font-size: .84rem; padding: 4px; }
 .kb-pop-check { font-size: .86rem; margin: 0; }
+
+/* E-Mail (.msg) in der App anzeigen */
+.kb-mail-card { display: grid; gap: 14px; max-width: 1000px; }
+.kb-mail-head { margin: 0; display: grid; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.kb-mail-head > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; }
+.kb-mail-head dt { color: var(--muted); }
+.kb-mail-head dd { margin: 0; overflow-wrap: anywhere; }
+.kb-mail-atts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kb-mail-atts .kb-chip small { color: var(--muted); }
+.kb-mail-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: .98rem; }

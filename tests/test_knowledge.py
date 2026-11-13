@@ -756,7 +756,7 @@ def test_pdf_attachment_on_entries(user_client, settings):
     assert r.status_code == 303 and "fehler" not in r.headers["location"], r.headers["location"]
     eid = int(r.headers["location"].split("#e")[1])
     b = next(x for x in u.get(f"/api/wissen/blasen?f={red}").json()["bubbles"] if x.get("entry") == eid)
-    assert b["file"] == {"name": "Spartan Datenblatt.pdf", "url": f"/wissen/datei/{eid}"}
+    assert b["file"] == {"name": "Spartan Datenblatt.pdf", "url": f"/wissen/datei/{eid}", "kind": "pdf"}
     f = u.get(f"/wissen/datei/{eid}")
     assert f.status_code == 200 and f.content == PDF and f.headers["content-type"] == "application/pdf"
     assert f.headers["content-disposition"].startswith("inline;")
@@ -788,3 +788,42 @@ def test_pdf_attachment_on_entries(user_client, settings):
     with session_scope() as db:
         actions = [c.action for c in db.query(kb.KbChange).filter_by(object="eintrag", object_id=eid)]
     assert "PDF angehängt" in actions and "PDF entfernt" in actions
+
+
+def test_outlook_msg_attachment_shown_in_app(user_client, settings):
+    """Outlook-E-Mails (.msg) anhängen: Art am Inhalt erkannt, Blase zeigt „E-Mail · Name“, Öffnen zeigt die Mail
+    als Seite in der App (Von, An, Datum, Betreff, Text, Anhänge), Original zum Herunterladen, HTML nie roh."""
+    from tests.msg_builder import build_msg
+    u = user_client
+    red = _topic(u, "Redtronic")
+    msg = build_msg(subject="Angebot Spartan 2027", body="Hallo,\n<script>alert(1)</script> Preise gelten bis 31.03.",
+                    attachments=(("Angebot.pdf", PDF, "application/pdf"), ("seite.html", b"<script>x</script>", "text/html")))
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "", "vorgabe": red, "themen": red, "ziel": "start"},
+               files={"datei": ("Angebot Spartan.msg", msg, "application/vnd.ms-outlook")}, follow_redirects=False)
+    assert "fehler" not in r.headers["location"], r.headers["location"]
+    eid = int(r.headers["location"].split("#e")[1])
+    b = next(x for x in u.get(f"/api/wissen/blasen?f={red}").json()["bubbles"] if x.get("entry") == eid)
+    assert b["file"]["kind"] == "msg" and b["file"]["name"] == "Angebot Spartan.msg" and b["label"].startswith("Angebot Spartan")
+    assert list((settings.data_dir / "wissen").glob("*.msg"))
+
+    page = u.get(f"/wissen/datei/{eid}")
+    assert page.status_code == 200 and "text/html" in page.headers["content-type"]
+    t = page.text
+    assert "Angebot Spartan 2027" in t and "Max Muster" in t and "max@example.com" in t and "anna@example.com" in t
+    assert "Preise gelten bis 31.03." in t and "<script>alert(1)</script>" not in t  # Text wird nie als HTML ausgegeben
+    assert f'/wissen/datei/{eid}/anhang/0' in t and "Angebot.pdf" in t
+    a = u.get(f"/wissen/datei/{eid}/anhang/0")
+    assert a.content == PDF and a.headers["content-type"] == "application/pdf" and a.headers["content-disposition"].startswith("inline")
+    h = u.get(f"/wissen/datei/{eid}/anhang/1")  # HTML-Anhang: nur als Download, nie im Browser
+    assert h.headers["content-type"] == "application/octet-stream" and h.headers["content-disposition"].startswith("attachment")
+    assert u.get(f"/wissen/datei/{eid}/anhang/9").status_code == 404
+    o = u.get(f"/wissen/datei/{eid}?original=1")
+    assert o.content == msg and o.headers["content-disposition"].startswith("attachment")
+
+    # Andere Dateien (z. B. Word) werden abgelehnt; .msg-Name mit falschem Inhalt auch
+    r = u.post("/wissen/eintrag", data={"csrf_token": u.csrf, "text": "x", "vorgabe": red, "themen": red, "ziel": "start"},
+               files={"datei": ("fake.msg", b"PK\x03\x04 kein outlook", "application/octet-stream")}, follow_redirects=False)
+    assert "fehler=" in r.headers["location"] and "msg" in r.headers["location"]
+    # Löschen räumt die .msg auf
+    u.post(f"/wissen/eintrag/{eid}/loeschen", data={"csrf_token": u.csrf, "bestaetigt": "ja"})
+    assert not list((settings.data_dir / "wissen").glob("*.msg"))

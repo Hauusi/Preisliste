@@ -165,14 +165,14 @@
     });
   }
   function fileLink(file, parent, cls) {
-    var a = el("a", cls || "kb-pop-file", "PDF · " + file.name, parent);
+    var a = el("a", cls || "kb-pop-file", (file.kind === "msg" ? "E-Mail · " : "PDF · ") + file.name, parent);
     a.href = file.url; a.target = "_blank"; a.rel = "noopener"; a.title = file.name + " öffnen";
     return a;
   }
   function fileInput(form) {
     var lab = el("label", "kb-pop-filelabel", null, form);
-    el("span", null, "PDF anhängen (optional)", lab);
-    var inp = el("input", null, null, lab); inp.type = "file"; inp.name = "datei"; inp.accept = "application/pdf,.pdf";
+    el("span", null, "PDF oder Outlook-E-Mail (.msg) anhängen (optional)", lab);
+    var inp = el("input", null, null, lab); inp.type = "file"; inp.name = "datei"; inp.accept = "application/pdf,.pdf,.msg,application/vnd.ms-outlook";
     return inp;
   }
   // ---------- Fenster an der Blase ----------
@@ -243,10 +243,10 @@
     var sel = typeSelect(it.type); form.appendChild(sel);
     var file = fileInput(form), drop = null;
     if (it.file) {
-      file.previousSibling.textContent = "PDF ersetzen (jetzt: " + it.file.name + ")";
+      file.previousSibling.textContent = "Anhang ersetzen (jetzt: " + it.file.name + ")";
       var dl = el("label", "inline-label kb-pop-check", null, form);
       drop = el("input", null, null, dl); drop.type = "checkbox";
-      dl.appendChild(document.createTextNode(" PDF entfernen"));
+      dl.appendChild(document.createTextNode(" Anhang entfernen"));
     }
     var row = el("div", "kb-pop-actions", null, form);
     var save = el("button", null, "Speichern", row); save.type = "submit";
