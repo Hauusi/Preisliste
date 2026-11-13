@@ -279,10 +279,10 @@
     var pts = [byId[bub.anchor]].concat(bub.from && byId[bub.from] ? [byId[bub.from]] : []);
     var x0 = Math.min(bb.x, Math.min.apply(null, pts.map(function (p) { return p.x - 60; }))), x1 = Math.max(bb.x + bb.width, Math.max.apply(null, pts.map(function (p) { return p.x + 60; })));
     var y0 = Math.min(bb.y, Math.min.apply(null, pts.map(function (p) { return p.y - 40; }))), y1 = Math.max(bb.y + bb.height, Math.max.apply(null, pts.map(function (p) { return p.y + 50; })));
-    var ratio = box.clientWidth / box.clientHeight, w = (x1 - x0) * 1.1, h = (y1 - y0) * 1.15;
+    var ratio = box.clientWidth / box.clientHeight, w = (x1 - x0) * 1.25, h = (y1 - y0) * 1.3;
     if (w / h < ratio) { w = h * ratio; } else { h = w / ratio; }
-    // nicht stark hineinzoomen: höchstens Originalgröße (1 Karteneinheit = 1 Bildschirmpixel)
-    var minW = box.clientWidth * 1.15;
+    // hineinzoomen, aber gemäßigt: höchstens ~1,6-fach (1 Karteneinheit = 1,6 Bildschirmpixel)
+    var minW = box.clientWidth * 0.62;
     if (w < minW) { w = minW; h = w / ratio; }
     view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w: w, h: h };
     applyView(); applyView();  // zweimal: Schriftgröße hängt vom Zoom ab, Blasen werden danach neu vermessen
