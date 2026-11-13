@@ -484,7 +484,10 @@ in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Bla
   Leuchtbalken“; „+ Serie“ legt eine Serie an.
 - **Nur Artikelgruppe anklicken:** Blasen mit **allen Infos der Gruppe**, egal welcher Hersteller (jeweils mit
   Herstellername davor), samt Angaben, Artikelvergleich und Serien.
-- **Serie anklicken** (rechts eingerückt): ihre eigenen Angaben und Einträge.
+- **Serie anklicken** (rechts eingerückt, z. B. nach Redtronic): Pfeil Redtronic → Leuchtbalken, daran die Blase
+  „Leuchtbalken · Serie Spartan“ und um sie herum die Angaben und Einträge der Serie sowie „+ Info zu Spartan“. Ist kein
+  Hersteller gewählt, beginnt der Pfeil beim Hersteller der Serie. Oben steht der Weg „Redtronic → Leuchtbalken → Serie
+  Spartan“.
 - **Serien-Blase anklicken** (z. B. „Serie Spartan (2) ›“ bei Redtronic → Leuchtbalken): die Serie klappt auf – ihre
   Infos hängen als kleinere Blasen (gestrichelte Linien) an ihr, dazu „+ Info zu Spartan“ zum direkten Eintragen für
   genau diese Serie. Nochmal anklicken klappt wieder zu. Die Zahl in Klammern = Infos der Serie. Serien-Einträge stehen
