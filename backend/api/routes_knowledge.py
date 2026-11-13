@@ -227,7 +227,10 @@ def map_bubbles(f: int | None = None, g: int | None = None, db: Session = Depend
             "f": fx.id if fx else None, "g": gx.id if gx else None,
             "anchor": (gx.parent_id if gx and gx.kind == "serie" else None),
             # beim gewählten Hersteller leuchten seine Artikelgruppen und Serien in der Liste auf
-            "lit": (kb.assortment_of(db, fx) + [x.id for x in kb.series_of(by_id.values(), maker=fx)]) if fx else []}
+            "lit": (kb.assortment_of(db, fx) + [x.id for x in kb.series_of(by_id.values(), maker=fx)]) if fx else [],
+            # wo Infos versteckt sind: zum Hersteller die Gruppen/Serien, zur Gruppe die Hersteller (mit Anzahl)
+            "info_g": kb.info_links(db, user, fx, by_id) if fx else {},
+            "info_f": kb.info_links(db, user, gx, by_id) if gx else {}}
 
 
 @router.get("/wissen/karteninfo")

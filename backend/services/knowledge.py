@@ -1465,3 +1465,52 @@ def cleanup_files(db: Session, data_dir) -> int:
             f.unlink(missing_ok=True)
             n += 1
     return n
+
+
+# ---------- Wo Infos versteckt sind (Hervorhebung in den Listen) ----------
+
+def info_links(db: Session, user: User, t: KbTopic, by_id: dict[int, KbTopic]) -> dict[int, int]:
+    """Zu einem Hersteller: Artikelgruppen und Serien, in denen es Infos zu ihm gibt; zu einer Artikelgruppe (oder
+    Serie): Hersteller mit Infos darin. Wert = Anzahl Infos (Einträge, Artikel im Vergleich, Pflicht-Zubehör)."""
+    out: dict[int, int] = {}
+
+    def add(i, n=1):
+        if i in by_id and i != t.id:
+            out[i] = out.get(i, 0) + n
+
+    def kind(i):
+        return by_id[i].kind if i in by_id else None
+
+    if t.kind == "hersteller":
+        own_series = {s.id for s in by_id.values() if s.kind == "serie" and s.maker_id == t.id}
+        for e in db.scalars(visible_entries(db, user)):
+            ids = set(e.topic_ids or [])
+            hits = set()
+            if t.id in ids:
+                hits |= {i for i in ids if kind(i) in ("gruppe", "serie")}
+            hits |= ids & own_series  # Einträge zur eigenen Serie gelten als Info beim Hersteller
+            for i in list(hits):
+                if kind(i) == "serie" and by_id[i].parent_id in by_id:
+                    hits.add(by_id[i].parent_id)
+            for i in hits:
+                add(i)
+        for (g,) in db.execute(select(KbProduct.group_id).where(KbProduct.maker_id == t.id)):
+            add(g)
+    else:
+        group_ids = {t.id} | ({s.id for s in by_id.values() if s.kind == "serie" and s.parent_id == t.id} if t.kind == "gruppe" else set())
+        for e in db.scalars(visible_entries(db, user)):
+            ids = set(e.topic_ids or [])
+            if not ids & group_ids:
+                continue
+            makers = {i for i in ids if kind(i) == "hersteller"}
+            makers |= {by_id[i].maker_id for i in ids & group_ids if kind(i) == "serie" and by_id[i].maker_id in by_id}
+            for m in makers:
+                add(m)
+        if t.kind == "gruppe":
+            for (m,) in db.execute(select(KbProduct.maker_id).where(KbProduct.group_id == t.id)):
+                add(m)
+    for f in db.scalars(select(KbFact).where(KbFact.field == "pflicht", or_(KbFact.topic_id == t.id, KbFact.ref_topic_id == t.id))):
+        other = f.ref_topic_id if f.topic_id == t.id else f.topic_id
+        if kind(other) in (("gruppe", "serie") if t.kind == "hersteller" else ("hersteller",)):
+            add(other)
+    return out

@@ -474,6 +474,10 @@ in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Bla
 - **Hersteller anklicken** (z. B. Redtronic): Blasen mit seinen **Standard-Infos** (Bezugsregel, Lieferzeit,
   Ansprechpartner, Mindestmenge, Pflicht-Zubehör, allgemeine Einträge) – ohne Artikelgruppen-Bezug. Rechts leuchten die
   bei Redtronic hinterlegten Artikelgruppen und Serien auf.
+- **Wo Infos stecken:** Ist ein Hersteller gewählt, leuchten rechts **orange** alle Artikelgruppen und Serien, in denen
+  es Infos zu ihm gibt (Einträge zu beiden, Serien-Einträge, Artikel im Vergleich, Pflicht-Zubehör) – die orange Zahl
+  ist die Anzahl. Ist eine Artikelgruppe gewählt, leuchten links genauso die Hersteller mit Infos in dieser Gruppe.
+  (Blau markiert = beim Hersteller fest zugeordnet, auch ohne Infos.)
 - **Danach eine Artikelgruppe anklicken** (z. B. Leuchtbalken): Pfeil Redtronic → Leuchtbalken; die Blasen zeigen **nur
   die Infos dieser Gruppe bei Redtronic** (Artikel im Vergleich, Serien, Serien-Einträge, Einträge zu beiden,
   Pflicht-Zubehör zwischen beiden). Ist die Gruppe nicht zugeordnet, gibt es die gestrichelte Blase „+ Redtronic führt
