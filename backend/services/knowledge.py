@@ -248,7 +248,8 @@ def _snapshot(e: KbEntry) -> str:
     return json.dumps({"art": e.type, "text": e.text, "themen": e.topic_ids, "privat": e.private}, ensure_ascii=False)
 
 
-def create_entry(db: Session, user: User, text: str, kind: str | None, topic_ids, private: bool) -> KbEntry:
+def create_entry(db: Session, user: User, text: str, kind: str | None, topic_ids, private: bool,
+                 heading: str | None = None) -> KbEntry:
     all_topics = topics(db)
     original = " ".join(str(text or "").split())[:MAX_TEXT]
     if not original:
@@ -263,11 +264,44 @@ def create_entry(db: Session, user: User, text: str, kind: str | None, topic_ids
                 created_at=now, updated_at=now, checked_at=now)
     db.add(e)
     db.flush()
+    e.heading = clean_heading(heading) or auto_heading(db, user, e)
     log(db, user, "eintrag", e.id, ids[0], "angelegt", None, _snapshot(e))
     return e
 
 
-def update_entry(db: Session, user: User, e: KbEntry, text: str, kind: str, topic_ids, private: bool | None) -> None:
+def clean_heading(text: str | None) -> str | None:
+    return " ".join(str(text or "").split())[:80] or None
+
+
+def heading_of(e: KbEntry) -> str:
+    """Überschrift in der Mindmap: eigene oder die Art des Eintrags."""
+    return e.heading or TYPES.get(e.type, "Hinweis")
+
+
+def auto_heading(db: Session, user: User, e: KbEntry) -> str:
+    """Neue Einträge landen unter der Überschrift, die für diese Art bei denselben Themen schon benutzt wird
+    (z. B. umbenannt „Preise“ statt „Kalkulation“), sonst unter der Art."""
+    key = sorted(e.topic_ids or [])
+    for other in db.scalars(visible_entries(db, user).where(KbEntry.id != e.id, KbEntry.type == e.type)
+                            .order_by(KbEntry.updated_at.desc())):
+        if sorted(other.topic_ids or []) == key and other.heading:
+            return other.heading
+    return TYPES.get(e.type, "Hinweis")
+
+
+def rename_heading(db: Session, user: User, entries: list[KbEntry], name: str) -> None:
+    """Überschrift für die angegebenen Einträge umbenennen (die Einträge einer Überschrift-Blase)."""
+    name = clean_heading(name)
+    if not name:
+        raise ValueError("Bitte einen Namen für die Überschrift angeben.")
+    for e in entries:
+        if e.heading != name:
+            log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "Überschrift", heading_of(e), name)
+            e.heading = name
+
+
+def update_entry(db: Session, user: User, e: KbEntry, text: str, kind: str, topic_ids, private: bool | None,
+                 heading: str | None = None) -> None:
     before = _snapshot(e)
     all_topics = topics(db)
     new_text = " ".join(str(text or "").split())[:MAX_TEXT]
@@ -279,6 +313,11 @@ def update_entry(db: Session, user: User, e: KbEntry, text: str, kind: str, topi
     e.text = tidy(new_text, all_topics)
     e.type = kind if kind in TYPES else e.type
     e.topic_ids = ids
+    if heading is not None:  # Feld mitgeschickt: leer = automatisch nach Art
+        new_heading = clean_heading(heading)
+        if new_heading != e.heading:
+            log(db, user, "eintrag", e.id, ids[0], "Überschrift", heading_of(e), new_heading or TYPES.get(e.type))
+            e.heading = new_heading
     if private is not None and e.author_id == user.id:  # privat schalten darf nur der Ersteller
         e.private = bool(private)
     after = _snapshot(e)
@@ -1312,7 +1351,8 @@ def _entry_bubble(e: KbEntry, names: dict[int, str], prefix: str = "") -> dict:
             "text": e.text, "type_label": TYPES.get(e.type, ""), "who": names.get(e.updated_by or e.author_id, "–"),
             "when": (e.updated_at or e.created_at).strftime("%d.%m.%Y"), "stale": is_stale(e), "flag": e.flag_note or (
                 "gemeldet" if e.flagged_at else ""), "topics": list(e.topic_ids or []),
-            "file": {"name": e.file_name, "url": f"/wissen/datei/{e.id}", "kind": file_kind(e)} if e.file_key else None}
+            "file": {"name": e.file_name, "url": f"/wissen/datei/{e.id}", "kind": file_kind(e)} if e.file_key else None,
+            "heading": heading_of(e)}
 
 
 def _fact_bubbles(db: Session, t: KbTopic, by_id: dict[int, KbTopic], skip_moq: bool = False) -> list[dict]:

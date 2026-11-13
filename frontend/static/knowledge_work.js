@@ -79,14 +79,56 @@
       })
       .catch(function () { if (my === seq) { state.f = state.g = null; refresh(); } });
   }
+  // Überschrift-Blasen: Einträge nach ihrer Überschrift (sonst Art) gruppieren, Angaben und Artikelvergleich je eine
+  // feste Überschrift. ctx unterscheidet die Ebene (Hauptblasen / Serie), target = Serie für „+ Info hier“.
+  var collapsed = {}, ORDER = ["angabe", "artikel", "bezug", "kalk", "pflicht", "liefer", "hinweis"];
+  function group(bubbles, ctx, target) {
+    var heads = {}, order = [], rest = [];
+    bubbles.forEach(function (b) {
+      var name, fixed = false;
+      if (b.kind === "eintrag") { name = b.heading || TYPES[b.type] || "Hinweis"; }
+      else if (b.kind === "angabe" && b.type === "artikel") { name = "Artikelvergleich"; fixed = true; }
+      else if (b.kind === "angabe") { name = "Angaben"; fixed = true; }
+      else { rest.push(b); return; }
+      var k = (fixed ? "f:" : "e:") + name.toLowerCase();
+      if (!heads[k]) {
+        heads[k] = { kind: "heading", name: name, fixed: fixed, children: [], ids: [], key: "h:" + ctx + ":" + k, target: target || null,
+                     type: fixed ? (b.type === "artikel" ? "artikel" : "angabe") : b.type };
+        order.push(k);
+      }
+      heads[k].children.push(b);
+      if (b.entry) { heads[k].ids.push(b.entry); }
+    });
+    var out = order.map(function (k) {
+      var h = heads[k], n = h.children.length;
+      h.label = h.name + " (" + n + ")";
+      h.text = h.name + ": " + n + (n === 1 ? " Info" : " Infos") + (h.fixed ? "" : " · anklicken zum Umbenennen oder Zuklappen");
+      h.collapsed = !!collapsed[h.key];
+      return h;
+    });
+    out.sort(function (a, b) { return (a.fixed ? 0 : 1) - (b.fixed ? 0 : 1) || ORDER.indexOf(a.type) - ORDER.indexOf(b.type) || a.name.localeCompare(b.name); });
+    return out.concat(rest);
+  }
+  function headingNames() {  // Überschriften der aktuellen Ansicht (für die Auswahl beim Eintragen)
+    var seen = {}, out = [];
+    (function walk(list) {
+      (list || []).forEach(function (it) {
+        if (it.kind === "heading" && !it.fixed && !seen[it.name]) { seen[it.name] = 1; out.push(it.name); }
+        if (it.children) { walk(it.children); }
+      });
+    })(lastList);
+    Object.keys(TYPES).forEach(function (k) { if (!seen[TYPES[k]]) { out.push(TYPES[k]); } });
+    return out;
+  }
   // Serie gewählt (rechts in der Liste): Hersteller → Artikelgruppe → Serien-Blase, daran ihre Infos
   function showSeries(d, anchor) {
     var sid = state.g, nm = names[sid] || "", from = state.f || d.series_maker || null;
     var head = /^serie/i.test(nm) ? nm : "Serie " + nm;
     var item = { kind: "serie", type: "serie", key: "s" + sid, series: sid, name: nm,
                  label: (names[anchor] ? names[anchor] + " · " : "") + head, text: head + (names[anchor] ? " (" + names[anchor] + ")" : "") };
-    var subs = d.bubbles.concat([{ kind: "add", type: "add", key: "add-" + sid, label: "+ Info zu " + nm,
+    var subs = group(d.bubbles, "s" + sid, { id: sid, name: nm }).concat([{ kind: "add", type: "add", key: "add-" + sid, label: "+ Info zu " + nm,
                                    text: "Neue Info zur Serie " + nm, target: sid, targetName: nm }]);
+    item.children = subs;
     openSub = { series: sid, key: item.key, name: nm }; subItems = subs; lastList = [item];
     if (window.kbMap) {
       window.kbMap.select(from || anchor, from ? anchor : null);
@@ -102,8 +144,10 @@
       .then(function (d) {
         if (!again && openSub && openSub.series !== sub.series) { return; }
         openSub = sub;
-        subItems = d.bubbles.concat([{ kind: "add", type: "add", key: "add-" + sub.series, label: "+ Info zu " + sub.name,
-                                       text: "Neue Info zur Serie " + sub.name, target: sub.series, targetName: sub.name }]);
+        subItems = group(d.bubbles, "s" + sub.series, { id: sub.series, name: sub.name })
+          .concat([{ kind: "add", type: "add", key: "add-" + sub.series, label: "+ Info zu " + sub.name,
+                     text: "Neue Info zur Serie " + sub.name, target: sub.series, targetName: sub.name }]);
+        (lastList || []).forEach(function (x) { if (x.key === sub.key) { x.children = subItems; } });
         if (!subItems.length) { subItems = []; }
         if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.subBubbles(sub.key, subItems); }
       });
@@ -111,13 +155,14 @@
   function toggleSub(it) {
     if (openSub && openSub.series === it.series) {
       openSub = null; subItems = null;
-      if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.subBubbles(null); }
+      (lastList || []).forEach(function (x) { if (x.key === it.key) { x.children = null; } });
+      if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.subBubbles(it.key, null); }
       return;
     }
     loadSub({ series: it.series, key: it.key, name: it.name || it.label.replace(/^Serie\s+/i, "") });
   }
   function items(d) {
-    var list = d.bubbles.slice(), sel = state.f && state.g, f = state.f, g = state.g;
+    var list = group(d.bubbles, "m"), sel = state.f && state.g, f = state.f, g = state.g;
     if (sel && kinds[g] === "gruppe" && !d.assigned) {
       list.push({ kind: "zuordnen", type: "zuordnen", label: "+ " + names[f] + " führt " + names[g], text: "Artikelgruppe dem Hersteller zuordnen" });
     }
@@ -180,20 +225,24 @@
     if (!bubList) { return; }
     bubList.textContent = ""; bubList.hidden = !list;
     var flat = [];
-    (list || []).forEach(function (it) {
-      flat.push(it);
-      if (openSub && subItems && it.key === openSub.key) { subItems.forEach(function (x) { flat.push(Object.assign({ _sub: true }, x)); }); }
-    });
-    flat.forEach(function (it) {
+    (function walk(items, depth) {
+      (items || []).forEach(function (it) {
+        flat.push({ it: it, depth: depth });
+        if (it.children && !it.collapsed) { walk(it.children, depth + 1); }
+      });
+    })(list, 0);
+    flat.forEach(function (x) {
+      var it = x.it;
       var b = el("button", "kb-bub-item b-" + it.type + (it.kind === "add" || it.kind === "add-serie" ? " act" : "") + (it.stale ? " stale" : "")
-                 + (it._sub ? " sub" : "") + (openSub && it.key === openSub.key ? " open" : ""), it.label, bubList);
+                 + (it.kind === "heading" ? " head" : "") + (x.depth ? " sub d" + Math.min(x.depth, 3) : "")
+                 + (it.children && !it.collapsed ? " open" : ""), it.label, bubList);
       b.type = "button";
       b.addEventListener("click", function () {
         var r = b.getBoundingClientRect(), o = mapBox.getBoundingClientRect();
         document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: it, x: mapBox.clientWidth / 2, y: Math.min(r.top - o.top, mapBox.clientHeight - 40) } }));
         mapBox.scrollIntoView({ block: "nearest" });
       });
-      if (it.file) { fileLink(it.file, bubList, "kb-bub-file" + (it._sub ? " sub" : "")); }
+      if (it.file) { fileLink(it.file, bubList, "kb-bub-file" + (x.depth ? " sub d" + Math.min(x.depth, 3) : "")); }
     });
   }
   function fileLink(file, parent, cls) {
@@ -234,6 +283,7 @@
       send("/wissen/sortiment", { hersteller: state.f, gruppe: state.g }).then(function () { if (window.kbMap) { window.kbMap.reload(anchorOf()); } refresh(); });
       return;
     }
+    if (it.kind === "heading") { return openPop(x, y, function (box) { headingPop(box, it); }); }
     openPop(x, y, function (box) {
       if (it.kind === "add" || it.kind === "add-serie") {
         box._target = it.target ? { id: it.target, name: it.targetName } : null;
@@ -262,6 +312,46 @@
       }
     });
   });
+  function headingPop(box, it) {
+    el("p", "kb-pop-head", it.name, box);
+    el("p", "kb-pop-meta", it.children.length + (it.children.length === 1 ? " Info" : " Infos") + (it.fixed ? " · feste Überschrift" : ""), box);
+    if (!it.fixed) {
+      var form = el("form", "kb-pop-form", null, box);
+      var lab = el("label", "kb-pop-filelabel", null, form); el("span", null, "Überschrift umbenennen", lab);
+      var inp = el("input", null, null, lab); inp.value = it.name; inp.maxLength = 80; inp.required = true;
+      var row = el("div", "kb-pop-actions", null, form);
+      var save = el("button", null, "Umbenennen", row); save.type = "submit";
+      var add = el("button", "secondary", "+ Info hier", row); add.type = "button";
+      add.addEventListener("click", function () {
+        box.querySelectorAll(":scope > :not(.kb-pop-x)").forEach(function (n) { n.remove(); });
+        box._target = it.target ? { id: it.target.id, name: it.target.name } : null; box._heading = it.name;
+        addForm(box, false);
+      });
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault(); save.disabled = true;
+        var oldKey = it.key;
+        after(send("/wissen/ueberschrift", { eintrag: it.ids, name: inp.value }).then(function (r) {
+          if (collapsed[oldKey]) { delete collapsed[oldKey]; }
+          return r;
+        })).catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
+      });
+    }
+    var r2 = el("div", "kb-pop-actions", null, box);
+    var tog = el("button", "secondary", it.collapsed ? "Aufklappen" : "Zuklappen", r2); tog.type = "button";
+    tog.addEventListener("click", function () {
+      it.collapsed = !it.collapsed; collapsed[it.key] = it.collapsed; closePop();
+      if (mapBox.clientWidth < 600) { renderList(lastList); } else if (window.kbMap) { window.kbMap.redraw(); }
+    });
+  }
+  function headingInput(form, value) {  // Überschrift wählen oder neu eintippen; leer = automatisch nach Art
+    var lab = el("label", "kb-pop-filelabel", null, form);
+    el("span", null, "Überschrift (leer = automatisch nach Art)", lab);
+    var inp = el("input", null, null, lab); inp.maxLength = 80; inp.value = value || "";
+    var id = "kb-heads-" + Math.random().toString(36).slice(2); inp.setAttribute("list", id);
+    var dl = el("datalist", null, null, lab); dl.id = id;
+    headingNames().forEach(function (n) { var o = el("option", null, null, dl); o.value = n; });
+    return inp;
+  }
   function typeSelect(current) {
     var s = document.createElement("select"); s.name = "art"; s.setAttribute("aria-label", "Art");
     var auto = el("option", null, "Art automatisch", s); auto.value = "";
@@ -273,6 +363,7 @@
     var form = el("form", "kb-pop-form", null, box);
     var ta = el("textarea", null, null, form); ta.value = it.text; ta.rows = 3; ta.maxLength = 1000; ta.required = true; ta.setAttribute("aria-label", "Text");
     var sel = typeSelect(it.type); form.appendChild(sel);
+    var head = headingInput(form, it.heading);
     var file = fileInput(form), drop = null;
     if (it.file) {
       file.previousSibling.textContent = "Anhang ersetzen (jetzt: " + it.file.name + ")";
@@ -286,7 +377,7 @@
     ta.focus();
     form.addEventListener("submit", function (ev) {
       ev.preventDefault(); save.disabled = true;
-      var req = send("/wissen/eintrag/" + it.entry, { text: ta.value, art: sel.value || it.type, themen: it.topics });
+      var req = send("/wissen/eintrag/" + it.entry, { text: ta.value, art: sel.value || it.type, themen: it.topics, ueberschrift: head.value });
       if (file.files[0]) { req = req.then(function () { return send("/wissen/eintrag/" + it.entry + "/datei", { datei: file.files[0] }); }); }
       else if (drop && drop.checked) { req = req.then(function () { return send("/wissen/eintrag/" + it.entry + "/datei", { entfernen: "1" }); }); }
       after(req).catch(function (e) { save.disabled = false; errorLine(form).textContent = e.message; });
@@ -303,6 +394,7 @@
       var ta = el("textarea", null, null, form); ta.rows = 3; ta.maxLength = 1000; ta.required = true;
       ta.placeholder = "Einfach reinschreiben, z. B. Lieferzeit 6 Wochen"; ta.setAttribute("aria-label", "Neue Info");
       var sel = typeSelect(""); form.appendChild(sel);
+      var head = headingInput(form, box._heading || "");
       var file = fileInput(form);
       file.addEventListener("change", function () { ta.required = !file.files[0]; });  // nur PDF: Text darf leer sein (Dateiname)
       ta.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); form.requestSubmit(); } });
@@ -313,7 +405,7 @@
       ev.preventDefault(); save.disabled = true;
       var req = serie ? send("/wissen/serie", { name: name.value, gruppe: g, hersteller: f })
         : send("/wissen/eintrag", { text: ta.value, art: sel.value, themen: target ? [target.id] : [f, g].filter(Boolean),
-                                    vorgabe: target ? target.id : g || f, datei: file.files[0] || null });
+                                    vorgabe: target ? target.id : g || f, datei: file.files[0] || null, ueberschrift: head.value });
       req.then(function () {
         if (serie) { location.href = "/wissen?f=" + f + "&g=" + g; return; }  // neue Serie: Listen neu aufbauen
         refresh();

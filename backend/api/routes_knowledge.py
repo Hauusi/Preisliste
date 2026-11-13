@@ -578,7 +578,8 @@ async def create_entry(request: Request, db: Session = Depends(get_db), user: Us
     if ids is None and fallback.isdigit() and not kb.detect(text, kb.topics(db))["topic_ids"]:
         ids = [fallback]  # nichts erkannt: Eintrag gehört zum geöffneten Steckbrief
     try:
-        e = kb.create_entry(db, user, text, kind or None, ids, str(form.get("privat") or "") == "1")
+        e = kb.create_entry(db, user, text, kind or None, ids, str(form.get("privat") or "") == "1",
+                            str(form.get("ueberschrift") or "") or None)
     except ValueError as exc:
         if str(form.get("ziel") or "").startswith("kombi:"):
             return _ret(str(form.get("ziel")), None, str(exc))
@@ -610,7 +611,8 @@ async def edit_entry(request: Request, entry_id: int, db: Session = Depends(get_
     back_id = int(back) if back.isdigit() else (e.topic_ids or [None])[0]
     try:
         kb.update_entry(db, user, e, str(form.get("text") or ""), str(form.get("art") or ""), form.getlist("themen"),
-                        (str(form.get("privat") or "") == "1") if "privat_feld" in form else None)
+                        (str(form.get("privat") or "") == "1") if "privat_feld" in form else None,
+                        str(form.get("ueberschrift")) if "ueberschrift" in form else None)
     except ValueError as exc:
         return _back(back_id, str(exc))
     return _back(back_id if back_id in e.topic_ids else e.topic_ids[0], anchor=f"#e{e.id}")
@@ -723,6 +725,20 @@ def entry_mail_attachment(entry_id: int, index: int, db: Session = Depends(get_d
     return Response(a["data"], media_type=mime if inline else "application/octet-stream",
                     headers={"Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(a['name'])}",
                              "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
+
+
+@router.post("/wissen/ueberschrift", dependencies=[Depends(check_csrf)])
+async def rename_heading(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Überschrift-Blase umbenennen: gilt für die Einträge dieser Blase (Feld „eintrag“, mehrfach)."""
+    form = await request.form()
+    entries = [_entry(db, int(i), user) for i in form.getlist("eintrag") if str(i).isdigit()]
+    if not entries:
+        raise HTTPException(400, "Keine Einträge")
+    try:
+        kb.rename_heading(db, user, entries, str(form.get("name") or ""))
+    except ValueError as exc:
+        return _ret(str(form.get("zurueck") or ""), None, str(exc))
+    return _ret(str(form.get("zurueck") or ""), (entries[0].topic_ids or [None])[0])
 
 
 @router.get("/wissen/eintrag/{entry_id}/loeschen")

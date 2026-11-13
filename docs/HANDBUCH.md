@@ -497,6 +497,17 @@ in der Mitte die **Karte**. Anklicken genügt – die Infos erscheinen als **Bla
   Steckbrief).
 - **„+ Info“** (blaue Blase): direkt eintragen – der Eintrag gehört zum Gewählten (bei Hersteller + Gruppe zu beiden).
   Strg+Enter speichert. Das große Feld oben bleibt zum schnellen Eintragen mit automatischer Erkennung.
+- **Überschrift-Blasen:** Einträge hängen nicht direkt am Punkt, sondern hinter einer **Überschrift-Blase** (z. B.
+  „Kalkulation (2)“, „Lieferzeit / Kontakt“, „Hinweis“). Die Überschrift wird beim Eintragen **automatisch** vergeben:
+  nach der erkannten Art – oder, wenn es für diese Art bei denselben Themen schon eine Überschrift gibt (z. B. umbenannt
+  in „Preise Spartan“), unter genau dieser. Angaben und Artikelvergleich stehen unter festen Überschriften „Angaben“
+  bzw. „Artikelvergleich“. Bei Serien: Punkt → Serie → Überschrift → Einträge.
+  - **Überschrift anklicken:** umbenennen (gilt für alle Einträge dieser Blase), „+ Info hier“ (neuer Eintrag direkt
+    unter dieser Überschrift), Zu- und Aufklappen.
+  - **Eintrag unter andere Überschrift:** Eintrag anklicken → „Bearbeiten“ → Feld „Überschrift“ (Vorschläge aus der
+    Ansicht oder neu eintippen; leer = wieder automatisch nach Art). Beim „+ Info“ lässt sich die Überschrift ebenso
+    gleich wählen.
+  - Jede Änderung der Überschrift steht im Verlauf des Eintrags.
 - **PDF oder Outlook-E-Mail anhängen:** Im Fenster von „+ Info“ unter „PDF oder Outlook-E-Mail (.msg) anhängen“ eine
   Datei wählen (z. B. Datenblatt oder eine aus Outlook gespeicherte Mail – in Outlook „Speichern unter“ bzw. die Mail
   aus Outlook auf den Desktop ziehen). Ohne Text wird der Dateiname als Text genommen. Die Blase zeigt den kurzen Text
@@ -764,6 +775,7 @@ Ein Prozess, ein Worker (`--workers 1`), weil SQLite und die Jobs im Prozess lau
 | `comparisons`, `comparison_items`, `match_decisions`, `ai_match_suggestions` | Vergleiche, gespeicherte Zuordnungsentscheidungen (auch im Abgleich genutzt), KI-Vorschläge |
 | `jobs` | Hintergrundjobs (IMPORT, AI_COLUMNS, AI_MATCH, AI_UPDATE_MATCH, AI_RULE) |
 | `datasheets` | Datenblätter: Titel, Inhalt als JSON (Kopf, Eigenschaften, Spezifikation, Fußzeile und die Liste der Bausteine mit Reihenfolge; Bilder nur als Dateiname) |
+| `kb_entries.heading` | Vertriebswissen: Überschrift des Eintrags in der Mindmap (leer = Art) |
 | `kb_entries.file_name`, `file_key` | Vertriebswissen: Anhang je Eintrag, PDF oder Outlook-E-Mail (Datei `data/wissen/<file_key>.pdf` bzw. `.msg`) |
 | `kb_assortment` | Vertriebswissen: welche Artikelgruppen ein Hersteller führt (Hersteller, Gruppe, wer, wann) |
 | `kb_topics`, `kb_facts`, `kb_entries`, `kb_unfollow`, `kb_changes`, `kb_synonyms`, `kb_search_misses`, `kb_products` | Vertriebswissen: Artikelvergleich (Gruppe, Hersteller, Artikel, Punkte je Kriterium, Begründung; Kriterien je Gruppe in `kb_topics.criteria`), gemeinsame Themen (Hersteller, Artikelgruppen, Serien; Name, Schlüssel, Muttergesellschaft bzw. bei Serien Artikelgruppe `parent_id`, Hersteller einer Serie `maker_id`, andere Schreibweisen, Zuständiger), Angaben im Steckbrief (feste Felder mit Menge/Verweis oder frei), Synonymgruppen, Suchen ohne Treffer, Einträge (Art, Text, eingetippter Text, privat, Themen-IDs, Ersteller/geändert/geprüft mit Benutzer und Zeit), wem man nicht folgt, Verlauf jeder Änderung |

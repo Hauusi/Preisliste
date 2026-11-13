@@ -202,31 +202,36 @@
     }
     return pos;
   }
+  // Blasen als Baum: Ebene 0 rund um den gewählten Punkt, Kinder (it.children, nicht it.collapsed) rund um ihre
+  // Eltern-Blase mit Lücke zur Mitte; danach Überlappungen auflösen.
   function drawBubbles() {
     if (!bubbleLayer) { return; }
     bubbleLayer.textContent = "";
     if (!bub || !byId[bub.anchor]) { return; }
-    var a = byId[bub.anchor], fs = 13 * view.w / Math.max(box.clientWidth, 1), items = bub.items;  // Bildschirmschrift ~13 px
-    if (!items.length) { return; }
-    var sizes = items.map(function (it) { return measure(it, fs); });
-    // Lücke in Richtung des Herstellers (Pfeil), sonst ringsum
+    var a = byId[bub.anchor], fs = 13 * view.w / Math.max(box.clientWidth, 1);  // Bildschirmschrift ~13 px
+    if (!bub.items.length) { return; }
+    var all = [];
+    function place(items, center, cr, dir, gap, from, level) {
+      var sizes = items.map(function (it) { return measure(it, fs); });
+      var pos = ring(center, cr, sizes, fs * (level ? 0.75 : 1), dir, gap);
+      items.forEach(function (it, i) {
+        var node = { it: it, p: pos[i], z: sizes[i], from: from, level: level };
+        all.push(node);
+        if (it.children && it.children.length && !it.collapsed) {
+          node.open = true;
+          node.kids = place(it.children, pos[i], Math.max(sizes[i].w, sizes[i].h) / 2.4,
+                            Math.atan2(center.y - pos[i].y, center.x - pos[i].x), Math.PI / 1.7, pos[i], level + 1);
+        }
+      });
+      return items.length;
+    }
     var gap = 0, dir = -Math.PI / 2;
     if (bub.from && byId[bub.from]) { var f = byId[bub.from]; dir = Math.atan2(f.y - a.y, f.x - a.x); gap = Math.PI / 2.2; }
-    var pos = ring(a, a.r || 12, sizes, fs, dir, gap);
-    var all = items.map(function (it, i) { return { it: it, p: pos[i], z: sizes[i], from: a, level: 0 }; });
-    // Unter-Blasen (z. B. Serie aufgeklappt): Ring um die Eltern-Blase, Lücke Richtung Mitte
-    var parent = bub.sub && all.filter(function (x) { return x.it.key === bub.sub.key; })[0];
-    if (parent) {
-      var subSizes = bub.sub.items.map(function (it) { return measure(it, fs); });
-      var sd = Math.atan2(a.y - parent.p.y, a.x - parent.p.x);
-      var sp = ring(parent.p, Math.max(parent.z.w, parent.z.h) / 2.4, subSizes, fs, sd, Math.PI / 1.8);
-      bub.sub.items.forEach(function (it, i) { all.push({ it: it, p: sp[i], z: subSizes[i], from: parent.p, level: 1 }); });
-      parent.open = true;
-    }
+    place(bub.items, a, a.r || 12, dir, gap, a, 0);
     // Überlappungen auflösen: Blasen gegeneinander und von den gewählten Punkten wegschieben
     var fixed = [a].concat(bub.from && byId[bub.from] ? [byId[bub.from]] : []);
-    var pad = fs * 0.7;
-    for (var round = 0; round < 160; round++) {
+    var pad = fs * 0.6;
+    for (var round = 0; round < 220; round++) {
       var movedAny = false;
       for (var i1 = 0; i1 < all.length; i1++) {
         var p1 = all[i1].p, z1 = all[i1].z;
@@ -235,7 +240,7 @@
           var ox = (z1.w + z2.w) / 2 + pad - Math.abs(p1.x - p2.x), oy = (z1.h + z2.h) / 2 + pad - Math.abs(p1.y - p2.y);
           if (ox > 0 && oy > 0) {
             movedAny = true;
-            var w1 = all[i1].open ? 0.15 : 0.5, w2 = 1 - w1;  // aufgeklappte Eltern-Blase bleibt eher stehen
+            var w1 = all[i1].open && !all[i2].open ? 0.2 : !all[i1].open && all[i2].open ? 0.8 : 0.5, w2 = 1 - w1;
             if (ox < oy * 1.6) { var sx = (p1.x < p2.x ? -1 : 1) * ox; p1.x += sx * w1; p2.x -= sx * w2; }
             else { var sy = (p1.y < p2.y ? -1 : 1) * oy; p1.y += sy * w1; p2.y -= sy * w2; }
           }
@@ -256,7 +261,8 @@
       var it = x.it, p = x.p, z = x.z; if (!p) { return; }
       el("line", { x1: x.from.x, y1: x.from.y, x2: p.x, y2: p.y, "class": "m-bub-link b-" + it.type + (x.level ? " sub" : "") }, lines);
       var g = el("g", { "class": "m-bub b-" + it.type + (it.stale ? " stale" : "") + (it.kind === "add" || it.kind === "zuordnen" ? " act" : "")
-                          + (x.level ? " sub" : "") + (x.open ? " open" : "") + (bub.sub && !x.level && !x.open ? " dim" : ""),
+                          + (x.level ? " sub" : "") + (x.open ? " open" : "") + (it.kind === "heading" ? " head" : "")
+                          + (it.collapsed ? " closed" : ""),
                         transform: "translate(" + (p.x - z.w / 2).toFixed(1) + "," + (p.y - z.h / 2).toFixed(1) + ")", role: "button", tabindex: "0" }, bubbleLayer);
       el("rect", { width: z.w.toFixed(1), height: z.h.toFixed(1), rx: Math.min(z.h / 2, fs * 1.2).toFixed(1) }, g);
       z.lines.forEach(function (l, k) {
@@ -264,7 +270,7 @@
         t.style.fontSize = fs.toFixed(2) + "px";  // passend zur Blasengröße (CSSOM, kein style-Attribut wegen CSP)
         t.textContent = l;
       });
-      if (z.file) {  // PDF: Dateiname als eigene, klickbare Zeile unter dem Text
+      if (z.file) {  // Anhang: Dateiname als eigene, klickbare Zeile unter dem Text
         var fy = fs * (1.35 + z.lines.length * 1.3);
         el("line", { x1: (fs * 0.8).toFixed(1), x2: (z.w - fs * 0.8).toFixed(1), y1: (fy - fs * 1.05).toFixed(1), y2: (fy - fs * 1.05).toFixed(1), "class": "m-bub-sep" }, g);
         var ft = el("text", { x: (z.w / 2).toFixed(1), y: fy.toFixed(1), "text-anchor": "middle", "class": "m-bub-file", role: "link", tabindex: "0" }, g);
@@ -763,11 +769,14 @@
     show: function () { fit(); },
     ready: function () { return !!data; },
     // Blasen setzen: anchor = Punkt, um den sie stehen; from = Hersteller (Lücke Richtung Pfeil); items = Infos
-    subBubbles: function (key, items) {  // Blase aufklappen (z. B. Serie) bzw. mit key=null zuklappen
+    subBubbles: function (key, items) {  // Blase aufklappen (Kinder setzen) bzw. mit items=null zuklappen
       if (!bub) { return; }
-      bub.sub = key ? { key: key, items: items || [] } : null;
+      (function walk(list) {
+        list.forEach(function (it) { if (it.key === key) { it.children = items || null; } else if (it.children) { walk(it.children); } });
+      })(bub.items);
       drawBubbles(); frameBubbles();
     },
+    redraw: function () { drawBubbles(); },
     bubbles: function (anchor, from, items) {
       bub = anchor ? { anchor: anchor, from: from, items: items || [] } : null;
       svg.classList.toggle("bubbling", !!bub);  // übrige Karte fast ausblenden, nur Auswahl und Blasen zählen

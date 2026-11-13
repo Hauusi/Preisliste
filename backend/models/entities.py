@@ -580,6 +580,8 @@ class KbEntry(Base):
     # Anhang (PDF): Originalname zum Anzeigen, Speichername im Ordner data/wissen
     file_name: Mapped[str | None] = mapped_column(String(200))
     file_key: Mapped[str | None] = mapped_column(String(64))
+    # Überschrift in der Mindmap (z. B. „Kalkulation“); leer = Art des Eintrags
+    heading: Mapped[str | None] = mapped_column(String(80))
 
 
 class KbUnfollow(Base):
