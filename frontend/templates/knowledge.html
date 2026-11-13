@@ -49,6 +49,7 @@
 {% set stale = is_stale(e) %}
 <article class="kb-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
   <p class="kb-text">{{ e.text }}</p>
+  {% if e.file_key %}<a class="kb-pop-file" href="/wissen/datei/{{ e.id }}" target="_blank" rel="noopener">PDF · {{ e.file_name }}</a>{% endif %}
   {% set others = e.topic_ids | reject("equalto", here) | list %}
   {% if others and chips %}<div class="kb-chips">{% for t in others if t in by_id %}<a class="kb-chip" href="/wissen/{{ t }}">{{ by_id[t].name }}</a>{% endfor %}</div>{% endif %}
   <div class="kb-meta">
@@ -74,6 +75,14 @@
         <div class="row"><button type="submit">Speichern</button>
           <a class="icon-btn danger" href="/wissen/eintrag/{{ e.id }}/loeschen" title="Eintrag löschen" aria-label="Eintrag löschen">{{ trash() }}</a></div>
       </form>
+      <form method="post" action="/wissen/eintrag/{{ e.id }}/datei" enctype="multipart/form-data" class="kb-form kb-file-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here }}">
+        <label>{{ "PDF ersetzen (jetzt: " ~ e.file_name ~ ")" if e.file_key else "PDF anhängen" }} <input type="file" name="datei" accept="application/pdf,.pdf" required></label>
+        <div class="row"><button type="submit" class="secondary">Hochladen</button></div>
+      </form>
+      {% if e.file_key %}<form method="post" action="/wissen/eintrag/{{ e.id }}/datei" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="zurueck" value="{{ here }}"><input type="hidden" name="entfernen" value="1">
+        <button type="submit" class="link danger-text">PDF entfernen</button></form>{% endif %}
     </details>
     {% if not e.flagged_at %}
     <details class="kb-edit kb-flag-form"><summary>{{ icon("alert", 15) }} Stimmt nicht mehr</summary>

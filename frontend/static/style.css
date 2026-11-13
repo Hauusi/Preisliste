@@ -1552,3 +1552,15 @@ body.portal.full .content { max-width: 2200px; padding: 22px 28px 36px; }
 .m-bub-link.sub { stroke: var(--unclear); stroke-dasharray: 4 3; }
 .kb-bub-item.open { background: color-mix(in srgb, var(--b) 16%, var(--surface)); }
 .kb-bub-item.sub { margin-left: 18px; font-size: .86rem; }
+
+/* PDF-Anhang in Blasen, Fenster und Liste */
+.m-bub-sep { stroke: var(--line-2); stroke-width: 1; }
+.m-bub-file { fill: var(--accent); font-weight: 600; text-decoration: underline; cursor: pointer; }
+.m-bub-file:hover, .m-bub-file:focus-visible { fill: var(--accent-hover); outline: none; }
+.kb-pop-file, .kb-bub-file { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; text-decoration: underline;
+  overflow-wrap: anywhere; font-size: .9rem; }
+.kb-bub-file { flex-basis: 100%; margin: -4px 0 4px 12px; font-size: .84rem; }
+.kb-bub-file.sub { margin-left: 30px; }
+.kb-pop-filelabel { display: grid; gap: 3px; margin: 0; font-size: .84rem; color: var(--fg-2); }
+.kb-pop-filelabel input { font-size: .84rem; padding: 4px; }
+.kb-pop-check { font-size: .86rem; margin: 0; }

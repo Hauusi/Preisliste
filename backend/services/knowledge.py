@@ -1311,7 +1311,8 @@ def _entry_bubble(e: KbEntry, names: dict[int, str], prefix: str = "") -> dict:
     return {"key": f"e{e.id}", "kind": "eintrag", "type": e.type, "entry": e.id, "label": (prefix + e.text),
             "text": e.text, "type_label": TYPES.get(e.type, ""), "who": names.get(e.updated_by or e.author_id, "–"),
             "when": (e.updated_at or e.created_at).strftime("%d.%m.%Y"), "stale": is_stale(e), "flag": e.flag_note or (
-                "gemeldet" if e.flagged_at else ""), "topics": list(e.topic_ids or [])}
+                "gemeldet" if e.flagged_at else ""), "topics": list(e.topic_ids or []),
+            "file": {"name": e.file_name, "url": f"/wissen/datei/{e.id}"} if e.file_key else None}
 
 
 def _fact_bubbles(db: Session, t: KbTopic, by_id: dict[int, KbTopic], skip_moq: bool = False) -> list[dict]:
@@ -1389,3 +1390,59 @@ def bubbles(db: Session, user: User, maker: KbTopic | None, group: KbTopic | Non
                             "stale": False, "link": f"/wissen/{f.topic_id}#angaben"})
     out.sort(key=lambda b: (order.get(b["type"], 9), b["label"].lower()))
     return out
+
+
+# ---------- PDF-Anhänge an Einträgen ----------
+
+def file_dir(data_dir) -> "Path":
+    from pathlib import Path
+    d = Path(data_dir) / "wissen"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def clean_file_name(name: str) -> str:
+    base = re.split(r"[\\/]", str(name or ""))[-1]
+    base = re.sub(r'[\x00-\x1f"<>|:*?]', "", base).strip() or "Dokument.pdf"
+    if not base.lower().endswith(".pdf"):
+        base += ".pdf"
+    return base[-200:]
+
+
+def attach_pdf(db: Session, user: User, e: KbEntry, data: bytes, name: str, data_dir, max_mb: int) -> None:
+    """PDF an einen Eintrag hängen (ersetzt einen vorhandenen Anhang). Nur echte PDFs, Größe begrenzt."""
+    import uuid
+    if not data:
+        raise ValueError("Die Datei ist leer.")
+    if len(data) > max_mb * 1024 * 1024:
+        raise ValueError(f"Die Datei ist zu groß (höchstens {max_mb} MB).")
+    if not data[:1024].lstrip().startswith(b"%PDF-"):
+        raise ValueError("Nur PDF-Dateien sind erlaubt.")
+    d = file_dir(data_dir)
+    key = uuid.uuid4().hex
+    (d / f"{key}.pdf").write_bytes(data)
+    old = e.file_key
+    e.file_key, e.file_name = key, clean_file_name(name)
+    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF angehängt", None, e.file_name)
+    if old:
+        (d / f"{old}.pdf").unlink(missing_ok=True)
+
+
+def detach_pdf(db: Session, user: User, e: KbEntry, data_dir) -> None:
+    if not e.file_key:
+        return
+    (file_dir(data_dir) / f"{e.file_key}.pdf").unlink(missing_ok=True)
+    log(db, user, "eintrag", e.id, (e.topic_ids or [None])[0], "PDF entfernt", e.file_name, None)
+    e.file_key = e.file_name = None
+
+
+def cleanup_files(db: Session, data_dir) -> int:
+    """PDFs löschen, auf die kein Eintrag mehr zeigt (nach dem Löschen von Einträgen oder Themen)."""
+    d = file_dir(data_dir)
+    used = {k for (k,) in db.execute(select(KbEntry.file_key).where(KbEntry.file_key.is_not(None)))}
+    n = 0
+    for f in d.glob("*.pdf"):
+        if f.stem not in used:
+            f.unlink(missing_ok=True)
+            n += 1
+    return n

@@ -9,6 +9,7 @@
 <li class="kb-d-entry t-{{ e.type }}{{ ' stale' if stale }}" id="e{{ e.id }}">
   {% if show_topics %}<div class="kb-d-topics">{% for t in e.topic_ids if t in by_id %}{{ pick(by_id[t]) }}{{ " · " if not loop.last }}{% endfor %}<span class="kb-typetag t-{{ e.type }}">{{ types[e.type] }}</span></div>{% endif %}
   <p>{{ e.text }}</p>
+  {% if e.file_key %}<a class="kb-pop-file" href="/wissen/datei/{{ e.id }}" target="_blank" rel="noopener">PDF · {{ e.file_name }}</a>{% endif %}
   <div class="kb-d-meta">
     <span>{{ who(e.updated_by or e.author_id) }}, {{ e.updated_at | dt }}</span>
     {% if e.private %}<span class="kb-private">nur für mich</span>{% endif %}

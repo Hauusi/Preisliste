@@ -38,6 +38,9 @@ def create_backup(settings: Settings, keep: int = 14) -> tuple[Path, int]:
             tar.add(db_copy, arcname="preisliste.sqlite3")
             if settings.upload_dir.exists():
                 tar.add(settings.upload_dir, arcname="uploads")
+            wissen = settings.data_dir / "wissen"  # PDF-Anhänge im Vertriebswissen
+            if wissen.exists():
+                tar.add(wissen, arcname="wissen")
         partial.rename(archive)
     archive.chmod(0o600)
     backups = sorted(target_dir.glob("preisliste-*.tar.gz"))

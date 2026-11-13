@@ -577,6 +577,9 @@ class KbEntry(Base):
     flagged_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", name="fk_kb_entries_flagged_by"))
     flagged_at: Mapped[datetime | None] = mapped_column(DateTime)
     flag_note: Mapped[str | None] = mapped_column(String(300))
+    # Anhang (PDF): Originalname zum Anzeigen, Speichername im Ordner data/wissen
+    file_name: Mapped[str | None] = mapped_column(String(200))
+    file_key: Mapped[str | None] = mapped_column(String(64))
 
 
 class KbUnfollow(Base):
