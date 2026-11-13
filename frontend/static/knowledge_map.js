@@ -179,46 +179,63 @@
     if (out.length > lines) { out = out.slice(0, lines); out[lines - 1] = out[lines - 1].replace(/.{0,1}$/, "…"); }
     return out;
   }
+  function measure(it, fs) {
+    var lines = wrapText(it.label, it.kind === "add" || it.kind === "link" ? 30 : 26, 3);
+    var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.8;
+    return { lines: lines, w: w, h: lines.length * fs * 1.3 + fs * 1.0 };
+  }
+  // Blasen im Ring um center, Lücke in Richtung gapDir (wenn gap > 0)
+  function ring(center, cr, sizes, fs, dir, gap) {
+    var n = sizes.length, avg = sizes.reduce(function (s, z) { return s + z.w; }, 0) / Math.max(n, 1);
+    var placed = 0, k = 0, pos = [];
+    while (placed < n && k < 6) {
+      var R = cr + fs * 5 + avg * 0.55 + k * (fs * 4.2 + 30);
+      var cap = Math.max(4, Math.floor((2 * Math.PI - gap) * R * 1.2 / (avg * 0.95 + fs)));
+      var take = Math.min(cap, n - placed);
+      for (var i = 0; i < take; i++) {
+        var ang = dir + gap / 2 + (2 * Math.PI - gap) * (take === 1 ? 0.5 : (i + 0.5) / take) + k * 0.25;
+        pos.push({ x: center.x + Math.cos(ang) * R * 1.35, y: center.y + Math.sin(ang) * R * 0.95 });
+      }
+      placed += take; k++;
+    }
+    return pos;
+  }
   function drawBubbles() {
     if (!bubbleLayer) { return; }
     bubbleLayer.textContent = "";
     if (!bub || !byId[bub.anchor]) { return; }
-    var a = byId[bub.anchor], fs = 13 * view.w / Math.max(box.clientWidth, 1), items = bub.items, n = items.length;  // Bildschirmschrift ~13 px
-    if (!n) { return; }
-    var sizes = items.map(function (it) {
-      var lines = wrapText(it.label, it.kind === "add" || it.kind === "link" ? 30 : 26, 3);
-      var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * fs * 0.56 + fs * 1.8;
-      return { lines: lines, w: w, h: lines.length * fs * 1.3 + fs * 1.0 };
-    });
-    // Lücke in Richtung des Herstellers (Pfeil), sonst ringsum; bei vielen Blasen zweiter/dritter Ring
+    var a = byId[bub.anchor], fs = 13 * view.w / Math.max(box.clientWidth, 1), items = bub.items;  // Bildschirmschrift ~13 px
+    if (!items.length) { return; }
+    var sizes = items.map(function (it) { return measure(it, fs); });
+    // Lücke in Richtung des Herstellers (Pfeil), sonst ringsum
     var gap = 0, dir = -Math.PI / 2;
     if (bub.from && byId[bub.from]) { var f = byId[bub.from]; dir = Math.atan2(f.y - a.y, f.x - a.x); gap = Math.PI / 2.2; }
-    var avg = sizes.reduce(function (s, z) { return s + z.w; }, 0) / n;
-    var placed = 0, ring = 0, pos = [];
-    while (placed < n && ring < 6) {
-      var R = (a.r || 12) + fs * 5 + avg * 0.55 + ring * (fs * 4.2 + 30);
-      var cap = Math.max(4, Math.floor((2 * Math.PI - gap) * R * 1.2 / (avg * 0.95 + fs)));
-      var take = Math.min(cap, n - placed);
-      for (var i = 0; i < take; i++) {
-        var ang = dir + gap / 2 + (2 * Math.PI - gap) * (take === 1 ? 0.5 : (i + 0.5) / take) + ring * 0.25;
-        pos.push({ x: a.x + Math.cos(ang) * R * 1.35, y: a.y + Math.sin(ang) * R * 0.95 });
-      }
-      placed += take; ring++;
+    var pos = ring(a, a.r || 12, sizes, fs, dir, gap);
+    var all = items.map(function (it, i) { return { it: it, p: pos[i], z: sizes[i], from: a, level: 0 }; });
+    // Unter-Blasen (z. B. Serie aufgeklappt): Ring um die Eltern-Blase, Lücke Richtung Mitte
+    var parent = bub.sub && all.filter(function (x) { return x.it.key === bub.sub.key; })[0];
+    if (parent) {
+      var subSizes = bub.sub.items.map(function (it) { return measure(it, fs); });
+      var sd = Math.atan2(a.y - parent.p.y, a.x - parent.p.x);
+      var sp = ring(parent.p, Math.max(parent.z.w, parent.z.h) / 2.4, subSizes, fs, sd, Math.PI / 1.8);
+      bub.sub.items.forEach(function (it, i) { all.push({ it: it, p: sp[i], z: subSizes[i], from: parent.p, level: 1 }); });
+      parent.open = true;
     }
     // Überlappungen auflösen: Blasen gegeneinander und von den gewählten Punkten wegschieben
     var fixed = [a].concat(bub.from && byId[bub.from] ? [byId[bub.from]] : []);
     var pad = fs * 0.7;
-    for (var it = 0; it < 120; it++) {
+    for (var round = 0; round < 160; round++) {
       var movedAny = false;
-      for (var i1 = 0; i1 < pos.length; i1++) {
-        var p1 = pos[i1], z1 = sizes[i1];
-        for (var i2 = i1 + 1; i2 < pos.length; i2++) {
-          var p2 = pos[i2], z2 = sizes[i2];
+      for (var i1 = 0; i1 < all.length; i1++) {
+        var p1 = all[i1].p, z1 = all[i1].z;
+        for (var i2 = i1 + 1; i2 < all.length; i2++) {
+          var p2 = all[i2].p, z2 = all[i2].z;
           var ox = (z1.w + z2.w) / 2 + pad - Math.abs(p1.x - p2.x), oy = (z1.h + z2.h) / 2 + pad - Math.abs(p1.y - p2.y);
           if (ox > 0 && oy > 0) {
             movedAny = true;
-            if (ox < oy * 1.6) { var sx = (p1.x < p2.x ? -1 : 1) * ox / 2; p1.x += sx; p2.x -= sx; }
-            else { var sy = (p1.y < p2.y ? -1 : 1) * oy / 2; p1.y += sy; p2.y -= sy; }
+            var w1 = all[i1].open ? 0.15 : 0.5, w2 = 1 - w1;  // aufgeklappte Eltern-Blase bleibt eher stehen
+            if (ox < oy * 1.6) { var sx = (p1.x < p2.x ? -1 : 1) * ox; p1.x += sx * w1; p2.x -= sx * w2; }
+            else { var sy = (p1.y < p2.y ? -1 : 1) * oy; p1.y += sy * w1; p2.y -= sy * w2; }
           }
         }
         fixed.forEach(function (q) {  // Punkt samt Namen frei lassen
@@ -233,10 +250,11 @@
       if (!movedAny) { break; }
     }
     var lines = el("g", { "class": "m-bub-links" }, bubbleLayer);
-    items.forEach(function (it, i) {
-      var p = pos[i], z = sizes[i]; if (!p) { return; }
-      el("line", { x1: a.x, y1: a.y, x2: p.x, y2: p.y, "class": "m-bub-link b-" + it.type }, lines);
-      var g = el("g", { "class": "m-bub b-" + it.type + (it.stale ? " stale" : "") + (it.kind === "add" || it.kind === "zuordnen" ? " act" : ""),
+    all.forEach(function (x) {
+      var it = x.it, p = x.p, z = x.z; if (!p) { return; }
+      el("line", { x1: x.from.x, y1: x.from.y, x2: p.x, y2: p.y, "class": "m-bub-link b-" + it.type + (x.level ? " sub" : "") }, lines);
+      var g = el("g", { "class": "m-bub b-" + it.type + (it.stale ? " stale" : "") + (it.kind === "add" || it.kind === "zuordnen" ? " act" : "")
+                          + (x.level ? " sub" : "") + (x.open ? " open" : "") + (bub.sub && !x.level && !x.open ? " dim" : ""),
                         transform: "translate(" + (p.x - z.w / 2).toFixed(1) + "," + (p.y - z.h / 2).toFixed(1) + ")", role: "button", tabindex: "0" }, bubbleLayer);
       el("rect", { width: z.w.toFixed(1), height: z.h.toFixed(1), rx: Math.min(z.h / 2, fs * 1.2).toFixed(1) }, g);
       z.lines.forEach(function (l, k) {
@@ -245,14 +263,13 @@
         t.textContent = l;
       });
       var title = el("title", {}, g); title.textContent = it.text || it.label;
-      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { bubble: i }; moved = false; });
-      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); bubbleEvent(i, g); } });
-      it.g = g;
+      g.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); drag = { bubble: it, g: g }; moved = false; });
+      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); bubbleEvent(it, g); } });
     });
   }
-  function bubbleEvent(i, g) {
+  function bubbleEvent(it, g) {
     var r = g.getBoundingClientRect(), o = box.getBoundingClientRect();
-    document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: bub.items[i],
+    document.dispatchEvent(new CustomEvent("kb:bubble", { detail: { item: it,
       x: r.left - o.left + r.width / 2, y: r.top - o.top + r.height, top: r.top - o.top } }));
   }
   // Ansicht so legen, dass Punkt und alle Blasen zu sehen sind
@@ -264,7 +281,10 @@
     var y0 = Math.min(bb.y, Math.min.apply(null, pts.map(function (p) { return p.y - 40; }))), y1 = Math.max(bb.y + bb.height, Math.max.apply(null, pts.map(function (p) { return p.y + 50; })));
     var ratio = box.clientWidth / box.clientHeight, w = (x1 - x0) * 1.1, h = (y1 - y0) * 1.15;
     if (w / h < ratio) { w = h * ratio; } else { h = w / ratio; }
-    view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w: Math.max(w, 300), h: Math.max(h, 300 / ratio) };
+    // nicht stark hineinzoomen: höchstens Originalgröße (1 Karteneinheit = 1 Bildschirmpixel)
+    var minW = box.clientWidth * 1.15;
+    if (w < minW) { w = minW; h = w / ratio; }
+    view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w: w, h: h };
     applyView(); applyView();  // zweimal: Schriftgröße hängt vom Zoom ab, Blasen werden danach neu vermessen
   }
   function drawPair() {
@@ -533,7 +553,7 @@
   function pickEvent(id, keep) { document.dispatchEvent(new CustomEvent("kb:pick", { detail: { id: id, from: "map", keep: !!keep } })); }
   function endDrag() {
     if (drag && !moved && drag.bubble !== undefined) {
-      var i = drag.bubble; drag = null; if (bub && bub.items[i]) { bubbleEvent(i, bub.items[i].g); } return;
+      var hit = drag; drag = null; bubbleEvent(hit.bubble, hit.g); return;
     }
     if (drag && drag.bubble !== undefined) { drag = null; moved = false; return; }
     if (drag && !moved) {
@@ -730,6 +750,11 @@
     show: function () { fit(); },
     ready: function () { return !!data; },
     // Blasen setzen: anchor = Punkt, um den sie stehen; from = Hersteller (Lücke Richtung Pfeil); items = Infos
+    subBubbles: function (key, items) {  // Blase aufklappen (z. B. Serie) bzw. mit key=null zuklappen
+      if (!bub) { return; }
+      bub.sub = key ? { key: key, items: items || [] } : null;
+      drawBubbles(); frameBubbles();
+    },
     bubbles: function (anchor, from, items) {
       bub = anchor ? { anchor: anchor, from: from, items: items || [] } : null;
       svg.classList.toggle("bubbling", !!bub);  // übrige Karte fast ausblenden, nur Auswahl und Blasen zählen

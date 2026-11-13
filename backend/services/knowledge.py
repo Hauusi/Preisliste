@@ -1366,10 +1366,12 @@ def bubbles(db: Session, user: User, maker: KbTopic | None, group: KbTopic | Non
                         "link": f"/wissen/{group.id}#p{r['p'].id}"})
         for s in series:
             mk = f" ({by_id[s.maker_id].name})" if maker is None and s.maker_id in by_id else ""
-            out.append({"key": f"s{s.id}", "kind": "serie", "type": "serie", "label": f"Serie {s.name}{mk}",
-                        "text": f"Serie {s.name}{mk}", "stale": False, "series": s.id})
+            nm = s.name if s.name.lower().startswith("serie") else f"Serie {s.name}"  # nicht „Serie Serie Spartan“
+            cnt = len(entries_for(db, user, s.id)) + len(free_facts(db, s.id)) + sum(len(v) for v in field_facts(db, s.id).values())
+            out.append({"key": f"s{s.id}", "kind": "serie", "type": "serie", "label": f"{nm}{mk} ({cnt}) ›",
+                        "text": f"{nm}{mk}: anklicken zeigt ihre Infos", "stale": False, "series": s.id, "name": s.name})
         seen = set()
-        for e in entries_for(db, user, group.id) + [x for s in series for x in entries_for(db, user, s.id)]:
+        for e in entries_for(db, user, group.id):  # Serien-Einträge stehen hinter der Serien-Blase
             if e.id in seen:
                 continue
             seen.add(e.id)
